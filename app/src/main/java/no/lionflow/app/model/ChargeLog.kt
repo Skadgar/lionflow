@@ -273,7 +273,7 @@ object ChargeLog {
     /** OpenStreetMap Nominatim (free). Returns "Street 12, City". */
     suspend fun reverseGeocode(lat: Double, lon: Double): String? = withContext(Dispatchers.IO) {
         val url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=$lat&lon=$lon"
-        val j = JSONObject(Http.text(Request.Builder().url(url).header("User-Agent", Http.USER_AGENT).build()))
+        val j = JSONObject(Http.text(Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).build()))
         val a = j.optJSONObject("address") ?: return@withContext j.optString("display_name").takeIf { it.isNotBlank() }
         val street = listOf(a.optString("road"), a.optString("house_number")).filter { it.isNotBlank() }.joinToString(" ")
         val city = listOf("city", "town", "village", "municipality", "suburb").map { a.optString(it) }.firstOrNull { it.isNotBlank() } ?: ""
@@ -283,7 +283,7 @@ object ChargeLog {
     /** Address → coordinates (Nominatim). */
     suspend fun geocode(address: String): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=" + URLEncoder.encode(address, "UTF-8")
-        val a = JSONArray(Http.text(Request.Builder().url(url).header("User-Agent", Http.USER_AGENT).build()))
+        val a = JSONArray(Http.text(Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).build()))
         if (a.length() == 0) null else a.getJSONObject(0).let { it.getString("lat").toDouble() to it.getString("lon").toDouble() }
     }
 

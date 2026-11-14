@@ -34,7 +34,7 @@ object WeatherApi {
             .addQueryParameter("lat", String.format(Locale.US, "%.4f", lat))
             .addQueryParameter("lon", String.format(Locale.US, "%.4f", lon))
             .build()
-        val req = Request.Builder().url(url).header("User-Agent", Http.USER_AGENT).get().build()
+        val req = Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).get().build()
         val j = Http.json(req) as JSONObject
         val series = j.obj("properties")?.optJSONArray("timeseries") ?: JSONArray()
         val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }

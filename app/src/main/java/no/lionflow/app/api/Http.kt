@@ -17,7 +17,10 @@ object Http {
         .callTimeout(90, TimeUnit.SECONDS)
         .build()
 
-    const val USER_AGENT = "LionFlow/1.0 (personal app; github.com/thocubeat/lionflow)"
+    /** Sent to Peugeot and everything else. */
+    const val USER_AGENT = "LionFlow/1.0"
+    /** MET Norway and OpenStreetMap's address search require a contact in the User-Agent. */
+    const val CONTACT_AGENT = "LionFlow/1.0 (github.com/thocubeat/lionflow)"
 
     suspend fun text(req: Request): String = withContext(Dispatchers.IO) {
         client.newCall(req).execute().use { resp ->

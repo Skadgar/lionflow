@@ -213,20 +213,25 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
         } else {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxWidth()) { TabContent(vm, ui, settings, wide = false, expanded = false) }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(c.navLine))
                 Row(
-                    Modifier.fillMaxWidth().background(c.nav).windowInsetsPadding(WindowInsets.navigationBars).padding(top = 8.dp, bottom = 8.dp),
+                    Modifier.fillMaxWidth().background(c.bg).windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(30.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(30.dp))
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                 ) {
                     for (item in phoneTabs) {
                         val active = ui.tab == item.tab || (item.tab == Tab.Home && ui.tab == Tab.Trips)
                         Column(
-                            Modifier.width(64.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Tab) { vm.setTab(item.tab) }.padding(vertical = 4.dp),
+                            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Tab) { vm.setTab(item.tab) }.padding(vertical = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            LfIcon(item.icon, if (active) c.accentInk else c.muted, 22.dp, item.label)
-                            Text(item.label, style = Type.tiny.copy(fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium), color = if (active) c.accentInk else c.muted)
+                            Box(Modifier.width(52.dp).height(32.dp).clip(CircleShape).background(if (active) c.accent else Color.Transparent), contentAlignment = Alignment.Center) {
+                                LfIcon(item.icon, if (active) c.onAccent else c.text2, 22.dp, item.label)
+                            }
+                            Text(item.label, style = Type.tiny.copy(fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium),
+                                color = if (active) c.accentInk else c.text2, maxLines = 1)
                         }
                     }
                 }

@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import no.lionflow.app.ui.l10n.Text
@@ -83,7 +87,231 @@ fun HomeScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean, exp
             }
         }
     } else {
-        ScreenColumn { HomeMain(vm, ui, s) }
+        HomePhone(vm, ui, s)
+    }
+}
+
+/** Phone home: full-width car photo with the name and status on it, then battery, lock state and actions. */
+@Composable
+private fun HomePhone(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    Column(Modifier.fillMaxWidth().verticalScroll(scroll)) {
+        Hero(vm, ui, s)
+        Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            UpdateCard(vm, ui)
+            BatteryCard(vm, ui, s)
+            LockLine(ui)
+            QuickActions(vm, ui)
+            NavCards(vm, ui, s)
+        }
+    }
+}
+
+private val OnPhoto = androidx.compose.ui.graphics.Color(0xFFF4F5F7)
+private val OnPhotoMuted = androidx.compose.ui.graphics.Color(0xD9E6E8EC)
+
+@Composable
+private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val st = ui.status
+    var spins by remember { mutableIntStateOf(0) }
+    val angle by animateFloatAsState(spins * 360f, tween(900), label = "spin")
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) vm.savePhoto(uri) }
+    val path = ui.photoPath?.substringBefore("?")
+    val bmp = remember(ui.photoPath) {
+        path?.let { try { BitmapFactory.decodeFile(it, BitmapFactory.Options().apply { inSampleSize = 2 })?.asImageBitmap() } catch (_: Exception) { null } }
+    }
+    val pick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    Box(Modifier.fillMaxWidth().height(400.dp)) {
+        if (bmp != null) {
+            Image(bmp, "Photo of your car", Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+        } else {
+            Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF23272D), Color(0xFF15171A)))))
+        }
+        // Shade at the top and bottom so the text stays readable on any photo, fading into the page.
+        Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(
+            0f to Color(0xA6000000), 0.32f to Color(0x00000000), 0.62f to Color(0x00000000), 0.9f to c.bg.copy(alpha = 0.85f), 1f to c.bg,
+        )))
+
+        // Top: brand, car name, last update, buttons
+        Row(Modifier.fillMaxWidth().windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LionLogo(22.dp)
+                    Text(buildAnnotatedString { append("Lion"); withStyle(SpanStyle(color = c.accent)) { append("Flow") } },
+                        style = Type.display.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold), color = OnPhoto)
+                }
+                Text(s.carName, style = Type.title.copy(fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp), color = OnPhoto, maxLines = 1)
+                Text(
+                    if (ui.refreshing) "Waking car…" else "Updated ${minutesAgo(st?.updatedAtMillis ?: ui.lastRefresh, ui.now)}",
+                    style = Type.small, color = OnPhotoMuted,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.rotate(angle)) { GlassButton(LfIcons.Refresh, "Refresh car data now") { spins++; vm.refresh() } }
+                GlassButton(if (c.isDark) LfIcons.Sun else LfIcons.Moon, if (c.isDark) "Switch to light mode" else "Switch to dark mode") {
+                    vm.settings.update { it.copy(theme = if (c.isDark) "light" else "dark") }
+                }
+            }
+        }
+
+        if (bmp == null) {
+            Column(Modifier.align(Alignment.Center).clip(RoundedCornerShape(20.dp)).clickable { pick() }.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(52.dp).clip(CircleShape).background(Color(0x33FFFFFF)), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Camera, c.accent, 24.dp) }
+                Spacer(Modifier.height(8.dp))
+                Text("Add a photo of your car", style = Type.label, color = OnPhoto)
+                Text("Saved on this phone", style = Type.tiny, color = OnPhotoMuted)
+            }
+        }
+
+        // Bottom: change photo, weather, parked/driving
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (bmp != null) Row(
+                Modifier.align(Alignment.End).clip(CircleShape).background(Color(0xB30D0E10)).clickable { pick() }.padding(horizontal = 14.dp, vertical = 9.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LfIcon(LfIcons.Camera, OnPhoto, 16.dp)
+                Text("Change photo", style = Type.small.copy(fontWeight = FontWeight.Medium), color = OnPhoto)
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val w = ui.weather
+                Row(Modifier.weight(1f).clickable { vm.setTab(Tab.Climate) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (w != null) {
+                        LfIcon(LfIcons.Cloud, c.text, 22.dp)
+                        Text("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)}", style = Type.body, color = c.text)
+                    }
+                }
+                if (st != null) Row(Modifier.clickable { vm.setTab(Tab.Map) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LfIcon(LfIcons.Pin, c.text, 20.dp)
+                    Text(if (st.moving) "Driving" else "Parked", style = Type.body, color = c.text)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(52.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(0x8C1A1C20))
+            .border(1.dp, androidx.compose.ui.graphics.Color(0x26FFFFFF), CircleShape)
+            .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { LfIcon(icon, OnPhoto, 24.dp) }
+}
+
+@Composable
+private fun UpdateCard(vm: AppViewModel, ui: UiState) {
+    val c = LocalLf.current
+    ui.update?.takeIf { ui.updateDismissed }?.let { r ->
+        val platform = no.lionflow.app.ui.LocalPlatform.current
+        LfCard(radius = 20.dp, padding = androidx.compose.foundation.layout.PaddingValues(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LfIcon(LfIcons.Download, c.accentInk, 22.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("Update ${r.tag} is ready", style = Type.label, color = c.text)
+                    Text(ui.updateStatus ?: "Signed with LionFlow's key · installs in a few seconds", style = Type.tiny, color = c.muted)
+                }
+                val busy = ui.updateStatus?.let { it.startsWith("Downloading") || it.startsWith("Installing") } == true
+                if (busy) no.lionflow.app.ui.Busy()
+                else Text(if (ui.needsInstallPermission) "Allow" else "Install", style = Type.label, color = c.accentInk,
+                    modifier = Modifier.clickable { if (ui.needsInstallPermission) platform.openInstallPermission() else vm.installUpdate() }.padding(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun BatteryCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val st = ui.status
+    LfCard(onClick = { vm.setTab(Tab.Charging) }, radius = 28.dp, padding = androidx.compose.foundation.layout.PaddingValues(22.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (st?.energyType == "Fuel") "Fuel" else "Battery", style = Type.body, color = c.muted)
+                Text(buildAnnotatedString {
+                    append(st?.batteryPct?.let { "${it.toInt()}" } ?: "—")
+                    withStyle(SpanStyle(fontSize = 30.sp)) { append(" %") }
+                }, style = Type.big.copy(fontSize = 64.sp, fontWeight = FontWeight.Bold), color = c.text)
+            }
+            Column(
+                Modifier.clip(RoundedCornerShape(20.dp)).background(c.accent).padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                val parts = fmtDistance(st?.rangeKm, s).split(" ")
+                Text(buildAnnotatedString {
+                    withStyle(SpanStyle(fontSize = 22.sp)) { append("≈") }
+                    append(parts.firstOrNull() ?: "—")
+                    if (parts.size > 1) withStyle(SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold)) { append(" " + parts.drop(1).joinToString(" ")) }
+                }, style = Type.display.copy(fontSize = 34.sp, fontWeight = FontWeight.Bold), color = c.onAccent)
+                Text(if (st?.rangeEstimated == true) "Range (est.)" else "Range", style = Type.small.copy(fontWeight = FontWeight.Medium), color = c.onAccent)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        ProgressBar(((st?.batteryPct ?: 0.0) / 100.0).toFloat(), c.meter)
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LfIcon(if (st?.isCharging == true) LfIcons.Bolt else LfIcons.Plug, if (st?.isCharging == true) c.accentInk else c.text2, 20.dp)
+            Text(chargingLine(st), style = Type.body, color = c.text2, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun LockLine(ui: UiState) {
+    val c = LocalLf.current
+    val st = ui.status
+    val (icon, text, tint) = when (st?.locked) {
+        true -> Triple(LfIcons.Lock, if (st.openDoors.isEmpty()) "Locked · Doors closed" else "Locked", c.accentInk)
+        false -> Triple(LfIcons.Unlock, "Unlocked", c.orangeInk)
+        null -> Triple(LfIcons.Lock, "Doors —", c.muted)
+    }
+    Row(Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        LfIcon(icon, tint, 24.dp)
+        Text(text, style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+    }
+}
+
+@Composable
+private fun QuickActions(vm: AppViewModel, ui: UiState) {
+    val c = LocalLf.current
+    val st = ui.status
+    val confirm = LocalConfirm.current
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        val locked = st?.locked ?: true
+        QuickAction(Modifier.weight(1f), if (locked) LfIcons.Lock else LfIcons.Unlock, if (locked) "Unlock" else "Lock", highlighted = true, busy = ui.commandInProgress == "Lock" || ui.commandInProgress == "Unlock") {
+            confirm(if (locked) "Unlock your car" else "Lock your car") { vm.lockCar(!locked) }
+        }
+        QuickAction(Modifier.weight(1f), LfIcons.Bulb, "Flash", busy = ui.commandInProgress == "Flash lights") { confirm("Flash the lights") { vm.lights() } }
+        QuickAction(Modifier.weight(1f), LfIcons.Horn, "Horn", busy = ui.commandInProgress == "Horn") { confirm("Sound the horn") { vm.horn() } }
+        QuickAction(Modifier.weight(1f), LfIcons.Pin, "Find car") { vm.setTab(Tab.Map) }
+    }
+    if (!vm.remoteReady) {
+        Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+            modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 4.dp))
+    }
+}
+
+@Composable
+private fun NavCards(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val st = ui.status
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        NavCard(Modifier.weight(1f), LfIcons.Route, "Trips", "See your drives") { vm.setTab(Tab.Trips); vm.loadTrips() }
+        NavCard(Modifier.weight(1f), LfIcons.Wrench, "Service", st?.kmToService?.let { "In ${fmtDistance(it, s)}" } ?: "View service details") { vm.setTab(Tab.Service) }
+    }
+}
+
+@Composable
+private fun NavCard(modifier: Modifier, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    val c = LocalLf.current
+    LfCard(modifier, radius = 24.dp, padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 18.dp), onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LfIcon(icon, c.text, 28.dp)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = Type.stat.copy(fontSize = 20.sp), color = c.text, maxLines = 1)
+                Text(subtitle, style = Type.small, color = c.muted, maxLines = 1)
+            }
+            LfIcon(LfIcons.Chevron, c.muted, 20.dp)
+        }
     }
 }
 
@@ -259,14 +487,14 @@ private fun SmallCard(modifier: Modifier, icon: ImageVector, tint: androidx.comp
 @Composable
 private fun QuickAction(modifier: Modifier, icon: ImageVector, label: String, highlighted: Boolean = false, busy: Boolean = false, onClick: () -> Unit) {
     val c = LocalLf.current
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(22.dp)
     Column(
-        modifier.heightIn(min = 72.dp).clip(shape).background(if (highlighted) c.accent else c.card).border(1.dp, c.line, shape)
-            .clickable(role = Role.Button, onClick = onClick).padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.heightIn(min = 96.dp).clip(shape).background(if (highlighted) c.accent else c.card).border(1.dp, if (highlighted) c.accent else c.line, shape)
+            .clickable(role = Role.Button, onClick = onClick).padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
-        if (busy) no.lionflow.app.ui.Busy() else LfIcon(icon, if (highlighted) c.onAccent else c.text, 22.dp)
-        Text(label, style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = if (highlighted) c.onAccent else c.text)
+        if (busy) no.lionflow.app.ui.Busy() else LfIcon(icon, if (highlighted) c.onAccent else c.text, 28.dp)
+        Text(label, style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = if (highlighted) c.onAccent else c.text, maxLines = 1)
     }
 }
 
