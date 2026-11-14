@@ -171,14 +171,12 @@ fun LionFlowRoot(vm: AppViewModel, platform: Platform) {
 
 private data class NavItem(val tab: Tab, val label: String, val icon: ImageVector)
 
-private val phoneTabs = listOf(
+/** All tabs in menu order. The phone menu shows as many as fit; the rest go under "More". */
+private val allTabs = listOf(
     NavItem(Tab.Home, "Home", LfIcons.Home),
     NavItem(Tab.Charging, "Charging", LfIcons.Bolt),
     NavItem(Tab.Climate, "Climate", LfIcons.Thermo),
     NavItem(Tab.Trips, "Trips", LfIcons.Route),
-)
-/** Opened from "More" in the phone menu. */
-private val moreTabs = listOf(
     NavItem(Tab.Map, "Map", LfIcons.Map),
     NavItem(Tab.Service, "Service", LfIcons.Wrench),
     NavItem(Tab.Settings, "Settings", LfIcons.Gear),
@@ -199,6 +197,7 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
     BackHandler(enabled = ui.tab != Tab.Home) { vm.setTab(Tab.Home) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 600.dp
+        val screenWidth = maxWidth
         val expanded = maxWidth >= 900.dp
         if (wide) {
             Row(Modifier.fillMaxSize()) {
@@ -224,31 +223,37 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                         .padding(horizontal = 4.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                 ) {
-                    for (item in phoneTabs) {
+                    // About 72 dp per button: show all if they fit, otherwise keep room for "More".
+                    val fit = ((screenWidth - 40.dp) / 72.dp).toInt()
+                    val shown = if (fit >= allTabs.size) allTabs else allTabs.take((fit - 1).coerceAtLeast(3))
+                    val moreTabs = allTabs - shown.toSet()
+                    for (item in shown) {
                         PhoneNavItem(item.icon, item.label, ui.tab == item.tab, Modifier.weight(1f)) {
                             vm.setTab(item.tab); if (item.tab == Tab.Trips) vm.loadTrips()
                         }
                     }
-                    // "More": the rest of the tabs in a vertical list
+                    if (moreTabs.isNotEmpty()) {
                     var moreOpen by remember { mutableStateOf(false) }
                     Box(Modifier.weight(1f)) {
                         PhoneNavItem(LfIcons.Menu, "More", moreTabs.any { it.tab == ui.tab }, Modifier.fillMaxWidth()) { moreOpen = true }
+                        // Anchored to the far-right button, so the list lines up with the right edge.
                         androidx.compose.material3.DropdownMenu(
                             expanded = moreOpen, onDismissRequest = { moreOpen = false },
                             containerColor = c.card, shape = RoundedCornerShape(20.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, c.line),
-                            offset = androidx.compose.ui.unit.DpOffset((-60).dp, (-8).dp),
+                            offset = androidx.compose.ui.unit.DpOffset(0.dp, (-8).dp),
                         ) {
                             for (item in moreTabs) {
                                 val active = ui.tab == item.tab
                                 androidx.compose.material3.DropdownMenuItem(
                                     text = { Text(item.label, style = Type.body.copy(fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal), color = if (active) c.accentInk else c.text) },
                                     leadingIcon = { LfIcon(item.icon, if (active) c.accentInk else c.text2, 22.dp) },
-                                    onClick = { moreOpen = false; vm.setTab(item.tab) },
+                                    onClick = { moreOpen = false; vm.setTab(item.tab); if (item.tab == Tab.Trips) vm.loadTrips() },
                                     modifier = Modifier.widthIn(min = 200.dp),
                                 )
                             }
                         }
+                    }
                     }
                 }
             }

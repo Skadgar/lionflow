@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "LionFlow"
 include(":app")
+include(":wear")
