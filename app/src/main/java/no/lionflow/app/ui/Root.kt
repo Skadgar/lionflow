@@ -174,8 +174,12 @@ private data class NavItem(val tab: Tab, val label: String, val icon: ImageVecto
 private val phoneTabs = listOf(
     NavItem(Tab.Home, "Home", LfIcons.Home),
     NavItem(Tab.Charging, "Charging", LfIcons.Bolt),
-    NavItem(Tab.Map, "Map", LfIcons.Map),
     NavItem(Tab.Climate, "Climate", LfIcons.Thermo),
+    NavItem(Tab.Trips, "Trips", LfIcons.Route),
+)
+/** Opened from "More" in the phone menu. */
+private val moreTabs = listOf(
+    NavItem(Tab.Map, "Map", LfIcons.Map),
     NavItem(Tab.Service, "Service", LfIcons.Wrench),
     NavItem(Tab.Settings, "Settings", LfIcons.Gear),
 )
@@ -221,22 +225,49 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                     horizontalArrangement = Arrangement.SpaceAround,
                 ) {
                     for (item in phoneTabs) {
-                        val active = ui.tab == item.tab || (item.tab == Tab.Home && ui.tab == Tab.Trips)
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Tab) { vm.setTab(item.tab) }.padding(vertical = 2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        PhoneNavItem(item.icon, item.label, ui.tab == item.tab, Modifier.weight(1f)) {
+                            vm.setTab(item.tab); if (item.tab == Tab.Trips) vm.loadTrips()
+                        }
+                    }
+                    // "More": the rest of the tabs in a vertical list
+                    var moreOpen by remember { mutableStateOf(false) }
+                    Box(Modifier.weight(1f)) {
+                        PhoneNavItem(LfIcons.Menu, "More", moreTabs.any { it.tab == ui.tab }, Modifier.fillMaxWidth()) { moreOpen = true }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = moreOpen, onDismissRequest = { moreOpen = false },
+                            containerColor = c.card, shape = RoundedCornerShape(20.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, c.line),
+                            offset = androidx.compose.ui.unit.DpOffset((-60).dp, (-8).dp),
                         ) {
-                            Box(Modifier.width(52.dp).height(32.dp).clip(CircleShape).background(if (active) c.accent else Color.Transparent), contentAlignment = Alignment.Center) {
-                                LfIcon(item.icon, if (active) c.onAccent else c.text2, 22.dp, item.label)
+                            for (item in moreTabs) {
+                                val active = ui.tab == item.tab
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(item.label, style = Type.body.copy(fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal), color = if (active) c.accentInk else c.text) },
+                                    leadingIcon = { LfIcon(item.icon, if (active) c.accentInk else c.text2, 22.dp) },
+                                    onClick = { moreOpen = false; vm.setTab(item.tab) },
+                                    modifier = Modifier.widthIn(min = 200.dp),
+                                )
                             }
-                            Text(item.label, style = Type.tiny.copy(fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium),
-                                color = if (active) c.accentInk else c.text2, maxLines = 1)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PhoneNavItem(icon: ImageVector, label: String, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = LocalLf.current
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).clickable(role = Role.Tab, onClick = onClick).padding(vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(Modifier.width(52.dp).height(32.dp).clip(CircleShape).background(if (active) c.accent else Color.Transparent), contentAlignment = Alignment.Center) {
+            LfIcon(icon, if (active) c.onAccent else c.text2, 22.dp, label)
+        }
+        Text(label, style = Type.tiny.copy(fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium), color = if (active) c.accentInk else c.text2, maxLines = 1)
     }
 }
 
