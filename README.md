@@ -17,7 +17,7 @@ LionFlow is a free, open-source Android app for your own connected Peugeot. It's
 - **Pre-heating schedules:** set "ready at 07:00, Monday to Friday" in a few taps.
 - **Range that makes sense:** when Peugeot's server reports 0 km by mistake, LionFlow estimates from your own driving instead.
 - **Clear errors:** when something fails you get the actual reason and code, not a generic "try again later".
-- **More on screen:** a home-screen widget, a free 2D/3D charger map, local weather and forecast, and layouts for foldables and tablets.
+- **More on screen:** a Wear OS watch app, a home-screen widget, a free 2D/3D charger map, local weather and forecast, and layouts for foldables and tablets.
 - **Your language:** English, French, German, Spanish or Norwegian (Settings → Appearance → Language), or follow the phone.
 - **Several cars:** switch between the cars on your MyPeugeot account, including petrol and diesel ones (fuel level and range).
 - **Private and secure:** no ads, no analytics, no tracking. Sign-in tokens are encrypted on the phone, and remote actions can require your fingerprint. All the code is public, so anyone can check what it does.
@@ -51,6 +51,26 @@ Automatic updates can be turned off under Settings › Driving data. The refresh
 The Charging tab logs every charging session: when, from what % to what %, energy (kWh), duration, average and peak kW, AC or DC, and where.
 
 Under **Places & prices**, set your **Home** (sessions within 50 m count as home) and up to **5 known chargers** (work, cabin, a free charger) with a price per kWh. You can also set prices for other AC and DC chargers. The log shows home vs away kWh and estimated costs for the last 30 days. Everything stays on the phone.
+
+## Wear OS watch
+
+LionFlow also has a watch app for Wear OS (Wear OS 3 or newer). It shows battery % and range, kilometres driven today and yesterday, and where the car is parked. You can lock or unlock, flash the lights and start pre-heating, and every action asks you to confirm first.
+
+The watch gets everything through LionFlow on your phone, so your Peugeot sign-in stays on the phone. Keep the phone app updated and signed in.
+
+**Install on the watch:**
+
+1. Download `Watch-LionFlow-1.0.x.apk` from the [latest release](https://github.com/thocubeat/lionflow/releases/latest) to your computer, and install [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (adb).
+2. On the watch: **Settings → System → About** → tap **Build number** 7 times. Then in **Developer options**, turn on **ADB debugging** and **Wireless debugging**.
+3. Under Wireless debugging, tap **Pair new device** and run these on the computer, using the address and code the watch shows:
+   ```
+   adb pair <IP:port> <code>
+   adb connect <IP:port>
+   adb install Watch-LionFlow-1.0.x.apk
+   ```
+4. Open LionFlow on the watch. Your phone needs to be nearby, with LionFlow installed.
+
+The watch app doesn't update itself. Install a new version the same way when you want it.
 
 ## Features
 
