@@ -78,7 +78,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Ready at " + String.format(Locale.US, "%02d:%02d", p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
+                    Text("Ready at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
                     Text(daysText(p.days), style = Type.small, color = c.muted)
                 }
                 Toggle(p.enabled, "Schedule on") { on ->
@@ -114,7 +114,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
 @Composable
 private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit, onDelete: () -> Unit, onClose: () -> Unit) {
     val c = LocalLf.current
-    val time = rememberTimePickerState(initialHour = p.hour.coerceIn(0, 23), initialMinute = p.minute.coerceIn(0, 59), is24Hour = true)
+    val time = rememberTimePickerState(initialHour = p.hour.coerceIn(0, 23), initialMinute = p.minute.coerceIn(0, 59), is24Hour = no.lionflow.app.ui.l10n.TimeFmt.use24)
     var days by remember { mutableStateOf(p.days.toSet()) }
     AlertDialog(
         onDismissRequest = onClose, containerColor = c.card,

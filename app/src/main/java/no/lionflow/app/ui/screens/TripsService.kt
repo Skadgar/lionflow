@@ -113,7 +113,7 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
         if (list.isEmpty() && !ui.tripsLoading) Text("No trips in this period.", style = Type.small, color = c.muted)
         if (list.isNotEmpty()) {
             LfCard(padding = PaddingValues(0.dp)) {
-                val fmt = SimpleDateFormat("EEE d MMM · HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
+                val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM · HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
                 list.take(50).forEachIndexed { i, t ->
                     if (i > 0) Divider()
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {

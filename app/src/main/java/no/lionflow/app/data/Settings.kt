@@ -26,7 +26,8 @@ data class AppSettings(
     val wakeOnOpen: Boolean = true,
     val autoUpdate: Boolean = true,
     val chargerSource: String = "osm", // osm (free, no key) | nobil (needs key)
-    val language: String = "system",  // system | en | fr | de | es | nb
+    val language: String = "system",
+    val timeFormat: String = "system",   // system | 24 | 12  // system | en | fr | de | es | nb
     val carActions: Boolean = true,     // remote actions from Android Auto
     val carVideo: Boolean = true,       // YouTube in Android Auto, only while parked
     val chargeLimitOn: Boolean = false, // LionFlow stops charging at chargeLimitPct
@@ -64,6 +65,7 @@ class SettingsStore(context: Context) {
         chargerSource = p.getString("chargerSource", "osm") ?: "osm",
         carActions = p.getBoolean("carActions", true),
         language = p.getString("language", "system") ?: "system",
+        timeFormat = p.getString("timeFormat", "system") ?: "system",
         carVideo = p.getBoolean("carVideo", true),
         batteryKwh = p.getFloat("batteryKwh", 0f).toDouble(),
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
@@ -95,6 +97,7 @@ class SettingsStore(context: Context) {
             .putString("chargerSource", s.chargerSource)
             .putBoolean("carActions", s.carActions)
             .putString("language", s.language)
+            .putString("timeFormat", s.timeFormat)
             .putBoolean("carVideo", s.carVideo)
             .putFloat("batteryKwh", s.batteryKwh.toFloat())
             .putBoolean("chargeLimitOn", s.chargeLimitOn)

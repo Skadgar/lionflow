@@ -115,11 +115,6 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
             CircleIconButton(if (c.isDark) LfIcons.Sun else LfIcons.Moon, if (c.isDark) "Switch to light mode" else "Switch to dark mode") {
                 vm.settings.update { it.copy(theme = if (c.isDark) "light" else "dark") }
             }
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(c.accent).clickable(role = Role.Button) { vm.setTab(Tab.Settings) }
-                    .semantics { contentDescription = "Settings" },
-                contentAlignment = Alignment.Center,
-            ) { Text(s.carName.firstOrNull()?.uppercase() ?: "L", style = Type.label.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold), color = c.onAccent) }
         }
     }
 
@@ -201,7 +196,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
 fun chargingLine(st: no.lionflow.app.model.VehicleStatus?): String {
     if (st == null) return "Waiting for data…"
-    val next = if (st.nextDelayedHour != null) String.format("%02d:%02d", st.nextDelayedHour, st.nextDelayedMinute ?: 0) else null
+    val next = if (st.nextDelayedHour != null) no.lionflow.app.ui.l10n.TimeFmt.hm(st.nextDelayedHour, st.nextDelayedMinute ?: 0) else null
     return when {
         st.isCharging -> "Charging" + (no.lionflow.app.model.ChargePower.label(st)?.let { " at $it" } ?: "") + (st.remainingMinutes?.let { " · ${it / 60} h ${it % 60} min left" } ?: "")
         st.plugged && next != null -> "Plugged in · charging from $next"

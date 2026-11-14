@@ -288,7 +288,7 @@ class TripsScreen(ctx: CarContext) : Screen(ctx) {
             .setImage(carContext.icon(R.drawable.ic_car_route)).build())
 
         val day = java.text.SimpleDateFormat("EEE d MMM", no.lionflow.app.ui.l10n.L10n.locale)
-        val time = java.text.SimpleDateFormat("HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
+        val time = java.text.SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
         val today = day.format(java.util.Date())
         trips.take((max - 1).coerceAtLeast(1)).forEach { t ->
             val start = t.startMillis?.let { java.util.Date(it) }

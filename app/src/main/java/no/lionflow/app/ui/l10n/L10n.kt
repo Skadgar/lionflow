@@ -44,6 +44,7 @@ object L10n {
         val l = if (preference == "system" || preference.isBlank()) systemLang() else preference
         synchronized(cache) { cache.clear() }
         lang = if (l in COLUMNS || l == "en") l else "en"
+        android.util.Log.i("L10n", "language $preference -> $lang")
     }
 
     private fun systemLang(): String = when (val l = Locale.getDefault().language) {
@@ -68,13 +69,14 @@ object L10n {
                     if (t.endsWith(" ")) { t += "{9}"; trs = trs.map { it + "{9}" }.toTypedArray() }
                     else if (t.startsWith(" ")) { t = "{9}$t"; trs = trs.map { "{9}$it" }.toTypedArray() }
                 }
-                if (Regex("\\{\\d}").containsMatchIn(t)) tp += Triple(toRegex(t), t, trs)
+                if (Regex("\\{\\d\\}").containsMatchIn(t)) try { tp += Triple(toRegex(t), t, trs) } catch (e: Exception) { android.util.Log.w("L10n", "bad template: $t", e) }
             }
             exact = ex
             // Most specific (most literal text) first.
-            templates = tp.sortedByDescending { it.second.replace(Regex("\\{\\d}"), "").length }
+            templates = tp.sortedByDescending { it.second.replace(Regex("\\{\\d\\}"), "").length }
             loaded = true
-        } catch (_: Exception) { }
+            android.util.Log.i("L10n", "loaded ${ex.size} texts, ${tp.size} templates")
+        } catch (e: Exception) { android.util.Log.e("L10n", "couldn't load translations", e) }
     }
 
     private fun unesc(s: String): String {
@@ -93,7 +95,7 @@ object L10n {
     private fun toRegex(t: String): Regex {
         val sb = StringBuilder("^")
         var i = 0
-        val m = Regex("\\{(\\d)}")
+        val m = Regex("\\{(\\d)\\}")
         var last = 0
         for (r in m.findAll(t)) {
             sb.append(Regex.escape(t.substring(last, r.range.first)))
@@ -128,14 +130,14 @@ object L10n {
             var out = tr[col]
             if (out.isEmpty()) continue
             var penalty = 0
-            for (n in Regex("\\{(\\d)}").findAll(en).map { it.groupValues[1] }.distinct()) {
+            for (n in Regex("\\{(\\d)\\}").findAll(en).map { it.groupValues[1] }.distinct()) {
                 val v = m.groups["p$n"]?.value ?: continue
                 val t = translate(v, col, depth + 1)
                 val letters = v.count { it.isLetter() }
                 penalty += letters + if (t == v) letters * 30 else 0
                 out = out.replace("{$n}", t)
             }
-            val score = en.replace(Regex("\\{\\d}"), "").length * 10 - penalty
+            val score = en.replace(Regex("\\{\\d\\}"), "").length * 10 - penalty
             if (score > bestScore) { bestScore = score; best = out }
         }
         best?.let { return it }

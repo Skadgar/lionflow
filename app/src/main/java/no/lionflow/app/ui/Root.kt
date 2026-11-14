@@ -177,6 +177,7 @@ private val phoneTabs = listOf(
     NavItem(Tab.Map, "Map", LfIcons.Map),
     NavItem(Tab.Climate, "Climate", LfIcons.Thermo),
     NavItem(Tab.Service, "Service", LfIcons.Wrench),
+    NavItem(Tab.Settings, "Settings", LfIcons.Gear),
 )
 private val railTabs = listOf(
     NavItem(Tab.Home, "Home", LfIcons.Home),
@@ -185,6 +186,7 @@ private val railTabs = listOf(
     NavItem(Tab.Climate, "Climate", LfIcons.Thermo),
     NavItem(Tab.Trips, "Trips", LfIcons.Route),
     NavItem(Tab.Service, "Service", LfIcons.Wrench),
+    NavItem(Tab.Settings, "Settings", LfIcons.Gear),
 )
 
 @Composable

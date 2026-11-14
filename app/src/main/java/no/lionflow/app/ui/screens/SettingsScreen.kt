@@ -114,6 +114,11 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             Divider()
             SegRow("Temperature", listOf("c" to "°C", "f" to "°F"), s.tempUnit) { v -> set { it.copy(tempUnit = v) } }
             Divider()
+            SegRow("Clock", listOf("24" to "24 h", "12" to "12 h", "system" to "System"), s.timeFormat) { v ->
+                set { it.copy(timeFormat = v) }
+                no.lionflow.app.ui.l10n.TimeFmt.setPreference(ctx, v)
+            }
+            Divider()
             LinkRow("Battery size", if (s.batteryKwh > 0) "${s.batteryKwh.toInt()} kWh usable · used to work out charging kW" else "Automatic (from the car, else 73 kWh) · used to work out charging kW", LfIcons.Bolt, last = true) { editBattery = true }
         }
 

@@ -87,7 +87,7 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
             Divider()
             DetailRow("Type", when (st?.chargingMode) { "Quick" -> "Fast (DC)"; "Slow" -> "AC"; else -> "—" })
             Divider()
-            DetailRow("Scheduled start", st?.nextDelayedHour?.let { String.format(Locale.US, "%02d:%02d", it, st?.nextDelayedMinute ?: 0) } ?: "Not set")
+            DetailRow("Scheduled start", st?.nextDelayedHour?.let { no.lionflow.app.ui.l10n.TimeFmt.hm(it, st?.nextDelayedMinute ?: 0) } ?: "Not set")
             Divider()
             DetailRow("Battery health", st?.batteryHealthPct?.let { "${it.toInt()} %" } ?: "—")
         }
@@ -168,7 +168,7 @@ fun ClimateScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
                     }
                 }
                 Row(Modifier.fillMaxWidth()) {
-                    val fmt = SimpleDateFormat("HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
+                    val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
                     for (h in w.hours.take(6)) {
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(fmt.format(Date(h.timeMillis)), style = Type.tiny.copy(fontSize = 11.sp), color = c.muted)

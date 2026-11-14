@@ -564,3 +564,6 @@ Charging at {0}	En charge à {0}	Lädt mit {0}	Cargando a {0}	Lader med {0}
 {0} months	{0} mois	{0} Monate	{0} meses	{0} måneder
 {0} days	{0} jours	{0} Tage	{0} días	{0} dager
  (est.)	 (est.)	 (gesch.)	 (est.)	 (ansl.)
+Clock	Horloge	Uhr	Reloj	Klokke
+24 h	24 h	24 Std.	24 h	24 t
+12 h	12 h	12 Std.	12 h	12 t
