@@ -294,10 +294,93 @@ private fun QuickActions(vm: AppViewModel, ui: UiState) {
 
 @Composable
 private fun NavCards(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    TripsCard(vm, ui, s)
+    ServiceCard(vm, ui, s)
+}
+
+/** Last 7 days: distance, trips and a small bar per day. */
+@Composable
+private fun TripsCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val now = System.currentTimeMillis()
+    val dayMs = 86_400_000L
+    val cal = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+    val todayStart = cal.timeInMillis
+    val days = (6 downTo 0).map { todayStart - it * dayMs }
+    val week = ui.trips.filter { (it.startMillis ?: 0L) >= days.first() }
+    val perDay = days.map { d -> week.filter { (it.startMillis ?: 0L) in d until d + dayMs }.sumOf { it.distanceKm } }
+    val km = perDay.sum()
+    val kwh = week.mapNotNull { it.kwh }.sum()
+    LfCard(radius = 24.dp, padding = androidx.compose.foundation.layout.PaddingValues(18.dp), onClick = { vm.setTab(Tab.Trips); vm.loadTrips() }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LfIcon(LfIcons.Route, c.text, 26.dp)
+            Column(Modifier.weight(1f)) {
+                Text("Trips", style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+                Text("Last 7 days", style = Type.small, color = c.muted)
+            }
+            LfIcon(LfIcons.Chevron, c.muted, 20.dp)
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Text(if (ui.trips.isEmpty() && ui.tripsLoading) "…" else fmtDistance(km, s), style = Type.display.copy(fontSize = 32.sp, fontWeight = FontWeight.Bold), color = c.text)
+                Text(
+                    listOfNotNull(
+                        "${week.size} trips",
+                        if (km > 1 && kwh > 0) (if (s.distanceUnit == "mi") String.format(java.util.Locale.US, "%.1f mi/kWh", km / kwh / 1.609344) else String.format(java.util.Locale.US, "%.1f kWh/100 km", kwh / km * 100)) else null,
+                    ).joinToString(" · "),
+                    style = Type.small, color = c.muted,
+                )
+            }
+            // One bar per day, today on the right.
+            val max = (perDay.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
+            val dayFmt = java.text.SimpleDateFormat("EEEEE", no.lionflow.app.ui.l10n.L10n.locale)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+                perDay.forEachIndexed { i, v ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.width(10.dp).height((4 + 40 * (v / max)).dp).clip(RoundedCornerShape(5.dp)).background(if (i == 6) c.accent else if (v > 0) c.bar else c.track))
+                        Text(dayFmt.format(java.util.Date(days[i])), style = Type.tiny, color = c.muted)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Next service: what Peugeot reports (km and/or days left), plus when you'll reach the km at your
+ * current pace (average of the last 30 days of trips). Whichever comes first.
+ */
+@Composable
+private fun ServiceCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
     val st = ui.status
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        NavCard(Modifier.weight(1f), LfIcons.Route, "Trips", "See your drives") { vm.setTab(Tab.Trips); vm.loadTrips() }
-        NavCard(Modifier.weight(1f), LfIcons.Wrench, "Service", st?.kmToService?.let { "In ${fmtDistance(it, s)}" } ?: "View service details") { vm.setTab(Tab.Service) }
+    val since = System.currentTimeMillis() - 30 * 86_400_000L
+    val perDay = ui.trips.filter { (it.startMillis ?: 0L) >= since }.sumOf { it.distanceKm } / 30.0
+    val kmLeft = st?.kmToService
+    val byKmDays = if (kmLeft != null && perDay > 1) kmLeft / perDay else null
+    val byDate = st?.daysToService
+    val soonest = listOfNotNull(byKmDays, byDate).minOrNull()
+    val dateFmt = java.text.SimpleDateFormat("d MMM yyyy", no.lionflow.app.ui.l10n.L10n.locale)
+    LfCard(radius = 24.dp, padding = androidx.compose.foundation.layout.PaddingValues(18.dp), onClick = { vm.setTab(Tab.Service) }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LfIcon(LfIcons.Wrench, c.text, 26.dp)
+            Column(Modifier.weight(1f)) {
+                Text("Next service", style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+                Text(
+                    when {
+                        kmLeft == null && byDate == null -> "View service details"
+                        kmLeft != null -> "In ${fmtDistance(kmLeft, s)}"
+                        else -> "In ${byDate!!.toInt()} days"
+                    },
+                    style = Type.small, color = c.muted,
+                )
+            }
+            if (soonest != null) Column(horizontalAlignment = Alignment.End) {
+                Text("≈ " + dateFmt.format(java.util.Date(System.currentTimeMillis() + (soonest * 86_400_000L).toLong())), style = Type.label, color = c.text)
+                Text(if (byKmDays != null && (byDate == null || byKmDays <= byDate)) "at your current driving" else "by date", style = Type.tiny, color = c.muted)
+            }
+            LfIcon(LfIcons.Chevron, c.muted, 20.dp)
+        }
     }
 }
 

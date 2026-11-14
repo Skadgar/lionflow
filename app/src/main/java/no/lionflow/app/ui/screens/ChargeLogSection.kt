@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import no.lionflow.app.data.AppSettings
 import no.lionflow.app.model.ChargeLog
@@ -100,6 +101,8 @@ fun ChargeLogSection(ui: UiState, s: AppSettings) {
         )
         if (cfg.home?.lat == null) Text("Set your home under Places & prices to split home and away.", style = Type.tiny, color = c.muted)
     }
+
+    CostCard(sessions, cfg)
 
     // ---- session in progress ----
     active?.let { a ->
@@ -327,4 +330,48 @@ private fun fieldColors() = LocalLf.current.let { c ->
         focusedTextColor = c.text, unfocusedTextColor = c.text, focusedBorderColor = c.accentInk, unfocusedBorderColor = c.line2,
         focusedLabelColor = c.accentInk, unfocusedLabelColor = c.muted, cursorColor = c.accentInk,
     )
+}
+
+
+/** Registered charging costs per period (sessions with a known price). Weeks start on Monday. */
+@Composable
+private fun CostCard(sessions: List<ChargeSession>, cfg: PlacesConfig) {
+    val c = LocalLf.current
+    if (sessions.isEmpty()) return
+    fun start(field: Int, back: Int): Long = java.util.Calendar.getInstance().apply {
+        firstDayOfWeek = java.util.Calendar.MONDAY
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        when (field) {
+            java.util.Calendar.WEEK_OF_YEAR -> set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+            java.util.Calendar.MONTH -> set(java.util.Calendar.DAY_OF_MONTH, 1)
+            java.util.Calendar.YEAR -> set(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        add(field, -back)
+    }.timeInMillis
+    val W = java.util.Calendar.WEEK_OF_YEAR; val M = java.util.Calendar.MONTH; val Y = java.util.Calendar.YEAR
+    val far = Long.MAX_VALUE
+    val periods = mutableListOf(
+        Triple("This week", start(W, 0), far), Triple("Last week", start(W, 1), start(W, 0)),
+        Triple("This month", start(M, 0), far), Triple("Last month", start(M, 1), start(M, 0)),
+        Triple("This year", start(Y, 0), far),
+    )
+    if (sessions.any { it.start in start(Y, 1) until start(Y, 0) }) periods += Triple("Last year", start(Y, 1), start(Y, 0))
+    LfCard {
+        Text("Charging costs", style = Type.label, color = c.text)
+        periods.forEachIndexed { i, (label, from, to) ->
+            if (i > 0) Divider()
+            val inP = sessions.filter { it.start in from until to }
+            val kwhSum = inP.sumOf { it.kwh }
+            val priced = inP.map { it to ChargeLog.match(it, cfg).price }
+            val cost = priced.sumOf { (s, p) -> s.kwh * (p ?: 0.0) }
+            val unpriced = priced.count { it.second == null }
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(label, style = Type.body, color = c.text)
+                    Text(kwh(kwhSum) + if (unpriced > 0) " · $unpriced without price" else "", style = Type.tiny, color = c.muted)
+                }
+                Text(if (inP.isEmpty()) "—" else money(cost, cfg.currency), style = Type.stat.copy(fontSize = 18.sp), color = c.text)
+            }
+        }
+    }
 }
