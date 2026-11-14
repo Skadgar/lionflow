@@ -108,6 +108,7 @@ private fun HomePhone(vm: AppViewModel, ui: UiState, s: AppSettings) {
 }
 
 private val OnPhoto = androidx.compose.ui.graphics.Color(0xFFF4F5F7)
+private val PhotoShadow = androidx.compose.ui.graphics.Shadow(androidx.compose.ui.graphics.Color(0xB3000000), androidx.compose.ui.geometry.Offset(0f, 2f), 14f)
 private val OnPhotoMuted = androidx.compose.ui.graphics.Color(0xD9E6E8EC)
 
 @Composable
@@ -130,7 +131,7 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
         }
         // Shade at the top and bottom so the text stays readable on any photo, fading into the page.
         Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(
-            0f to Color(0xA6000000), 0.32f to Color(0x00000000), 0.62f to Color(0x00000000), 0.9f to c.bg.copy(alpha = 0.85f), 1f to c.bg,
+            0f to Color(0xD9000000), 0.22f to Color(0x99000000), 0.45f to Color(0x00000000), 0.62f to Color(0x00000000), 0.8f to Color(0x66000000), 0.92f to c.bg.copy(alpha = 0.9f), 1f to c.bg,
         )))
 
         // Top: brand, car name, last update, buttons
@@ -139,12 +140,12 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     LionLogo(22.dp)
                     Text(buildAnnotatedString { append("Lion"); withStyle(SpanStyle(color = c.accent)) { append("Flow") } },
-                        style = Type.display.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold), color = OnPhoto)
+                        style = Type.display.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold, shadow = PhotoShadow), color = OnPhoto)
                 }
-                Text(s.carName, style = Type.title.copy(fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp), color = OnPhoto, maxLines = 1)
+                Text(s.carName, style = Type.title.copy(fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, shadow = PhotoShadow), color = OnPhoto, maxLines = 1)
                 Text(
                     if (ui.refreshing) "Waking car…" else "Updated ${minutesAgo(st?.updatedAtMillis ?: ui.lastRefresh, ui.now)}",
-                    style = Type.small, color = OnPhotoMuted,
+                    style = Type.small.copy(fontWeight = FontWeight.Medium, shadow = PhotoShadow), color = OnPhoto,
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -178,12 +179,12 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 Row(Modifier.weight(1f).clickable { vm.setTab(Tab.Climate) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (w != null) {
                         LfIcon(LfIcons.Cloud, c.text, 22.dp)
-                        Text("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)}", style = Type.body, color = c.text)
+                        Text("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)}", style = Type.body.copy(shadow = if (c.isDark) PhotoShadow else null), color = c.text)
                     }
                 }
                 if (st != null) Row(Modifier.clickable { vm.setTab(Tab.Map) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LfIcon(LfIcons.Pin, c.text, 20.dp)
-                    Text(if (st.moving) "Driving" else "Parked", style = Type.body, color = c.text)
+                    Text(if (st.moving) "Driving" else "Parked", style = Type.body.copy(shadow = if (c.isDark) PhotoShadow else null), color = c.text)
                 }
             }
         }

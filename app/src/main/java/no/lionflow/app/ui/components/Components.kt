@@ -177,7 +177,7 @@ fun Segmented(options: List<Pair<String, String>>, selected: String, modifier: M
 @Composable
 fun SectionTitle(text: String) {
     val c = LocalLf.current
-    Text(text.uppercase(), style = Type.tiny.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp), color = c.muted, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
+    Text(no.lionflow.app.ui.l10n.L10n.tr(text).uppercase(no.lionflow.app.ui.l10n.L10n.locale), style = Type.tiny.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp), color = c.muted, modifier = Modifier.padding(start = 4.dp, top = 10.dp))
 }
 
 @Composable
