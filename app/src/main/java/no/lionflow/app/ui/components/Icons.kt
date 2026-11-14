@@ -50,6 +50,7 @@ object LfIcons {
     val Unlock = stroke("unlock", "M5 11h14v10H5z", "M8 11V7a4 4 0 0 1 7.5-2")
     val Refresh = stroke("refresh", "M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4")
     val Sun = stroke("sun", circle(12f, 12f, 4f), "M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4")
+    val Globe = stroke("globe", circle(12f, 12f, 9f), "M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18")
     val Moon = stroke("moon", "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z")
     val Pin = stroke("pin", "M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z", circle(12f, 10f, 2.5f))
     val Bulb = stroke("bulb", "M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3z", "M10 21h4")

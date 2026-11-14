@@ -1,5 +1,7 @@
 package no.lionflow.app.car
 
+import no.lionflow.app.ui.l10n.tr
+
 import android.annotation.SuppressLint
 import android.app.Presentation
 import android.graphics.Color
@@ -75,7 +77,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         if (closing) return
         closing = true
         main.post { tearDown() }
-        CarToast.makeText(carContext, msg, CarToast.LENGTH_LONG).show()
+        CarToast.makeText(carContext, tr(msg), CarToast.LENGTH_LONG).show()
         screenManager.pop()
     }
 
@@ -87,13 +89,13 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     override fun onGetTemplate(): Template {
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setTitle("Search").setOnClickListener {
+            .addAction(Action.Builder().setTitle(tr("Search")).setOnClickListener {
                 screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) })
             }.build())
-            .addAction(Action.Builder().setTitle("Back").setOnClickListener {
+            .addAction(Action.Builder().setTitle(tr("Back")).setOnClickListener {
                 main.post { web?.let { if (it.canGoBack()) it.goBack() } }
             }.build())
-            .addAction(Action.Builder().setTitle("Close").setOnClickListener { close("YouTube closed") }.build())
+            .addAction(Action.Builder().setTitle(tr("Close")).setOnClickListener { close("YouTube closed") }.build())
             .build()
         return NavigationTemplate.Builder()
             .setActionStrip(strip)
@@ -197,7 +199,7 @@ class YouTubeSearchScreen(ctx: CarContext, private val onSearch: (String) -> Uni
             }
         })
             .setHeaderAction(Action.BACK)
-            .setSearchHint("Search YouTube")
+            .setSearchHint(tr("Search YouTube"))
             .setShowKeyboardByDefault(true)
             .build()
 }

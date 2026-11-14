@@ -1,5 +1,7 @@
 package no.lionflow.app.car
 
+import no.lionflow.app.ui.l10n.tr
+
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import androidx.car.app.CarAppService
@@ -61,7 +63,7 @@ class MainSession : Session() {
         })
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                CarHub.notices.collect { m -> CarToast.makeText(carContext, m, CarToast.LENGTH_LONG).show() }
+                CarHub.notices.collect { m -> CarToast.makeText(carContext, tr(m), CarToast.LENGTH_LONG).show() }
             }
         }
         CarHub.refresh(carContext)
@@ -97,45 +99,45 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
     override fun onGetTemplate(): Template {
         val app = CarHub.app(carContext)
         if (!app.api.isSignedIn) {
-            return MessageTemplate.Builder("Open LionFlow on your phone and sign in with your Peugeot account.")
-                .setTitle("LionFlow").setHeaderAction(Action.APP_ICON).build()
+            return MessageTemplate.Builder(tr("Open LionFlow on your phone and sign in with your Peugeot account."))
+                .setTitle(tr("LionFlow")).setHeaderAction(Action.APP_ICON).build()
         }
         val s = app.settings.value
         val st = CarHub.status.value
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setTitle("Refresh").setOnClickListener {
+            .addAction(Action.Builder().setTitle(tr("Refresh")).setOnClickListener {
                 CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…")
             }.build())
         if (CarHub.actionsAllowed(carContext) == null)
-            strip.addAction(Action.Builder().setTitle("Actions").setOnClickListener { screenManager.push(ActionsScreen(carContext)) }.build())
-        val b = ListTemplate.Builder().setTitle(s.carName).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
+            strip.addAction(Action.Builder().setTitle(tr("Actions")).setOnClickListener { screenManager.push(ActionsScreen(carContext)) }.build())
+        val b = ListTemplate.Builder().setTitle(tr(s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
         if (st == null) return b.setLoading(true).build()
 
         // Battery & charging
         val power = ChargePower.label(st)
         val charge = ItemList.Builder()
             .addItem(Row.Builder()
-                .setTitle("${st.batteryPct?.toInt() ?: "—"} %  ·  ≈ ${fmtDistance(st.rangeKm, s)}" + if (st.rangeEstimated) " (est.)" else "")
-                .addText(CarHub.chargingLine(st))
+                .setTitle(tr("${st.batteryPct?.toInt() ?: "—"} %  ·  ≈ ${fmtDistance(st.rangeKm, s)}" + if (st.rangeEstimated) " (est.)" else ""))
+                .addText(tr(CarHub.chargingLine(st)))
                 .setImage(carContext.icon(R.drawable.ic_car_battery)).build())
         if (st.isCharging) charge.addItem(Row.Builder()
-            .setTitle("Charging power: ${power ?: "calculating…"}")
-            .addText(st.chargingRateKmh?.takeIf { it > 0 }?.let { "Adds ${fmtDistance(it, s)} of range per hour" } ?: "Measured from the energy going into the battery")
+            .setTitle(tr("Charging power: ${power ?: "calculating…"}"))
+            .addText(tr(st.chargingRateKmh?.takeIf { it > 0 }?.let { "Adds ${fmtDistance(it, s)} of range per hour" } ?: "Measured from the energy going into the battery"))
             .setImage(carContext.icon(R.drawable.ic_car_bolt, CarColor.GREEN)).build())
 
         // Car
         val car = ItemList.Builder()
             .addItem(Row.Builder()
-                .setTitle(if (st.preconditioningOn) "Pre-heating is on" else "Climate")
-                .addText(st.outsideTempC?.let { "${fmtTemp(it, s)} outside" } ?: "Outside temperature unknown")
+                .setTitle(tr(if (st.preconditioningOn) "Pre-heating is on" else "Climate"))
+                .addText(tr(st.outsideTempC?.let { "${fmtTemp(it, s)} outside" } ?: "Outside temperature unknown"))
                 .setImage(carContext.icon(R.drawable.ic_car_climate)).build())
             .addItem(Row.Builder()
-                .setTitle("Doors: ${CarHub.doorsLine(st)}")
-                .addText(CarHub.updatedLine())
+                .setTitle(tr("Doors: ${CarHub.doorsLine(st)}"))
+                .addText(tr(CarHub.updatedLine()))
                 .setImage(carContext.icon(R.drawable.ic_car_lock)).build())
             .addItem(Row.Builder()
-                .setTitle(st.odometerKm?.let { "Odometer ${fmtDistance(it, s)}" } ?: "Odometer unknown")
-                .addText(serviceLine(st, s))
+                .setTitle(tr(st.odometerKm?.let { "Odometer ${fmtDistance(it, s)}" } ?: "Odometer unknown"))
+                .addText(tr(serviceLine(st, s)))
                 .setImage(carContext.icon(R.drawable.ic_car_refresh)).build())
 
         // Driving
@@ -144,39 +146,39 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val km = week?.sumOf { it.distanceKm } ?: 0.0
         val kwh = week?.mapNotNull { it.kwh }?.sum() ?: 0.0
         val driving = ItemList.Builder().addItem(Row.Builder()
-            .setTitle(if (trips == null) "Driving history" else "Last 7 days: ${fmtDistance(km, s)} · ${week?.size ?: 0} trips")
-            .addText(when {
+            .setTitle(tr(if (trips == null) "Driving history" else "Last 7 days: ${fmtDistance(km, s)} · ${week?.size ?: 0} trips"))
+            .addText(tr(when {
                 trips == null -> "Loading…"
                 km > 1 && kwh > 0 -> consumption(kwh / km * 100, s) + " average · tap for trips"
                 else -> "Tap for recent trips"
-            })
+            }))
             .setImage(carContext.icon(R.drawable.ic_car_route))
             .setBrowsable(true)
             .setOnClickListener { screenManager.push(TripsScreen(carContext)) }.build())
-            .addItem(Row.Builder().setTitle("Chargers nearby").addText("Nearest first")
+            .addItem(Row.Builder().setTitle(tr("Chargers nearby")).addText(tr("Nearest first"))
                 .setImage(carContext.icon(R.drawable.ic_car_charger)).setBrowsable(true)
                 .setOnClickListener { screenManager.push(ChargersScreen(carContext)) }.build())
 
-        CarHub.message.value?.let { m -> car.addItem(Row.Builder().setTitle(m).build()) }
+        CarHub.message.value?.let { m -> car.addItem(Row.Builder().setTitle(tr(m)).build()) }
 
         return b
-            .addSectionedList(SectionedItemList.create(charge.build(), "Battery"))
-            .addSectionedList(SectionedItemList.create(car.build(), "Car"))
-            .addSectionedList(SectionedItemList.create(driving.build(), "Driving"))
+            .addSectionedList(SectionedItemList.create(charge.build(), tr("Battery")))
+            .addSectionedList(SectionedItemList.create(car.build(), tr("Car")))
+            .addSectionedList(SectionedItemList.create(driving.build(), tr("Driving")))
             .apply {
                 if (s.carVideo) {
                     guard.update()
                     val parked = guard.parked.value
                     addSectionedList(SectionedItemList.create(ItemList.Builder().addItem(Row.Builder()
-                        .setTitle("YouTube")
-                        .addText(if (parked) "Parked — tap to watch" else guard.reason)
+                        .setTitle(tr("YouTube"))
+                        .addText(tr(if (parked) "Parked — tap to watch" else guard.reason))
                         .setImage(carContext.icon(R.drawable.ic_car_play))
                         .setBrowsable(true)
                         .setOnClickListener {
                             guard.update()
                             if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
-                            else CarToast.makeText(carContext, guard.reason, CarToast.LENGTH_LONG).show()
-                        }.build()).build(), "While parked"))
+                            else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
+                        }.build()).build(), tr("While parked")))
                 }
             }
             .build()
@@ -202,7 +204,7 @@ class ActionsScreen(ctx: CarContext) : LiveScreen(ctx) {
         val busy = CarHub.busy.value
         val list = ItemList.Builder()
         fun row(title: String, text: String, icon: Int, onClick: () -> Unit) =
-            list.addItem(Row.Builder().setTitle(title).addText(text).setImage(carContext.icon(icon))
+            list.addItem(Row.Builder().setTitle(tr(title)).addText(tr(text)).setImage(carContext.icon(icon))
                 .setEnabled(!busy).setOnClickListener(onClick).build())
 
         val locked = st?.locked == true
@@ -215,7 +217,7 @@ class ActionsScreen(ctx: CarContext) : LiveScreen(ctx) {
         row("Horn", "Sounds the horn twice", R.drawable.ic_car_horn) { CarHub.horn(carContext) }
 
         return ListTemplate.Builder()
-            .setTitle(CarHub.message.value ?: "Remote actions")
+            .setTitle(tr(CarHub.message.value ?: "Remote actions"))
             .setHeaderAction(Action.BACK)
             .setSingleList(list.build())
             .build()
@@ -232,7 +234,7 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
     override fun onGetTemplate(): Template {
         val s = CarHub.app(carContext).settings.value
         val all = CarHub.chargers.value
-        val b = ListTemplate.Builder().setTitle("Chargers near the car").setHeaderAction(Action.BACK)
+        val b = ListTemplate.Builder().setTitle(tr("Chargers near the car")).setHeaderAction(Action.BACK)
         if (all.isEmpty()) return b.setLoading(true).build()
         val list = ItemList.Builder()
         all.take(carContext.listLimit()).forEach { ch ->
@@ -240,7 +242,7 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
             ch.distanceM?.let { m -> bits += if (s.distanceUnit != "mi" && m < 1000) "$m m" else if (s.distanceUnit != "mi" && m < 10_000) String.format(java.util.Locale.US, "%.1f km", m / 1000.0) else fmtDistance(m / 1000.0, s) }
             if (ch.maxKw > 0) bits += "${ch.maxKw.toInt()} kW"
             if (ch.points > 0) bits += "${ch.points} points"
-            list.addItem(Row.Builder().setTitle(ch.name).addText(bits.joinToString(" · ").ifBlank { ch.address })
+            list.addItem(Row.Builder().setTitle(tr(ch.name)).addText(tr(bits.joinToString(" · ").ifBlank { ch.address }))
                 .setImage(carContext.icon(R.drawable.ic_car_charger, if (ch.maxKw >= 50) CarColor.GREEN else null)).build())
         }
         return b.setSingleList(list.build()).build()
@@ -260,13 +262,13 @@ class TripsScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val s = CarHub.app(carContext).settings.value
         val trips = CarHub.trips.value
-        val b = ListTemplate.Builder().setTitle("Driving history").setHeaderAction(Action.BACK)
-            .setActionStrip(ActionStrip.Builder().addAction(Action.Builder().setTitle("Refresh")
+        val b = ListTemplate.Builder().setTitle(tr("Driving history")).setHeaderAction(Action.BACK)
+            .setActionStrip(ActionStrip.Builder().addAction(Action.Builder().setTitle(tr("Refresh"))
                 .setOnClickListener { CarHub.loadTrips(carContext, force = true) }.build()).build())
         if (trips == null) return b.setLoading(true).build()
         val list = ItemList.Builder()
         if (trips.isEmpty()) {
-            list.setNoItemsMessage("No trips in the last 30 days")
+            list.setNoItemsMessage(tr("No trips in the last 30 days"))
             return b.setSingleList(list.build()).build()
         }
         val max = try {
@@ -281,12 +283,12 @@ class TripsScreen(ctx: CarContext) : Screen(ctx) {
         val kwh = week.mapNotNull { it.kwh }.sum()
         val avg = if (km > 1 && kwh > 0) kwh / km * 100 else null
         list.addItem(Row.Builder()
-            .setTitle("Last 7 days: ${fmtDistance(km, s)} · ${week.size} trips")
-            .addText(avg?.let { consumption(it, s) } ?: "Consumption not reported")
+            .setTitle(tr("Last 7 days: ${fmtDistance(km, s)} · ${week.size} trips"))
+            .addText(tr(avg?.let { consumption(it, s) } ?: "Consumption not reported"))
             .setImage(carContext.icon(R.drawable.ic_car_route)).build())
 
-        val day = java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.ENGLISH)
-        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.ENGLISH)
+        val day = java.text.SimpleDateFormat("EEE d MMM", no.lionflow.app.ui.l10n.L10n.locale)
+        val time = java.text.SimpleDateFormat("HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
         val today = day.format(java.util.Date())
         trips.take((max - 1).coerceAtLeast(1)).forEach { t ->
             val start = t.startMillis?.let { java.util.Date(it) }
@@ -295,8 +297,8 @@ class TripsScreen(ctx: CarContext) : Screen(ctx) {
             t.durationSec?.takeIf { it > 0 }?.let { sec -> val m = (sec / 60).toInt(); bits += if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min" }
             t.avgKwhPer100?.let { bits += consumption(it, s) }
             t.avgSpeedKmh?.takeIf { it > 0 }?.let { v -> bits += if (s.distanceUnit == "mi") "${Math.round(v * 0.621371)} mph avg" else "${Math.round(v)} km/h avg" }
-            list.addItem(Row.Builder().setTitle("$whenTxt · ${fmtDistance(t.distanceKm, s)}")
-                .addText(bits.joinToString(" · ").ifBlank { "No details" }).build())
+            list.addItem(Row.Builder().setTitle(tr("$whenTxt · ${fmtDistance(t.distanceKm, s)}"))
+                .addText(tr(bits.joinToString(" · ").ifBlank { "No details" })).build())
         }
         return b.setSingleList(list.build()).build()
     }

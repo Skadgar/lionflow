@@ -15,7 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import no.lionflow.app.ui.l10n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -106,7 +106,7 @@ fun ChargeLogSection(ui: UiState, s: AppSettings) {
         LfCard {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LfIcon(LfIcons.Bolt, c.accentInk, 18.dp)
-                Text("Charging now · since ${SimpleDateFormat("HH:mm", Locale.ENGLISH).format(Date(a.start))}", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+                Text("Charging now · since ${SimpleDateFormat("HH:mm", no.lionflow.app.ui.l10n.L10n.locale).format(Date(a.start))}", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = c.text)
             }
             Text("${a.startPct.toInt()} % → ${a.endPct.toInt()} % · ${kwh(a.kwh)} so far · ${ChargeLog.match(a, cfg).label}", style = Type.small, color = c.text2)
         }
@@ -143,7 +143,7 @@ fun ChargeLogSection(ui: UiState, s: AppSettings) {
 private fun SessionRow(sess: ChargeSession, cfg: PlacesConfig, onClick: () -> Unit) {
     val c = LocalLf.current
     val m = ChargeLog.match(sess, cfg)
-    val day = SimpleDateFormat("EEE d MMM, HH:mm", Locale.ENGLISH).format(Date(sess.start))
+    val day = SimpleDateFormat("EEE d MMM, HH:mm", no.lionflow.app.ui.l10n.L10n.locale).format(Date(sess.start))
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(day, style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = c.text)
@@ -164,7 +164,7 @@ private fun SessionRow(sess: ChargeSession, cfg: PlacesConfig, onClick: () -> Un
 private fun SessionDialog(sess: ChargeSession, cfg: PlacesConfig, s: AppSettings, onClose: () -> Unit) {
     val c = LocalLf.current
     val m = ChargeLog.match(sess, cfg)
-    val fmt = SimpleDateFormat("EEE d MMM yyyy, HH:mm", Locale.ENGLISH)
+    val fmt = SimpleDateFormat("EEE d MMM yyyy, HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
     var confirmDelete by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onClose, containerColor = c.card,

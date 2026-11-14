@@ -22,6 +22,7 @@ class LionFlowApp : Application() {
     override fun onCreate() {
         super.onCreate()
         settings = SettingsStore(this)
+        no.lionflow.app.ui.l10n.L10n.init(this, settings.value.language)
         secure = SecureStore(this)
         api = StellantisApi(this, secure, settings)
         remote = RemoteControl(api, secure)

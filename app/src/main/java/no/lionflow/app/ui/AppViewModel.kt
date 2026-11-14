@@ -522,7 +522,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.update { it.copy(tripsLoading = true) }
             try {
-                val since = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                val since = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", no.lionflow.app.ui.l10n.L10n.locale)
                     .apply { timeZone = TimeZone.getTimeZone("UTC") }
                     .format(Date(System.currentTimeMillis() - days * 86_400_000L))
                 val all = mutableListOf<Trip>()
@@ -548,7 +548,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun exportTripsCsv(): File {
         val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
         val f = File(dir, "lionflow-trips.csv")
-        val iso = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val iso = SimpleDateFormat("yyyy-MM-dd HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
         val sb = StringBuilder("id,start,end,distance_km,duration_min,energy_kwh,avg_kwh_per_100km,avg_speed_kmh\n")
         for (t in _ui.value.trips) {
             sb.append(listOf(
@@ -567,7 +567,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun importTripsCsv(text: String) {
-        val iso = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        val iso = SimpleDateFormat("yyyy-MM-dd HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
         val rows = text.lines().drop(1).filter { it.isNotBlank() }
         val arr = JSONArray(settings.importedTripsJson)
         var count = 0

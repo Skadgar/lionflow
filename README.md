@@ -18,6 +18,8 @@ LionFlow is a free, open-source Android app for your own connected Peugeot. It's
 - **Range that makes sense:** when Peugeot's server reports 0 km by mistake, LionFlow estimates from your own driving instead.
 - **Clear errors:** when something fails you get the actual reason and code, not a generic "try again later".
 - **More on screen:** a home-screen widget, a free 2D/3D charger map, local weather and forecast, Android Auto overview, and layouts for foldables and tablets.
+- **Your language:** English, French, German, Spanish or Norwegian (Settings → Appearance → Language), or follow the phone.
+- **Several cars:** switch between the cars on your MyPeugeot account, including petrol and diesel ones (fuel level and range).
 - **Private and secure:** no ads, no analytics, no tracking. Sign-in tokens are encrypted on the phone, and remote actions can require your fingerprint. All the code is public, so anyone can check what it does.
 
 **What you still need MyPeugeot for:** adding the car to your account and getting the remote-control security code (one time), and a few car settings Peugeot only exposes in the car or MyPeugeot, such as the scheduled charging start time. LionFlow is not made or supported by Peugeot or Stellantis.

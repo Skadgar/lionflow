@@ -16,7 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import no.lionflow.app.ui.l10n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -98,7 +98,7 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
                 if (i in 0 until buckets) sums[i] += t.distanceKm
             }
             val max = (sums.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
-            val labels = if (period == "week") (0 until 7).map { SimpleDateFormat("EEE", Locale.getDefault()).format(Date(start + it * bucketMs)).take(2) }
+            val labels = if (period == "week") (0 until 7).map { SimpleDateFormat("EEE", no.lionflow.app.ui.l10n.L10n.locale).format(Date(start + it * bucketMs)).take(2) }
             else (0 until 5).map { "W${it + 1}" }
             Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                 for (i in 0 until buckets) {
@@ -113,7 +113,7 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
         if (list.isEmpty() && !ui.tripsLoading) Text("No trips in this period.", style = Type.small, color = c.muted)
         if (list.isNotEmpty()) {
             LfCard(padding = PaddingValues(0.dp)) {
-                val fmt = SimpleDateFormat("EEE d MMM · HH:mm", Locale.getDefault())
+                val fmt = SimpleDateFormat("EEE d MMM · HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
                 list.take(50).forEachIndexed { i, t ->
                     if (i > 0) Divider()
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -185,7 +185,7 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
                         }
                         if (daysLeft != null) {
                             val due = Date(System.currentTimeMillis() + (daysLeft * 86_400_000L).toLong())
-                            val dateText = SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(due)
+                            val dateText = SimpleDateFormat("d MMMM yyyy", no.lionflow.app.ui.l10n.L10n.locale).format(due)
                             val months = (daysLeft / 30.4).toInt()
                             Text(
                                 (if (kmLeft != null) "or by " else "By ") + dateText + " (" + (if (months >= 1) "$months months" else "${daysLeft.toInt()} days") + ")" +
@@ -227,7 +227,7 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
             if (ui.serviceHistory.isEmpty()) {
                 Text("Keep your own log of services, tyre changes and repairs here.", style = Type.small, color = c.muted, modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp))
             }
-            val fmt = SimpleDateFormat("MMM yyyy", Locale.getDefault())
+            val fmt = SimpleDateFormat("MMM yyyy", no.lionflow.app.ui.l10n.L10n.locale)
             ui.serviceHistory.forEachIndexed { i, e ->
                 Divider()
                 Row(Modifier.fillMaxWidth().clickable { toDelete = e }.padding(horizontal = 18.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {

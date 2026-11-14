@@ -1,5 +1,7 @@
 package no.lionflow.app.widget
 
+import no.lionflow.app.ui.l10n.tr
+
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -114,20 +116,20 @@ class CarWidget : AppWidgetProvider() {
             val refreshing = WidgetData.isRefreshing(ctx)
             val v = RemoteViews(ctx.packageName, R.layout.widget_car)
 
-            v.setTextViewText(R.id.w_name, s.carName)
+            v.setTextViewText(R.id.w_name, tr(s.carName))
             v.setViewVisibility(R.id.w_refresh_icon, if (refreshing) View.GONE else View.VISIBLE)
             v.setViewVisibility(R.id.w_spinner, if (refreshing) View.VISIBLE else View.GONE)
-            v.setTextViewText(R.id.w_range_unit, if (s.distanceUnit == "mi") "mi" else "km")
+            v.setTextViewText(R.id.w_range_unit, tr(if (s.distanceUnit == "mi") "mi" else "km"))
 
             if (snap == null || !app.api.isSignedIn) {
-                v.setTextViewText(R.id.w_battery, "—")
-                v.setTextViewText(R.id.w_range, "—")
+                v.setTextViewText(R.id.w_battery, tr("—"))
+                v.setTextViewText(R.id.w_range, tr("—"))
                 v.setProgressBar(R.id.w_bar, 100, 0, false)
-                v.setTextViewText(R.id.w_charging, "No data yet")
+                v.setTextViewText(R.id.w_charging, tr("No data yet"))
                 v.setViewVisibility(R.id.w_bolt, View.GONE)
                 v.setViewVisibility(R.id.w_plug, View.VISIBLE)
-                v.setTextViewText(R.id.w_cabin, "—")
-                v.setTextViewText(R.id.w_outside, "—")
+                v.setTextViewText(R.id.w_cabin, tr("—"))
+                v.setTextViewText(R.id.w_outside, tr("—"))
             } else {
                 val battery = snap.optDouble("battery", -1.0)
                 val range = snap.optDouble("range", -1.0)
@@ -138,28 +140,28 @@ class CarWidget : AppWidgetProvider() {
                 val precond = snap.optBoolean("precond")
                 val rangeShown = if (s.distanceUnit == "mi") range * 0.621371 else range
 
-                v.setTextViewText(R.id.w_battery_label, if (snap.optBoolean("fuel")) "Fuel" else "Battery")
-                v.setTextViewText(R.id.w_battery, if (battery >= 0) "${battery.toInt()}" else "—")
-                v.setTextViewText(R.id.w_range, if (range >= 0) "≈${Math.round(rangeShown)}" else "—")
+                v.setTextViewText(R.id.w_battery_label, tr(if (snap.optBoolean("fuel")) "Fuel" else "Battery"))
+                v.setTextViewText(R.id.w_battery, tr(if (battery >= 0) "${battery.toInt()}" else "—"))
+                v.setTextViewText(R.id.w_range, tr(if (range >= 0) "≈${Math.round(rangeShown)}" else "—"))
                 v.setProgressBar(R.id.w_bar, 100, battery.coerceIn(0.0, 100.0).toInt(), false)
                 v.setViewVisibility(R.id.w_bolt, if (charging) View.VISIBLE else View.GONE)
                 v.setViewVisibility(R.id.w_plug, if (charging) View.GONE else View.VISIBLE)
-                v.setTextViewText(R.id.w_charging, when {
+                v.setTextViewText(R.id.w_charging, tr(when {
                     charging && remaining > 0 -> "Charging${snap.optString("kw").takeIf { it.isNotBlank() }?.let { " $it" } ?: ""} · ${remaining / 60} h ${remaining % 60} min left"
                     charging -> "Charging${snap.optString("kw").takeIf { it.isNotBlank() }?.let { " $it" } ?: ""}"
                     plugged -> "Plugged in · not charging"
                     else -> "Not charging"
-                })
+                }))
                 v.setTextColor(R.id.w_charging, ctx.getColor(if (charging) R.color.widget_text else R.color.widget_muted))
                 // The car doesn't report cabin temperature, so "Car" shows the pre-heating state.
-                v.setTextViewText(R.id.w_cabin, if (precond) "Pre-heating" else "Not heating")
+                v.setTextViewText(R.id.w_cabin, tr(if (precond) "Pre-heating" else "Not heating"))
                 v.setImageViewResource(R.id.w_fan, if (precond) R.drawable.ic_w_fan_on else R.drawable.ic_w_fan)
-                v.setTextViewText(R.id.w_outside, if (outside > -100) fmtTemp(outside, s) else "—")
+                v.setTextViewText(R.id.w_outside, tr(if (outside > -100) fmtTemp(outside, s) else "—"))
             }
 
             val line = WidgetData.status(ctx) ?: updatedLine(snap, app.api.isSignedIn)
-            v.setTextViewText(R.id.w_updated, line)
-            v.setTextViewText(R.id.w_updated_top, line)
+            v.setTextViewText(R.id.w_updated, tr(line))
+            v.setTextViewText(R.id.w_updated_top, tr(line))
             v.setViewVisibility(R.id.w_updated, if (compact) View.GONE else View.VISIBLE)
             v.setViewVisibility(R.id.w_updated_top, if (compact) View.VISIBLE else View.GONE)
 

@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import no.lionflow.app.ui.l10n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,6 +62,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
     var editName by remember { mutableStateOf(false) }
     var editNobil by remember { mutableStateOf(false) }
     var editBattery by remember { mutableStateOf(false) }
+    var pickLanguage by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     var showLog by remember { mutableStateOf(false) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -192,6 +193,32 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         SectionTitle("Appearance")
         GroupCard {
             SegRow("Theme", listOf("dark" to "Dark", "light" to "Light", "system" to "System"), s.theme) { v -> set { it.copy(theme = v) } }
+            Divider()
+            LinkRow("Language", no.lionflow.app.ui.l10n.L10n.OPTIONS.firstOrNull { it.first == s.language }?.second ?: "System default", LfIcons.Globe, last = true) { pickLanguage = true }
+        }
+        if (pickLanguage) {
+            AlertDialog(
+                onDismissRequest = { pickLanguage = false }, containerColor = c.card,
+                title = { Text("Language", color = c.text) },
+                text = {
+                    Column {
+                        no.lionflow.app.ui.l10n.L10n.OPTIONS.forEach { (code, name) ->
+                            Row(Modifier.fillMaxWidth().clickable {
+                                set { it.copy(language = code) }
+                                no.lionflow.app.ui.l10n.L10n.setPreference(code)
+                                pickLanguage = false
+                            }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                // Native names are shown as-is so you can always find your language.
+                                androidx.compose.material3.Text(if (code == "system") no.lionflow.app.ui.l10n.L10n.tr("System default") else name,
+                                    style = Type.body.copy(fontWeight = if (code == s.language) FontWeight.SemiBold else FontWeight.Normal),
+                                    color = if (code == s.language) c.accentInk else c.text, modifier = Modifier.weight(1f))
+                                if (code == s.language) Text("✓", color = c.accentInk)
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { pickLanguage = false }) { Text("Close", color = c.muted) } },
+            )
         }
 
         SecondaryButton("Sign out", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { confirmSignOut = true }
