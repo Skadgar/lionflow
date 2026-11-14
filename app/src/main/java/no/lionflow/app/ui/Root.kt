@@ -219,7 +219,7 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                     horizontalArrangement = Arrangement.SpaceAround,
                 ) {
                     for (item in phoneTabs) {
-                        val active = ui.tab == item.tab || (item.tab == Tab.Home && (ui.tab == Tab.Trips || ui.tab == Tab.Settings))
+                        val active = ui.tab == item.tab || (item.tab == Tab.Home && ui.tab == Tab.Trips)
                         Column(
                             Modifier.width(64.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Tab) { vm.setTab(item.tab) }.padding(vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
