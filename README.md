@@ -22,8 +22,6 @@ LionFlow is a free, open-source Android app for your own connected Peugeot. It's
 - **Several cars:** switch between the cars on your MyPeugeot account, including petrol and diesel ones (fuel level and range).
 - **Private and secure:** no ads, no analytics, no tracking. Sign-in tokens are encrypted on the phone, and remote actions can require your fingerprint. All the code is public, so anyone can check what it does.
 
-**What you still need MyPeugeot for:** adding the car to your account and getting the remote-control security code (one time), and a few car settings Peugeot only exposes in the car or MyPeugeot, such as the scheduled charging start time. LionFlow is not made or supported by Peugeot or Stellantis.
-
 ### First sign-in (2 minutes)
 
 1. **Have MyPeugeot working first.** Your car must already be added in the official MyPeugeot app, and you need its 4-digit security code.
@@ -35,20 +33,9 @@ LionFlow is a free, open-source Android app for your own connected Peugeot. It's
 
 > Didn't come back to the app after signing in? Open LionFlow again and repeat step 3. Still stuck? Settings › Security › *Command & error log* shows what went wrong.
 
-A faster, simpler personal alternative to the MyPeugeot Android app.
+## Updates
 
-> **Unofficial, use at your own risk.** LionFlow is not affiliated with, endorsed by or supported by Peugeot or Stellantis. "Peugeot" and "MyPeugeot" are trademarks of their owners and are used only to say which cars the app works with.
->
-> LionFlow talks to the same sign-in and connected-car API as the MyPeugeot app, the way the open-source projects under Credits do. That API is not public and may change or stop working at any time. Using it may go against Peugeot's terms of use; your account and car are your own responsibility. Remote commands act on a real car — make sure it's safe to lock, unlock, heat or charge it before you do.
-
-## Install on your phone
-
-1. On your phone, open **Releases** in this repo and download the newest `LionFlow-1.0.x.apk`.
-2. Tap the file and allow "Install unknown apps" for your browser when Android asks.
-3. Open LionFlow and tap **Sign in with Peugeot**. After you sign in on Peugeot's page, Android may ask which app should open the link: choose **LionFlow**.
-4. Optional: turn on remote control with the SMS code and your MyPeugeot security code.
-
-After the first install, LionFlow updates itself: it finds new releases, checks they're signed with the same key, and installs them (on Android 12+ without extra taps after the first update). Every push to `main` builds a new signed APK with GitHub Actions and publishes it as a release.
+LionFlow updates itself. When a new version is ready, a popup shows what's new; tap **Install now**. Only versions signed with LionFlow's key are installed. You can turn the check off under Settings › App updates.
 
 ## How car data is updated
 
@@ -61,34 +48,19 @@ Automatic updates can be turned off under Settings › Driving data. The refresh
 
 ## Charging log
 
-The Charging tab keeps a log of every charging session LionFlow sees: when, from what % to what %, energy (kWh), duration, average and peak kW, AC or DC, and where. The address comes from the car's position, and the charger's name if it's a known public one.
+The Charging tab logs every charging session: when, from what % to what %, energy (kWh), duration, average and peak kW, AC or DC, and where.
 
-Under **Places & prices**, set your **Home** (sessions within 50 m count as home) and up to **5 known chargers** (work, cabin, a free charger) with a price per kWh. Empty means free. You can also set estimate prices for other AC/DC chargers. The log shows home vs away kWh and estimated costs for the last 30 days.
-
-The car has no charging history of its own, so the log is built from its status reports. While charging, LionFlow checks every ~10 minutes, so times can be a few minutes off. Everything stays on the phone.
+Under **Places & prices**, set your **Home** (sessions within 50 m count as home) and up to **5 known chargers** (work, cabin, a free charger) with a price per kWh. You can also set prices for other AC and DC chargers. The log shows home vs away kWh and estimated costs for the last 30 days. Everything stays on the phone.
 
 ## Android Auto
 
-LionFlow shows a simple car overview in Android Auto (no map):
+A clear car overview on the car's screen:
 
 - **Battery:** battery %, range, charging status, and charging power in kW while charging.
 - **Car:** climate and outside temperature, doors, odometer and next service.
-- **Driving:** last 7 days summary; tap for recent trips. **Chargers nearby** lists the nearest chargers.
-- **Actions** (top right): lock/unlock, pre-heat, charging, lights, horn.
-- **YouTube — only while parked:** opens only when the car reports a speed of 0 (or the phone's GPS shows no movement for 10 s). The moment the car moves, video stops and the screen closes. If parking can't be confirmed, it won't open. Can be turned off in Settings → Android Auto.
-
-Android Auto only runs apps like this when Android records them as **installed from Google Play**. So LionFlow is also published to a private Google Play internal test (invite only). Installed from Play, it appears in Android Auto, and Play handles updates. In that copy, the GitHub updater switches off by itself.
-
-The GitHub APK doesn't appear in Android Auto, because it isn't installed from Google Play.
-
-### Publishing to Google Play yourself (for forks)
-
-1. Create a Google Play developer account and an app with package `no.lionflow.app`. Upload the first `LionFlow-1.0.N.aab` from Releases to **Testing → Internal testing** by hand and add testers.
-2. Advanced settings → Form factors → add **Android Auto**.
-3. Create a Google Cloud service account, enable the Google Play Android Developer API, invite the service account in Play Console (Users and permissions) with release rights, and add its JSON key as the GitHub secret `PLAY_SERVICE_ACCOUNT_JSON`.
-4. From then on, every push to `main` also uploads to internal testing.
-
-Remote actions from the car (pre-heat, charging, lock) can be turned off under Settings → Android Auto.
+- **Driving:** last 7 days summary, recent trips and nearby chargers.
+- **Actions:** lock/unlock, pre-heat, charging, lights and horn.
+- **YouTube while parked:** only opens when the car is standing still, and closes the moment it moves.
 
 ## Features
 
@@ -103,31 +75,20 @@ Remote actions from the car (pre-heat, charging, lock) can be turned off under S
 - Light, dark or system theme, km or miles, °C or °F
 - Adapts to foldables and tablets with a side menu and a two-column home screen
 
-## What the Peugeot API doesn't offer
-
-- **Cabin temperature:** the car only reports the outside temperature. The widget shows the pre-heating state instead.
-- **Pre-heating temperature and departure times:** start and stop work in the app, but the settings themselves are changed in the car or in MyPeugeot.
-- **Charge limit and scheduled start time:** these are set in the car or in MyPeugeot. "Stop charging" waits until the scheduled time.
-- **Remote-control codes:** Peugeot allows roughly 6 one-time codes per day, and too many wrong security codes can block remote control for a while.
-
 ## Security
 
 - Tokens, the remote-control state and your security code are encrypted with an Android Keystore key (AES-256-GCM).
 - Your password is only typed on Peugeot's own page. The app never sees it.
 - There is no backend and no analytics. The app talks directly to Peugeot, OpenFreeMap, OpenStreetMap (Overpass), MET Norway, GitHub (updates) and — only if you choose it — NOBIL.
-- The release signing key lives only in GitHub Secrets (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`). It is restored during the build and deleted afterwards.
 
-## Download count
 
-The badge at the top is GitHub's own public counter for the APK link, added up across releases. In-app updates download a different file, so they don't inflate it. LionFlow has no analytics or tracking: the app sends nothing anywhere about you.
+## Disclaimer
+
+LionFlow is an independent app, not made, endorsed or supported by Peugeot or Stellantis. "Peugeot" and "MyPeugeot" are trademarks of their owners and are only used to say which cars the app works with. Remote commands act on a real car, so make sure it's safe to lock, unlock, heat or charge it.
 
 ## License
 
 GPL-3.0 — see [`LICENSE`](LICENSE). Third-party code, licences and data sources are listed in [`NOTICE.md`](NOTICE.md).
-
-## Build it yourself
-
-Fork the repo and add four Actions secrets for signing: `KEYSTORE_B64` (base64 of a PKCS12 keystore), `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Every push to `main` then builds a signed APK release. Without secrets, the *Compile check* workflow builds an unsigned debug APK on any other branch.
 
 ## Credits
 
