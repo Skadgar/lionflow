@@ -444,15 +444,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (_ui.value.updateStatus?.startsWith("Downloading") == true) return
         viewModelScope.launch {
             try {
-                _ui.update { it.copy(needsInstallPermission = false, updateStatus = "Downloading ${r.tag}…") }
-                val f = no.lionflow.app.update.Updater.download(ctx, r) { p -> _ui.update { it.copy(updateStatus = "Downloading ${r.tag}… $p %") } }
+                _ui.update { it.copy(needsInstallPermission = false, updateStatus = "Downloading ${r.name}…") }
+                val f = no.lionflow.app.update.Updater.download(ctx, r) { p -> _ui.update { it.copy(updateStatus = "Downloading ${r.name}… $p %") } }
                 if (!no.lionflow.app.update.Updater.sameSigner(ctx, f)) {
                     f.delete()
                     _ui.update { it.copy(updateStatus = "The download isn't signed with LionFlow's key — not installed") }
                     remote.addLog("update ${r.tag} rejected: signature mismatch")
                     return@launch
                 }
-                _ui.update { it.copy(updateStatus = "Installing ${r.tag}…") }
+                _ui.update { it.copy(updateStatus = "Installing ${r.name}…") }
                 no.lionflow.app.update.Updater.install(ctx, f)
             } catch (e: Exception) {
                 _ui.update { it.copy(updateStatus = "Update failed — ${no.lionflow.app.api.Http.describe(e)}") }

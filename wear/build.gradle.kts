@@ -16,7 +16,8 @@ android {
         minSdk = 30
         targetSdk = 34
         versionCode = buildNumber
-        versionName = "1.0.$buildNumber"
+        // Shown version (1.1.x) comes from the build; versionCode keeps counting up for Android.
+        versionName = System.getenv("APP_VERSION_NAME") ?: "1.1.0-dev"
     }
 
     signingConfigs {

@@ -60,13 +60,13 @@ The watch gets everything through LionFlow on your phone, so your Peugeot sign-i
 
 **Install on the watch:**
 
-1. Download `Watch-LionFlow-1.0.x.apk` from the [latest release](https://github.com/thocubeat/lionflow/releases/latest) to your computer, and install [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (adb).
+1. Download `Watch-LionFlow-1.1.x.apk` from the [latest release](https://github.com/thocubeat/lionflow/releases/latest) to your computer, and install [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (adb).
 2. On the watch: **Settings → System → About** → tap **Build number** 7 times. Then in **Developer options**, turn on **ADB debugging** and **Wireless debugging**.
 3. Under Wireless debugging, tap **Pair new device** and run these on the computer, using the address and code the watch shows:
    ```
    adb pair <IP:port> <code>
    adb connect <IP:port>
-   adb install Watch-LionFlow-1.0.x.apk
+   adb install Watch-LionFlow-1.1.x.apk
    ```
 4. Open LionFlow on the watch. Your phone needs to be nearby, with LionFlow installed.
 

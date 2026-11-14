@@ -36,6 +36,10 @@ jobs:
           fi
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
+      # Version shown to users: 1.1.0 was build 47; every build after that counts up the last number.
+      - name: Version number
+        run: echo "APP_VERSION_NAME=1.1.$(( ${{ github.run_number }} - 47 ))" >> "$GITHUB_ENV"
+
       - name: Build signed release APK and Play bundle
         env:
           SIGNING_STORE_FILE: ${{ runner.temp }}/release.jks
@@ -47,10 +51,10 @@ jobs:
 
       - name: Rename APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk LionFlow-1.0.${{ github.run_number }}.apk
+          cp app/build/outputs/apk/release/app-release.apk "LionFlow-$APP_VERSION_NAME.apk"
           cp app/build/outputs/apk/release/app-release.apk LionFlow.apk
-          cp app/build/outputs/bundle/release/app-release.aab LionFlow-1.0.${{ github.run_number }}.aab
-          cp wear/build/outputs/apk/release/wear-release.apk Watch-LionFlow-1.0.${{ github.run_number }}.apk
+          cp app/build/outputs/bundle/release/app-release.aab "LionFlow-$APP_VERSION_NAME.aab"
+          cp wear/build/outputs/apk/release/wear-release.apk "Watch-LionFlow-$APP_VERSION_NAME.apk"
 
       - name: Show signing certificate fingerprint (public, for developer registration)
         env:
@@ -87,8 +91,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: LionFlow 1.0.${{ github.run_number }}
+          tag_name: v${{ env.APP_VERSION_NAME }}.${{ github.run_number }}
+          name: LionFlow ${{ env.APP_VERSION_NAME }}
           body: ${{ github.event.head_commit.message }}
           files: |
             LionFlow-*.apk
@@ -96,6 +100,20 @@ jobs:
             LionFlow-*.aab
             Watch-LionFlow-*.apk
           make_latest: true
+
+      # One-time (removed in the next commit): delete every older release and tag.
+      - name: Remove old releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          KEEP: v${{ env.APP_VERSION_NAME }}.${{ github.run_number }}
+        run: |
+          gh api --paginate "repos/$REPO/releases?per_page=100" -q '.[] | "\(.id) \(.tag_name)"' | while read id tag; do
+            if [ "$tag" != "$KEEP" ]; then echo "delete release $tag"; gh api -X DELETE "repos/$REPO/releases/$id"; fi
+          done
+          gh api --paginate "repos/$REPO/tags?per_page=100" -q '.[].name' | while read tag; do
+            if [ "$tag" != "$KEEP" ]; then echo "delete tag $tag"; gh api -X DELETE "repos/$REPO/git/refs/tags/$tag"; fi
+          done
 
       # Google Play internal testing: installs from Play are trusted by Android Auto.
       # Runs only when the PLAY_SERVICE_ACCOUNT_JSON secret exists. The very first upload must be done by hand in Play Console.
@@ -106,8 +124,8 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: no.lionflow.app
-          releaseFiles: LionFlow-1.0.${{ github.run_number }}.aab
-          releaseName: "1.0.${{ github.run_number }}"
+          releaseFiles: LionFlow-${{ env.APP_VERSION_NAME }}.aab
+          releaseName: "${{ env.APP_VERSION_NAME }}"
           track: internal
           status: completed
 

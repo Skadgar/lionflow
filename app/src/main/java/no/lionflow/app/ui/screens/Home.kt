@@ -223,7 +223,7 @@ private fun UpdateCard(vm: AppViewModel, ui: UiState) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 LfIcon(LfIcons.Download, c.accentInk, 22.dp)
                 Column(Modifier.weight(1f)) {
-                    Text("Update ${r.tag} is ready", style = Type.label, color = c.text)
+                    Text("Update ${r.name} is ready", style = Type.label, color = c.text)
                     Text(ui.updateStatus ?: "Signed with LionFlow's key · installs in a few seconds", style = Type.tiny, color = c.muted)
                 }
                 val busy = ui.updateStatus?.let { it.startsWith("Downloading") || it.startsWith("Installing") } == true
@@ -449,7 +449,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 LfIcon(LfIcons.Download, c.accentInk, 22.dp)
                 Column(Modifier.weight(1f)) {
-                    Text("Update ${r.tag} is ready", style = Type.label, color = c.text)
+                    Text("Update ${r.name} is ready", style = Type.label, color = c.text)
                     Text(ui.updateStatus ?: "Signed with LionFlow's key · installs in a few seconds", style = Type.tiny, color = c.muted)
                 }
                 val busy = ui.updateStatus?.let { it.startsWith("Downloading") || it.startsWith("Installing") } == true

@@ -15,7 +15,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 
-data class Release(val tag: String, val versionCode: Int, val apkUrl: String, val notes: String)
+data class Release(val tag: String, val versionCode: Int, val apkUrl: String, val notes: String, val name: String = tag.removePrefix("v"))
 
 /**
  * In-app updates from GitHub Releases. The downloaded APK must be signed with the same key as the
@@ -51,7 +51,7 @@ object Updater {
             // The versioned file; the plain "LionFlow.apk" is left for first-time downloads (that's what the download count shows).
             if (a.optString("name").matches(Regex("LionFlow-.*\\.apk"))) { url = a.optString("browser_download_url"); break }
         }
-        return Release(tag, code, url ?: return null, j.optString("body"))
+        return Release(tag, code, url ?: return null, j.optString("body"), j.optString("name").removePrefix("LionFlow ").ifBlank { tag.removePrefix("v") })
     }
 
     fun isNewer(r: Release) = r.versionCode > BuildConfig.VERSION_CODE

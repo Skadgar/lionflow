@@ -113,7 +113,7 @@ fun LionFlowRoot(vm: AppViewModel, platform: Platform) {
                         title = { Text("Update available", color = c.text) },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("LionFlow ${upd.tag.removePrefix("v")} is ready. You have ${no.lionflow.app.BuildConfig.VERSION_NAME}.", style = Type.body, color = c.text)
+                                Text("LionFlow ${upd.name} is ready. You have ${no.lionflow.app.BuildConfig.VERSION_NAME}.", style = Type.body, color = c.text)
                                 val notes = upd.notes.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("Co-Authored-By") && !it.startsWith("Claude-Session") }.take(6)
                                 if (notes.isNotEmpty()) Text(notes.joinToString("\n"), style = Type.small, color = c.muted)
                                 ui.updateStatus?.let { st ->
