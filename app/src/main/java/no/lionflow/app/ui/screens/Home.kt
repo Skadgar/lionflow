@@ -190,7 +190,7 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
                     val label = when {
                         st.moving -> "Driving"
                         place == null -> "Parked"
-                        place!!.startsWith("@") -> "Parked at " + place!!.removePrefix("@")
+                        place!!.startsWith("@") -> place!!.removePrefix("@")   // a saved place: just its name
                         else -> "Parked in " + place
                     }
                     Row(Modifier.weight(1f).clickable { vm.setTab(Tab.Map) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {

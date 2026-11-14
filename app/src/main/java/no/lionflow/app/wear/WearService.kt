@@ -83,8 +83,8 @@ class WearService : WearableListenerService() {
         val lon = st.lon ?: return ""
         if (st.moving) return tr("Driving")
         val cfg = ChargeLog.places.value
-        cfg.home?.let { h -> if (h.lat != null && h.lon != null && ChargeLog.distanceM(lat, lon, h.lat, h.lon) <= 50) return tr("Parked at Home") }
-        cfg.known.forEach { k -> if (k.lat != null && k.lon != null && ChargeLog.distanceM(lat, lon, k.lat, k.lon) <= 75) return tr("Parked at ${k.name}") }
+        cfg.home?.let { h -> if (h.lat != null && h.lon != null && ChargeLog.distanceM(lat, lon, h.lat, h.lon) <= 50) return tr("Home") }
+        cfg.known.forEach { k -> if (k.lat != null && k.lon != null && ChargeLog.distanceM(lat, lon, k.lat, k.lon) <= 75) return k.name }
         return try { ChargeLog.reverseGeocode(lat, lon) } catch (_: Exception) { null } ?: String.format(Locale.US, "%.5f, %.5f", lat, lon)
     }
 
