@@ -17,10 +17,18 @@ object ChargePower {
     private var prefs: SharedPreferences? = null
     private var settings: SettingsStore? = null
 
-    fun init(ctx: Context, s: SettingsStore) {
+    private var vin = ""
+    private fun k(name: String) = if (vin.isEmpty()) name else "${name}_$vin"
+
+    fun init(ctx: Context, s: SettingsStore, currentVin: String?) {
         prefs = ctx.getSharedPreferences("charge_samples", Context.MODE_PRIVATE)
         settings = s
+        vin = currentVin.orEmpty()
+        val p = prefs!!
+        if (vin.isNotEmpty() && !p.contains(k("kmPerPct")) && p.contains("kmPerPct")) p.edit().putFloat(k("kmPerPct"), p.getFloat(k("kmPerPct"), 0f)).remove("kmPerPct").apply()
     }
+
+    fun setVin(v: String) { vin = v }
 
     /** Usable battery size: what the car reports, else the user's setting, else E-5008's 73 kWh. */
     fun usableKwh(st: VehicleStatus): Double =
@@ -37,13 +45,13 @@ object ChargePower {
         val st = applyPendingPrograms(fixRange(raw))
         try { ChargeLog.observe(st) } catch (_: Exception) { }
         val p = prefs ?: return st
-        if (!st.isCharging) { p.edit().remove("s").apply(); return st }
+        if (!st.isCharging) { p.edit().remove(k("s")).apply(); return st }
         val t = st.energyAtMillis ?: st.updatedAtMillis ?: return st
         val e = energyIn(st) ?: return st
         val arr = load()
         if (arr.isNotEmpty() && arr.last().first == t) return st
         val keep = (arr + (t to e)).filter { t - it.first <= 45 * 60_000L }.takeLast(12)
-        p.edit().putString("s", JSONArray(keep.map { JSONArray().put(it.first).put(it.second) }).toString()).apply()
+        p.edit().putString(k("s"), JSONArray(keep.map { JSONArray().put(it.first).put(it.second) }).toString()).apply()
         return st
     }
 
@@ -93,18 +101,18 @@ object ChargePower {
         val range = st.rangeKm
         if (range != null && range > 0 && pct >= 5) {
             val perPct = range / pct
-            if (perPct in 1.0..10.0) p?.edit()?.putFloat("kmPerPct", perPct.toFloat())?.apply()
+            if (perPct in 1.0..10.0) p?.edit()?.putFloat(k("kmPerPct"), perPct.toFloat())?.apply()
             return st
         }
         if (range != null && range > 0) return st
         if (pct < 1) return st
-        val learned = p?.getFloat("kmPerPct", 0f)?.toDouble()?.takeIf { it > 0 }
+        val learned = p?.getFloat(k("kmPerPct"), 0f)?.toDouble()?.takeIf { it > 0 }
         val perPct = learned ?: (usableKwh(st) / 19.0 * 100.0 / 100.0)
         return st.copy(rangeKm = Math.round(pct * perPct).toDouble(), rangeEstimated = true)
     }
 
     private fun load(): List<Pair<Long, Double>> = try {
-        val a = JSONArray(prefs?.getString("s", "[]") ?: "[]")
+        val a = JSONArray(prefs?.getString(k("s"), "[]") ?: "[]")
         (0 until a.length()).map { a.getJSONArray(it).let { x -> x.getLong(0) to x.getDouble(1) } }
     } catch (_: Exception) { emptyList() }
 

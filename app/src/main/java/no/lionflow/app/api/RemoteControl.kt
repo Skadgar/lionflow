@@ -303,9 +303,12 @@ class RemoteControl(private val api: StellantisApi, private val secure: SecureSt
             }
             outcome
         } catch (e: Exception) {
-            val msg = if (e is org.eclipse.paho.client.mqttv3.MqttException)
-                "Couldn't connect to Peugeot's remote-control server: ${e.message} (MQTT code ${e.reasonCode})"
-            else Http.describe(e)
+            val msg = if (e is org.eclipse.paho.client.mqttv3.MqttException) when (e.reasonCode) {
+                // SUBACK 0x80: connected, but Peugeot won't let this account listen to the car.
+                128 -> "Peugeot refused remote control for this account (MQTT code 128). Usually remote services aren't active for this car: check in MyPeugeot that the remote service (e-Remote Control / Connect) is activated and that pre-heating works there. If someone else added the car, they may need to share remote access."
+                4, 5 -> "Peugeot's remote-control server didn't accept the login (MQTT code ${e.reasonCode}). Set up remote control again in Settings."
+                else -> "Couldn't connect to Peugeot's remote-control server: ${e.message} (MQTT code ${e.reasonCode})"
+            } else Http.describe(e)
             addLog("error: $msg")
             CommandResult.Failed(msg)
         }
@@ -314,7 +317,7 @@ class RemoteControl(private val api: StellantisApi, private val secure: SecureSt
     /** Builds and publishes one request; [beforeSend] registers listeners before the message goes out. */
     private suspend fun publish(c: MqttClient, service: String, params: JSONObject, beforeSend: (String) -> Unit): String {
         val customer = api.customerId ?: throw ApiException(0, "Missing customer id")
-        val vin = api.cachedVehicles().firstOrNull()?.vin ?: throw ApiException(0, "No vehicle")
+        val vin = api.cachedVehicle()?.vin ?: throw ApiException(0, "No vehicle")
         val now = Date()
         val stamp = SimpleDateFormat("yyyyMMddHHmmssSSS", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(now)
         val reqDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(now)

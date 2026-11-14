@@ -70,6 +70,7 @@ data class UiState(
     val updateStatus: String? = null,
     val needsInstallPermission: Boolean = false,
     val updateDismissed: Boolean = false,
+    val vehicles: List<no.lionflow.app.api.Vehicle> = emptyList(),
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -97,14 +98,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(phase = Phase.SignedOut) }
             return
         }
-        val v = api.cachedVehicles().firstOrNull()
-        _ui.update { it.copy(vehicle = v) }
+        val v = api.cachedVehicle()
+        _ui.update { it.copy(vehicle = v, vehicles = api.cachedVehicles()) }
         // The app is locked with the MyPeugeot security code (or fingerprint) once remote control is set up.
         _ui.update { it.copy(phase = if (remote.hasPin) Phase.Locked else Phase.Ready) }
         if (_ui.value.phase == Phase.Ready) onUnlocked()
     }
 
     fun setTab(t: Tab) = _ui.update { it.copy(tab = t) }
+
+    /** Switch to another car on the account. Each car keeps its own name, charging log and range learning. */
+    fun selectVehicle(v: no.lionflow.app.api.Vehicle) {
+        val old = _ui.value.vehicle
+        if (old?.vin == v.vin) return
+        old?.let { settings.setNameFor(it.vin, settings.value.carName) }
+        api.selectedVin = v.vin
+        settings.update { it.copy(carName = settings.nameFor(v.vin) ?: "My Peugeot") }
+        settings.pendingPrograms = ""
+        no.lionflow.app.model.ChargeLog.setVin(v.vin)
+        no.lionflow.app.model.ChargePower.setVin(v.vin)
+        no.lionflow.app.widget.WidgetData.clear(getApplication())
+        _ui.update { it.copy(vehicle = v, status = null) }
+        refresh()
+    }
+
+    fun vehicleName(v: no.lionflow.app.api.Vehicle): String =
+        if (v.vin == _ui.value.vehicle?.vin) settings.value.carName else settings.nameFor(v.vin) ?: "Peugeot …" + v.vin.takeLast(4)
+
+    fun vehicleKind(v: no.lionflow.app.api.Vehicle): String = when (v.motorization.lowercase()) {
+        "electric" -> "Electric"; "hybrid" -> "Plug-in hybrid"; "thermal" -> "Petrol / diesel"; else -> v.motorization.ifBlank { "Car" }
+    }
+
+    /** Reload the car list (e.g. after adding a car in MyPeugeot). */
+    fun reloadVehicles() = viewModelScope.launch {
+        try {
+            val all = api.vehicles()
+            _ui.update { it.copy(vehicles = all, vehicle = api.pick(all)) }
+        } catch (e: Exception) { toast("Couldn't load your cars — ${no.lionflow.app.api.Http.describe(e)}") }
+    }
     fun clearMessage() = _ui.update { it.copy(message = null) }
     private fun toast(m: String) = _ui.update { it.copy(message = m) }
 
@@ -122,8 +153,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 api.exchangeCode(code)
                 api.loadUserInfo()
-                val v = api.vehicles().firstOrNull()
-                _ui.update { it.copy(vehicle = v, signingIn = false, phase = Phase.SetupRemote) }
+                val all = api.vehicles()
+                val v = api.pick(all)
+                _ui.update { it.copy(vehicle = v, vehicles = all, signingIn = false, phase = Phase.SetupRemote) }
                 if (v == null) toast("No car found on this account — add it in the MyPeugeot app first")
             } catch (e: Exception) {
                 _ui.update { it.copy(signingIn = false) }
@@ -255,7 +287,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.update { it.copy(refreshing = true) }
             try {
-                val v = _ui.value.vehicle ?: api.vehicles().firstOrNull() ?: throw IllegalStateException("No car on this account")
+                val v = _ui.value.vehicle ?: api.currentVehicle() ?: throw IllegalStateException("No car on this account")
                 val raw = api.status(v)
                 val maint = api.maintenance(v)
                 val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(raw, maint))

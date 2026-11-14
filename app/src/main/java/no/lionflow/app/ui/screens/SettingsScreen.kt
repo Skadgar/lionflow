@@ -88,6 +88,23 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 }
                 Text("Edit", style = Type.label.copy(fontSize = 14.sp), color = c.accentInk, modifier = Modifier.clickable { editName = true }.padding(8.dp))
             }
+            if (ui.vehicles.size > 1) {
+                Divider()
+                Text("Cars on this account", style = Type.small, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
+                ui.vehicles.forEach { v ->
+                    val sel = v.vin == ui.vehicle?.vin
+                    Row(Modifier.fillMaxWidth().clickable { vm.selectVehicle(v) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(vm.vehicleName(v), style = Type.body.copy(fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal), color = c.text)
+                            Text(vm.vehicleKind(v) + " · VIN …" + v.vin.takeLast(6), style = Type.tiny, color = c.muted)
+                        }
+                        if (sel) Text("Selected", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk)
+                    }
+                }
+            }
+            Divider()
+            Text("Reload cars from MyPeugeot", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                modifier = Modifier.fillMaxWidth().clickable { vm.reloadVehicles() }.padding(horizontal = 16.dp, vertical = 12.dp))
         }
 
         SectionTitle("Units")

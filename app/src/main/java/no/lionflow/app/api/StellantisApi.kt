@@ -198,6 +198,15 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
     fun cachedVehicles(): List<Vehicle> =
         secure.get(K_VEHICLES)?.let { s -> JSONArray(s).objects().map { Vehicle.fromJson(it) } }.orEmpty()
 
+    /** The car chosen in the app (accounts can have several). */
+    var selectedVin: String?
+        get() = secure.get(K_SELECTED)?.ifEmpty { null }
+        set(v) = secure.put(K_SELECTED, v ?: "")
+
+    fun pick(list: List<Vehicle>): Vehicle? = list.firstOrNull { it.vin == selectedVin } ?: list.firstOrNull()
+    fun cachedVehicle(): Vehicle? = pick(cachedVehicles())
+    suspend fun currentVehicle(): Vehicle? = cachedVehicle() ?: pick(vehicles())
+
     suspend fun status(v: Vehicle): JSONObject = authed { token ->
         val url = "$API/connectedcar/v4/user/vehicles/${v.id}/status?${clientQuery()}"
         Http.json(carHeaders(Request.Builder().url(url), token).get().build()) as? JSONObject
@@ -261,5 +270,6 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
         const val K_EXPIRES = "oauth_expires"
         const val K_CUSTOMER = "customer_id"
         const val K_VEHICLES = "vehicles"
+        const val K_SELECTED = "selected_vin"
     }
 }

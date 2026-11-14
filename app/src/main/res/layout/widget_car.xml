@@ -98,6 +98,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:id="@+id/w_battery_label"
                 android:fontFamily="sans-serif-medium" android:textStyle="bold"
                 android:text="Battery"
                 android:textColor="@color/widget_muted"

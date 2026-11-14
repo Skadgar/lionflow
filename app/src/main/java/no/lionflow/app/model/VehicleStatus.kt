@@ -41,7 +41,11 @@ data class VehicleStatus(
     val capacityKwh: Double? = null,   // usable capacity reported by the car
     val energyAtMillis: Long? = null,  // when the battery reading was taken
     val rangeEstimated: Boolean = false,
-    val chargeType: String? = null,     // Partial = car's daily charge limit on, Full = charge to 100 % // car sent no/0 range; LionFlow estimated it
+
+    val chargeType: String? = null,
+    val energyType: String = "Electric", // Electric | Fuel | Hybrid
+    val fuelPct: Double? = null,
+    val fuelRangeKm: Double? = null,     // Partial = car's daily charge limit on, Full = charge to 100 % // car sent no/0 range; LionFlow estimated it
 ) {
     val isCharging: Boolean get() = chargingStatus == "InProgress"
 
@@ -67,6 +71,7 @@ data class VehicleStatus(
         fun parse(j: JSONObject, maintenance: JSONObject?): VehicleStatus {
             val energies = j.optJSONArray("energies")?.objects().orEmpty()
             val electric = energies.firstOrNull { it.optString("type") == "Electric" }
+            val fuel = energies.firstOrNull { it.optString("type") == "Fuel" }
             val charging = electric?.obj("extension", "electric", "charging")
             val health = electric?.obj("extension", "electric", "battery", "health")
             val load = electric?.obj("extension", "electric", "battery", "load")
@@ -90,8 +95,12 @@ data class VehicleStatus(
 
             return VehicleStatus(
                 raw = j,
-                batteryPct = electric?.num("level"),
-                rangeKm = electric?.num("autonomy"),
+                // Petrol/diesel cars: the fuel tank stands in for the battery.
+                batteryPct = electric?.num("level") ?: fuel?.num("level"),
+                rangeKm = electric?.num("autonomy") ?: fuel?.num("autonomy"),
+                energyType = when { electric != null && fuel != null -> "Hybrid"; electric == null && fuel != null -> "Fuel"; else -> "Electric" },
+                fuelPct = fuel?.num("level"),
+                fuelRangeKm = fuel?.num("autonomy"),
                 plugged = charging?.optBoolean("plugged") ?: false,
                 chargingStatus = charging?.str("status"),
                 chargingMode = charging?.str("chargingMode"),

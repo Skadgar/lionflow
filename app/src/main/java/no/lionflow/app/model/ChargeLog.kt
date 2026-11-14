@@ -107,12 +107,33 @@ object ChargeLog {
     private val _places = MutableStateFlow(PlacesConfig())
     val places: StateFlow<PlacesConfig> = _places
 
-    fun init(ctx: Context) {
+    private var vin = ""
+    private fun k(name: String) = if (vin.isEmpty()) name else "${name}_$vin"
+
+    fun init(ctx: Context, currentVin: String?) {
         prefs = ctx.getSharedPreferences("charge_log", Context.MODE_PRIVATE)
         cacheDir = ctx.cacheDir
+        vin = currentVin.orEmpty()
+        // Older versions kept one log; it belongs to the car that was selected then.
+        val p = prefs!!
+        if (vin.isNotEmpty() && !p.contains(k("sessions")) && p.contains("sessions")) {
+            p.edit().putString(k("sessions"), p.getString("sessions", "[]")).remove("sessions")
+                .apply { p.getString("active", null)?.let { putString(k("active"), it) } }.remove("active").apply()
+        }
         _sessions.value = loadSessions()
         _active.value = loadActive()?.let { activeToSession(it) }
         _places.value = loadPlaces()
+        fillAddresses()
+    }
+
+    /** Show another car's log. */
+    fun setVin(v: String) {
+        vin = v
+        _sessions.value = loadSessions()
+        _active.value = loadActive()?.let { activeToSession(it) }
+    }
+
+    private fun fillAddresses() {
         // Fill in any addresses that couldn't be looked up earlier (offline).
         _sessions.value.filter { it.address == null && it.lat != null }.take(3).forEach { lookupAddress(it.id) }
     }
@@ -142,7 +163,7 @@ object ChargeLog {
                 if (st.chargingMode == "Quick") a.put("mode", "Quick")
             }
             if (t >= a.optLong("lastT", 0L)) a.put("lastT", t).put("lastPct", pct).put("lastKwh", st.residualKwh ?: JSONObject.NULL)
-            p.edit().putString("active", a.toString()).apply()
+            p.edit().putString(k("active"), a.toString()).apply()
             _active.value = activeToSession(a)
         } else if (a != null) {
             // Charging stopped. If this report shows a higher level (finished while we weren't looking), use it.
@@ -153,7 +174,7 @@ object ChargeLog {
 
     private fun finish(a: JSONObject, endPct: Double?, endT: Long?, endKwh: Double? = null) {
         val p = prefs ?: return
-        p.edit().remove("active").apply()
+        p.edit().remove(k("active")).apply()
         _active.value = null
         val s = activeToSession(a, endPct, endT, endKwh)
         if (s.kwh < 0.3 || s.end - s.start < 2 * 60_000L && s.endPct - s.startPct < 1) return
@@ -219,22 +240,22 @@ object ChargeLog {
     // ---------------- storage ----------------
 
     private fun loadSessions(): List<ChargeSession> = try {
-        val a = JSONArray(prefs?.getString("sessions", "[]") ?: "[]")
+        val a = JSONArray(prefs?.getString(k("sessions"), "[]") ?: "[]")
         (0 until a.length()).map { ChargeSession.fromJson(a.getJSONObject(it)) }
     } catch (_: Exception) { emptyList() }
 
-    private fun loadActive(): JSONObject? = try { prefs?.getString("active", null)?.let { JSONObject(it) } } catch (_: Exception) { null }
+    private fun loadActive(): JSONObject? = try { prefs?.getString(k("active"), null)?.let { JSONObject(it) } } catch (_: Exception) { null }
 
     @Synchronized
     private fun save(list: List<ChargeSession>) {
         _sessions.value = list
-        prefs?.edit()?.putString("sessions", JSONArray(list.map { it.toJson() }).toString())?.apply()
+        prefs?.edit()?.putString(k("sessions"), JSONArray(list.map { it.toJson() }).toString())?.apply()
     }
 
     fun delete(id: Long) = save(loadSessions().filter { it.id != id })
 
     fun clearAll() {
-        prefs?.edit()?.remove("sessions")?.remove("active")?.apply()
+        prefs?.edit()?.remove(k("sessions"))?.remove(k("active"))?.apply()
         _sessions.value = emptyList(); _active.value = null
     }
 

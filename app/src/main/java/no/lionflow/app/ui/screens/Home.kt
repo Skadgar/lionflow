@@ -160,7 +160,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
     LfCard(onClick = { vm.setTab(Tab.Charging) }, padding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
-                Text("Battery", style = Type.small, color = c.muted)
+                Text(if (ui.status?.energyType == "Fuel") "Fuel" else "Battery", style = Type.small, color = c.muted)
                 Text(buildAnnotatedString {
                     append(st?.batteryPct?.let { "${it.toInt()}" } ?: "—")
                     withStyle(SpanStyle(color = c.muted, fontSize = 26.sp)) { append(" %") }

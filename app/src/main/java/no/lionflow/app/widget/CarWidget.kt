@@ -39,6 +39,7 @@ object WidgetData {
             .put("charging", st.isCharging)
             .put("plugged", st.plugged)
             .put("remaining", st.remainingMinutes ?: -1)
+            .put("fuel", st.energyType == "Fuel")
             .put("kw", no.lionflow.app.model.ChargePower.label(st) ?: "")
             .put("outside", st.outsideTempC ?: -999.0)
             .put("precond", st.preconditioningOn)
@@ -137,6 +138,7 @@ class CarWidget : AppWidgetProvider() {
                 val precond = snap.optBoolean("precond")
                 val rangeShown = if (s.distanceUnit == "mi") range * 0.621371 else range
 
+                v.setTextViewText(R.id.w_battery_label, if (snap.optBoolean("fuel")) "Fuel" else "Battery")
                 v.setTextViewText(R.id.w_battery, if (battery >= 0) "${battery.toInt()}" else "—")
                 v.setTextViewText(R.id.w_range, if (range >= 0) "≈${Math.round(rangeShown)}" else "—")
                 v.setProgressBar(R.id.w_bar, 100, battery.coerceIn(0.0, 100.0).toInt(), false)
@@ -199,7 +201,7 @@ class WidgetRefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
             WidgetData.setRefresh(ctx, false, null)
             return Result.success()
         }
-        val vehicle = app.api.cachedVehicles().firstOrNull()
+        val vehicle = app.api.cachedVehicle()
         if (vehicle == null) {
             WidgetData.setRefresh(ctx, false, "Open LionFlow to finish setup")
             return Result.success()

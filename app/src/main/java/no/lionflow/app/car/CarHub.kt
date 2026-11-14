@@ -75,7 +75,7 @@ object CarHub {
         refreshing = true
         scope.launch {
             try {
-                val v = app.api.cachedVehicles().firstOrNull() ?: app.api.vehicles().firstOrNull()
+                val v = app.api.currentVehicle()
                 if (v != null) {
                     val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(v), null))
                     _status.value = st
@@ -166,7 +166,7 @@ object CarHub {
         tripsLoadedAt = System.currentTimeMillis()
         scope.launch {
             try {
-                val v = app.api.cachedVehicles().firstOrNull() ?: app.api.vehicles().firstOrNull() ?: return@launch
+                val v = app.api.currentVehicle() ?: return@launch
                 val since = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
                     .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
                     .format(java.util.Date(System.currentTimeMillis() - 30 * 86_400_000L))

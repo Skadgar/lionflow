@@ -28,7 +28,7 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         val s = app.settings.value
         val anyOn = s.notifyChargeDone || s.notifyChargeStopped || s.notifyPreheat || s.notifyUnlocked || s.notifyLowBattery || s.notifyService
         if (!app.api.isSignedIn) return Result.success()
-        val vehicle = app.api.cachedVehicles().firstOrNull() ?: return Result.success()
+        val vehicle = app.api.cachedVehicle() ?: return Result.success()
         return try {
             val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(vehicle), null))
             no.lionflow.app.widget.WidgetData.save(applicationContext, st)
