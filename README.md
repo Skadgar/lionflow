@@ -17,7 +17,7 @@ LionFlow is a free, open-source Android app for your own connected Peugeot. It's
 - **Pre-heating schedules:** set "ready at 07:00, Monday to Friday" in a few taps.
 - **Range that makes sense:** when Peugeot's server reports 0 km by mistake, LionFlow estimates from your own driving instead.
 - **Clear errors:** when something fails you get the actual reason and code, not a generic "try again later".
-- **More on screen:** a home-screen widget, a free 2D/3D charger map, local weather and forecast, Android Auto overview, and layouts for foldables and tablets.
+- **More on screen:** a home-screen widget, a free 2D/3D charger map, local weather and forecast, and layouts for foldables and tablets.
 - **Your language:** English, French, German, Spanish or Norwegian (Settings → Appearance → Language), or follow the phone.
 - **Several cars:** switch between the cars on your MyPeugeot account, including petrol and diesel ones (fuel level and range).
 - **Private and secure:** no ads, no analytics, no tracking. Sign-in tokens are encrypted on the phone, and remote actions can require your fingerprint. All the code is public, so anyone can check what it does.
@@ -51,16 +51,6 @@ Automatic updates can be turned off under Settings › Driving data. The refresh
 The Charging tab logs every charging session: when, from what % to what %, energy (kWh), duration, average and peak kW, AC or DC, and where.
 
 Under **Places & prices**, set your **Home** (sessions within 50 m count as home) and up to **5 known chargers** (work, cabin, a free charger) with a price per kWh. You can also set prices for other AC and DC chargers. The log shows home vs away kWh and estimated costs for the last 30 days. Everything stays on the phone.
-
-## Android Auto
-
-A clear car overview on the car's screen:
-
-- **Battery:** battery %, range, charging status, and charging power in kW while charging.
-- **Car:** climate and outside temperature, doors, odometer and next service.
-- **Driving:** last 7 days summary, recent trips and nearby chargers.
-- **Actions:** lock/unlock, pre-heat, charging, lights and horn.
-- **YouTube while parked:** only opens when the car is standing still, and closes the moment it moves.
 
 ## Features
 
