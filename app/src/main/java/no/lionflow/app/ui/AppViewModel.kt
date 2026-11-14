@@ -367,6 +367,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         r
     }
 
+    private val _parkedAt = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    /** "Home", a known charger's name, or a street address for where the car is parked. */
+    val parkedAt: kotlinx.coroutines.flow.StateFlow<String?> = _parkedAt
+    private var parkedKey = ""
+    private val addressCache = HashMap<String, String>()
+
+    fun updateParkedPlace(lat: Double?, lon: Double?) {
+        if (lat == null || lon == null) { _parkedAt.value = null; return }
+        val cfg = no.lionflow.app.model.ChargeLog.places.value
+        cfg.home?.let { h -> if (h.lat != null && h.lon != null && no.lionflow.app.model.ChargeLog.distanceM(lat, lon, h.lat, h.lon) <= 50) { _parkedAt.value = "@Home"; return } }
+        cfg.known.forEach { k -> if (k.lat != null && k.lon != null && no.lionflow.app.model.ChargeLog.distanceM(lat, lon, k.lat, k.lon) <= 75) { _parkedAt.value = "@" + k.name.ifBlank { "Charger" }; return } }
+        val key = String.format(java.util.Locale.US, "%.4f,%.4f", lat, lon)   // ~10 m
+        addressCache[key]?.let { _parkedAt.value = it; return }
+        if (key == parkedKey) return
+        parkedKey = key
+        _parkedAt.value = null
+        viewModelScope.launch {
+            val a = try { no.lionflow.app.model.ChargeLog.reverseGeocode(lat, lon) } catch (_: Exception) { null }
+            if (a != null) { addressCache[key] = a; _parkedAt.value = a } else parkedKey = ""
+        }
+    }
+
     /** True while schedules we sent haven't shown up in Peugeot's status yet. */
     fun programsPending(): Boolean = no.lionflow.app.model.ChargePower.pendingPrograms() != null
 

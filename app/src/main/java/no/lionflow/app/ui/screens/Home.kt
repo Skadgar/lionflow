@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import no.lionflow.app.ui.l10n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -176,15 +177,27 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 val w = ui.weather
-                Row(Modifier.weight(1f).clickable { vm.setTab(Tab.Climate) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.padding(end = 12.dp).clickable { vm.setTab(Tab.Climate) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (w != null) {
                         LfIcon(LfIcons.Cloud, c.text, 22.dp)
                         Text("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)}", style = Type.body.copy(shadow = if (c.isDark) PhotoShadow else null), color = c.text)
                     }
                 }
-                if (st != null) Row(Modifier.clickable { vm.setTab(Tab.Map) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LfIcon(LfIcons.Pin, c.text, 20.dp)
-                    Text(if (st.moving) "Driving" else "Parked", style = Type.body.copy(shadow = if (c.isDark) PhotoShadow else null), color = c.text)
+                if (st != null) {
+                    val place by vm.parkedAt.collectAsState()
+                    val places by no.lionflow.app.model.ChargeLog.places.collectAsState()
+                    androidx.compose.runtime.LaunchedEffect(st.lat, st.lon, st.moving, places) { if (!st.moving) vm.updateParkedPlace(st.lat, st.lon) }
+                    val label = when {
+                        st.moving -> "Driving"
+                        place == null -> "Parked"
+                        place!!.startsWith("@") -> "Parked at " + place!!.removePrefix("@")
+                        else -> "Parked in " + place
+                    }
+                    Row(Modifier.weight(1f).clickable { vm.setTab(Tab.Map) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                        LfIcon(LfIcons.Pin, c.text, 20.dp)
+                        Text(label, style = Type.body.copy(shadow = if (c.isDark) PhotoShadow else null), color = c.text, maxLines = 1, modifier = Modifier.weight(1f, fill = false),
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
                 }
             }
         }
