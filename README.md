@@ -96,6 +96,14 @@ The watch app doesn't update itself. Install a new version the same way when you
 
 LionFlow is an independent app, not made, endorsed or supported by Peugeot or Stellantis. "Peugeot" and "MyPeugeot" are trademarks of their owners and are only used to say which cars the app works with. Remote commands act on a real car, so make sure it's safe to lock, unlock, heat or charge it.
 
+## Support LionFlow
+
+LionFlow is free, has no ads and never will. If it makes your Peugeot a bit nicer to live with, you can buy me a coffee:
+
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-0070ba?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?hosted_button_id=4R43AXWVE94UJ)
+
+Thank you! ☕
+
 ## License
 
 GPL-3.0 — see [`LICENSE`](LICENSE). Third-party code, licences and data sources are listed in [`NOTICE.md`](NOTICE.md).

@@ -228,6 +228,16 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             )
         }
 
+        SectionTitle("Support LionFlow")
+        GroupCard {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("LionFlow is free, has no ads and never will. It's made in my spare time. If it makes your Peugeot a bit nicer to live with, a small donation helps keep it going. Thank you! ☕", style = Type.small, color = c.text2)
+                no.lionflow.app.ui.components.PrimaryButton("Donate with PayPal", Modifier.fillMaxWidth()) {
+                    platform.openUrl("https://www.paypal.com/donate/?hosted_button_id=4R43AXWVE94UJ")
+                }
+            }
+        }
+
         SecondaryButton("Sign out", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { confirmSignOut = true }
         Text(
             "LionFlow ${BuildConfig.VERSION_NAME} · Not affiliated with Peugeot or Stellantis.\nMap and chargers © OpenStreetMap contributors, OpenFreeMap · Weather MET Norway · Chargers NOBIL (optional)",
