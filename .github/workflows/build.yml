@@ -38,7 +38,7 @@ jobs:
 
       # Version shown to users: 1.1.0 was build 47; every build after that counts up the last number.
       - name: Version number
-        run: echo "APP_VERSION_NAME=1.1.$(( ${{ github.run_number }} - 47 ))" >> "$GITHUB_ENV"
+        run: echo "APP_VERSION_NAME=1.1.$(( ${{ github.run_number }} - 38 ))" >> "$GITHUB_ENV"
 
       - name: Build signed release APK and Play bundle
         env:
