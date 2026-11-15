@@ -1,5 +1,13 @@
 package no.lionflow.app.ui.screens
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -202,6 +210,7 @@ private fun line(k: String, v: String) {
     Row { Text(k, style = Type.small, color = c.muted, modifier = Modifier.width(110.dp)); Text(v, style = Type.small, color = c.text) }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun PlacesDialog(cfg: PlacesConfig, ui: UiState, onClose: () -> Unit) {
     val c = LocalLf.current
@@ -209,54 +218,118 @@ private fun PlacesDialog(cfg: PlacesConfig, ui: UiState, onClose: () -> Unit) {
     var ac by remember { mutableStateOf(if (cfg.publicAcPrice > 0) cfg.publicAcPrice.toString() else "") }
     var dc by remember { mutableStateOf(if (cfg.publicDcPrice > 0) cfg.publicDcPrice.toString() else "") }
     var cur by remember { mutableStateOf(cfg.currency) }
-    val colors = fieldColors()
-    AlertDialog(
-        onDismissRequest = onClose, containerColor = c.card,
-        title = { Text("Places & prices", color = c.text) },
-        text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlaceLine("Home", cfg.home) { editing = cfg.home ?: ChargePlace("home", "Home", "", null, null, 0.0) }
-                Text("Known chargers (up to 5)", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.text)
-                cfg.known.forEach { k -> PlaceLine(k.name, k) { editing = k } }
-                if (cfg.known.size < 5) Text("+ Add a charger", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
-                    modifier = Modifier.clickable { editing = ChargePlace("k" + System.currentTimeMillis(), "", "", null, null, 0.0) }.padding(vertical = 6.dp))
-                Divider()
-                Text("Other chargers (estimate)", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.text)
-                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = ac, onValueChange = { ac = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
-                    label = { Text("AC price per kWh") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = dc, onValueChange = { dc = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
-                    label = { Text("Fast charger (DC) price per kWh") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = cur, onValueChange = { cur = it.take(4) }, singleLine = true, colors = colors, label = { Text("Currency") })
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    fun save() {
+        ChargeLog.savePlaces(ChargeLog.places.value.copy(
+            publicAcPrice = ac.replace(',', '.').toDoubleOrNull() ?: 0.0,
+            publicDcPrice = dc.replace(',', '.').toDoubleOrNull() ?: 0.0,
+            currency = cur.ifBlank { "kr" },
+        ))
+        onClose()
+    }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onClose, sheetState = sheet, containerColor = c.bg,
+        dragHandle = { Box(Modifier.padding(top = 10.dp, bottom = 4.dp).size(width = 40.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(c.line2)) },
+    ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Places & prices", style = Type.display.copy(fontSize = 26.sp), color = c.text)
+                    Text("Used to split home and away charging, and to estimate what it costs.", style = Type.small, color = c.muted)
+                }
+                Box(Modifier.size(36.dp).clip(CircleShape).background(c.raised).clickable(onClick = onClose), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Close, c.text2, 18.dp) }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                ChargeLog.savePlaces(ChargeLog.places.value.copy(
-                    publicAcPrice = ac.replace(',', '.').toDoubleOrNull() ?: 0.0,
-                    publicDcPrice = dc.replace(',', '.').toDoubleOrNull() ?: 0.0,
-                    currency = cur.ifBlank { "kr" },
-                ))
-                onClose()
-            }) { Text("Save", color = c.accentInk) }
-        },
-        dismissButton = { TextButton(onClick = onClose) { Text("Cancel", color = c.muted) } },
-    )
+
+            // Your places
+            SheetLabel("Your places")
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(20.dp))) {
+                PlaceRow(LfIcons.Home, c.accentInk, c.okBg, "Home", cfg.home, cfg.currency) { editing = cfg.home ?: ChargePlace("home", "Home", "", null, null, 0.0) }
+                cfg.known.forEach { k ->
+                    Divider()
+                    PlaceRow(LfIcons.Pin, c.blueInk, c.raisedBlue, k.name, k, cfg.currency) { editing = k }
+                }
+                if (cfg.known.size < 5) {
+                    Divider()
+                    Row(Modifier.fillMaxWidth().clickable { editing = ChargePlace("k" + System.currentTimeMillis(), "", "", null, null, 0.0) }.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).border(1.5.dp, c.line2, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Plus, c.accentInk, 18.dp) }
+                        Column(Modifier.weight(1f)) {
+                            Text("Add a charger", style = Type.label, color = c.accentInk)
+                            Text("Work, cabin, a friend's place · ${5 - cfg.known.size} left", style = Type.tiny, color = c.muted)
+                        }
+                    }
+                }
+            }
+
+            // Public charging
+            SheetLabel("Other chargers")
+            Text("An estimate for charging anywhere else. Leave empty if you don't know.", style = Type.tiny, color = c.muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PriceBox(Modifier.weight(1f), "Normal (AC)", ac, cur) { ac = it }
+                PriceBox(Modifier.weight(1f), "Fast (DC)", dc, cur) { dc = it }
+            }
+
+            // Currency
+            SheetLabel("Currency")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("kr", "€", "£", "$").forEach { opt ->
+                    val sel = cur == opt
+                    Box(Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(14.dp)).background(if (sel) c.accent else c.card)
+                        .border(1.dp, if (sel) c.accent else c.line, RoundedCornerShape(14.dp)).clickable { cur = opt }, contentAlignment = Alignment.Center) {
+                        Text(opt, style = Type.label, color = if (sel) c.onAccent else c.text)
+                    }
+                }
+            }
+
+            no.lionflow.app.ui.components.PrimaryButton("Save", Modifier.fillMaxWidth().padding(top = 6.dp)) { save() }
+        }
+    }
     editing?.let { p -> PlaceEditor(p, ui) { editing = null } }
 }
 
 @Composable
-private fun PlaceLine(title: String, p: ChargePlace?, onClick: () -> Unit) {
+private fun SheetLabel(text: String) {
     val c = LocalLf.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Text(text.uppercase(), style = Type.tiny.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp), color = c.muted, modifier = Modifier.padding(top = 6.dp))
+}
+
+@Composable
+private fun PlaceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: androidx.compose.ui.graphics.Color, bg: androidx.compose.ui.graphics.Color,
+                     title: String, p: ChargePlace?, currency: String, onClick: () -> Unit) {
+    val c = LocalLf.current
+    val set = p != null && p.lat != null
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(bg), contentAlignment = Alignment.Center) { LfIcon(icon, tint, 20.dp) }
         Column(Modifier.weight(1f)) {
-            Text(title.ifBlank { "Charger" }, style = Type.body, color = c.text)
-            Text(
-                if (p == null || p.lat == null) "Not set — tap to add"
-                else (p.address.ifBlank { "Location set" }) + " · " + if (p.price == 0.0) "free" else "${p.price}/kWh",
-                style = Type.tiny, color = c.muted,
-            )
+            Text(title.ifBlank { "Charger" }, style = Type.label, color = c.text)
+            Text(if (set) p!!.address.ifBlank { "Location set" } else "Not set — tap to add", style = Type.tiny, color = if (set) c.muted else c.accentInk, maxLines = 1)
         }
-        LfIcon(LfIcons.Chevron, c.muted, 18.dp)
+        if (set) Box(Modifier.clip(RoundedCornerShape(10.dp)).background(c.raised).padding(horizontal = 10.dp, vertical = 5.dp)) {
+            Text(if (p!!.price == 0.0) "Free" else "${p.price} $currency/kWh", style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+        }
+        LfIcon(LfIcons.Chevron, c.muted, 16.dp)
+    }
+}
+
+@Composable
+private fun PriceBox(modifier: Modifier, label: String, value: String, currency: String, onChange: (String) -> Unit) {
+    val c = LocalLf.current
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Text(label, style = Type.tiny, color = c.muted)
+        Row(verticalAlignment = Alignment.Bottom) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = value,
+                onValueChange = { onChange(it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6)) },
+                singleLine = true,
+                textStyle = Type.display.copy(fontSize = 24.sp, color = c.text),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.accentInk),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner -> Box { if (value.isEmpty()) Text("0.00", style = Type.display.copy(fontSize = 24.sp), color = c.line2); inner() } },
+            )
+            Text("$currency/kWh", style = Type.tiny, color = c.muted, modifier = Modifier.padding(bottom = 4.dp))
+        }
     }
 }
 
