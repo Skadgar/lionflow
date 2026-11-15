@@ -4,34 +4,85 @@ import no.lionflow.app.LionFlowApp
 import no.lionflow.app.api.CommandResult
 import no.lionflow.app.model.ChargeLog
 import no.lionflow.app.model.VehicleStatus
+import java.util.Calendar
 
 /**
  * LionFlow's own charge limit: when the car is charging and has reached the chosen %, send "stop charging"
- * (Peugeot's "delayed" charge = wait for the scheduled time). Runs from the app and the background check.
+ * (Peugeot's "delayed" charge = wait for the scheduled start time). The car can ignore that, so we only
+ * trust a later status: if it is still charging 5 minutes after a try, we try again (3 tries), then say so.
  */
 object ChargeLimit {
     @Volatile private var sending = false
+    private const val MAX_TRIES = 3
+    private const val RETRY_MS = 5 * 60_000L
 
-    /** True if the battery is at/over the limit while charging and we haven't stopped this session yet. */
-    fun due(app: LionFlowApp, st: VehicleStatus): Boolean {
-        val s = app.settings.value
-        if (!s.chargeLimitOn || !st.isCharging || !app.remote.isSetUp) return false
-        val pct = st.batteryPct ?: return false
-        if (pct < s.chargeLimitPct) return false
-        val session = ChargeLog.active.value?.start ?: 0L
-        return session == 0L || app.settings.limitStoppedFor != session
+    private data class State(val session: Long, val tries: Int, val lastTry: Long, val gaveUp: Boolean)
+
+    private fun session(): Long = ChargeLog.active.value?.start ?: 0L
+
+    private fun state(app: LionFlowApp): State {
+        val p = app.settings.limitState.split(",")
+        val st = State(p.getOrNull(0)?.toLongOrNull() ?: -1, p.getOrNull(1)?.toIntOrNull() ?: 0,
+            p.getOrNull(2)?.toLongOrNull() ?: 0, p.getOrNull(3) == "1")
+        // A new charging session starts from scratch (session 0 = unknown: keep, but let retries expire after 12 h).
+        val sess = session()
+        return if (st.session != sess || (sess == 0L && System.currentTimeMillis() - st.lastTry > 12 * 3_600_000L)) State(sess, 0, 0, false) else st
     }
 
-    /** Returns a short result text if it acted, else null. */
+    private fun save(app: LionFlowApp, s: State) {
+        app.settings.limitState = "${s.session},${s.tries},${s.lastTry},${if (s.gaveUp) 1 else 0}"
+    }
+
+    private fun overLimit(app: LionFlowApp, st: VehicleStatus): Boolean {
+        val s = app.settings.value
+        if (!s.chargeLimitOn || !st.isCharging || !app.remote.isSetUp) return false
+        return (st.batteryPct ?: return false) >= s.chargeLimitPct
+    }
+
+    /** True if something should be done now (a try, or telling the user it didn't work). */
+    fun due(app: LionFlowApp, st: VehicleStatus): Boolean {
+        if (!overLimit(app, st)) return false
+        val s = state(app)
+        if (s.gaveUp) return false
+        return s.tries >= MAX_TRIES || System.currentTimeMillis() - s.lastTry > RETRY_MS
+    }
+
+    /**
+     * Start time for the "delayed" charge. Uses the car's own scheduled time, unless that is missing or
+     * within the next hour (then charging would just start again) — then it picks the time it is now,
+     * which means "start again in 24 hours" and is changed back by the user's next schedule.
+     */
+    private fun delayTime(st: VehicleStatus): Pair<Int, Int> {
+        val now = Calendar.getInstance()
+        val nowMin = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        val h = st.nextDelayedHour; val m = st.nextDelayedMinute
+        if (h != null && m != null && h in 0..23) {
+            val until = ((h * 60 + m) - nowMin + 1440) % 1440
+            if (until >= 60) return h to m
+        }
+        val t = (nowMin - 1 + 1440) % 1440
+        return (t / 60) to (t % 60)
+    }
+
+    /** Returns a short text if it acted, else null. */
     suspend fun check(app: LionFlowApp, st: VehicleStatus): String? {
         if (sending || !due(app, st)) return null
         sending = true
         try {
-            val r = app.remote.charging(false, st.nextDelayedHour ?: 1, st.nextDelayedMinute ?: 0)
+            val s = state(app)
+            val pct = st.batteryPct?.toInt()
+            val limit = app.settings.value.chargeLimitPct
+            if (s.tries >= MAX_TRIES) {
+                save(app, s.copy(gaveUp = true))
+                app.remote.addLog("charge limit $limit %: car still charging after $MAX_TRIES tries")
+                return "The car kept charging (now $pct %) — it ignored the stop. Unplug or stop it in the car."
+            }
+            val (h, m) = delayTime(st)
+            val r = app.remote.charging(false, h, m)
             val ok = r !is CommandResult.Failed
-            app.remote.addLog("charge limit ${app.settings.value.chargeLimitPct} % → ${if (ok) "stopped" else (r as CommandResult.Failed).reason}")
-            if (ok) app.settings.limitStoppedFor = ChargeLog.active.value?.start ?: System.currentTimeMillis()
-            return if (ok) "Stopped charging at ${st.batteryPct?.toInt()} % (your limit is ${app.settings.value.chargeLimitPct} %)" else null
+            save(app, s.copy(tries = s.tries + 1, lastTry = System.currentTimeMillis()))
+            app.remote.addLog("charge limit $limit % → try ${s.tries + 1}: ${if (ok) "sent (delay to %02d:%02d)".format(h, m) else (r as CommandResult.Failed).reason}")
+            return if (s.tries == 0) "Asking the car to stop charging at $pct % (your limit is $limit %)" else null
         } finally {
             sending = false
         }

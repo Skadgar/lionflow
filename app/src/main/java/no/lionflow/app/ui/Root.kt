@@ -208,7 +208,7 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                 ) {
                     LionLogo(32.dp)
                     Spacer(Modifier.height(12.dp))
-                    for (item in railTabs) RailItem(item, ui.tab == item.tab) { vm.setTab(item.tab) }
+                    for (item in railTabs.filter { Caps.tab(it.tab, ui.status) }) RailItem(item, ui.tab == item.tab) { vm.setTab(item.tab) }
                 }
                 Box(Modifier.width(1.dp).fillMaxHeight().background(c.navLine))
                 Box(Modifier.weight(1f).fillMaxHeight()) { TabContent(vm, ui, settings, wide = true, expanded = expanded) }
@@ -225,8 +225,9 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                 ) {
                     // About 72 dp per button: show all if they fit, otherwise keep room for "More".
                     val fit = ((screenWidth - 40.dp) / 72.dp).toInt()
-                    val shown = if (fit >= allTabs.size) allTabs else allTabs.take((fit - 1).coerceAtLeast(3))
-                    val moreTabs = allTabs - shown.toSet()
+                    val tabs = allTabs.filter { Caps.tab(it.tab, ui.status) }
+                    val shown = if (fit >= tabs.size) tabs else tabs.take((fit - 1).coerceAtLeast(3))
+                    val moreTabs = tabs - shown.toSet()
                     for (item in shown) {
                         PhoneNavItem(item.icon, item.label, ui.tab == item.tab, Modifier.weight(1f)) {
                             vm.setTab(item.tab); if (item.tab == Tab.Trips) vm.loadTrips()

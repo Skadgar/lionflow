@@ -160,10 +160,25 @@ data class Trip(
     val kwh: Double?,
     val avgKwhPer100: Double?,
     val avgSpeedKmh: Double?,
+    val liters: Double? = null,
+    val avgLPer100: Double? = null,
 ) {
     companion object {
+        /** Peugeot doesn't document fuel units; pick the scale that gives a sane l/100 km (2–30). */
+        private fun litersOf(raw: Double?, km: Double): Double? {
+            if (raw == null || raw <= 0 || km < 0.5) return null
+            return listOf(1.0, 0.01, 0.001).map { raw * it }.firstOrNull { it / km * 100 in 2.0..30.0 }
+        }
+        private fun per100Of(raw: Double?): Double? {
+            if (raw == null || raw <= 0) return null
+            return listOf(1.0, 0.1, 0.01, 0.001).map { raw * it }.firstOrNull { it in 2.0..30.0 }
+        }
+
         fun parse(t: JSONObject): Trip {
             val electric = t.optJSONArray("energyConsumptions")?.objects()?.firstOrNull { it.optString("type") == "Electric" }
+            val fuel = t.optJSONArray("energyConsumptions")?.objects()?.firstOrNull { it.optString("type") == "Fuel" }
+            val km = t.num("distance") ?: 0.0
+            val liters = litersOf(fuel?.num("consumption"), km)
             return Trip(
                 id = t.optString("id"),
                 startMillis = VehicleStatus.parseIso(t.str("startedAt") ?: t.str("createdAt")),
@@ -173,6 +188,8 @@ data class Trip(
                 kwh = electric?.num("consumption")?.let { it / 1000.0 },
                 avgKwhPer100 = electric?.num("avgConsumption")?.let { it / 1000.0 },
                 avgSpeedKmh = t.optJSONObject("kinetic")?.num("avgSpeed")?.let { it * 3.6 },
+                liters = liters,
+                avgLPer100 = per100Of(fuel?.num("avgConsumption")) ?: liters?.let { it / km * 100 },
             )
         }
     }

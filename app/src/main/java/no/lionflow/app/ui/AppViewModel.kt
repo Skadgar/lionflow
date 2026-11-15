@@ -84,6 +84,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var ticker: Job? = null
 
     val remoteReady: Boolean get() = remote.isSetUp
+    /** False when Peugeot has no remote-services link for this car — then don't offer setup at all. */
+    val remotePossible: Boolean get() = api.customerId != null || remote.isSetUp
     fun commandLog(): String = remote.log.joinToString("\n").ifEmpty { "No commands sent since the app was opened." }
     val hasPin: Boolean get() = remote.hasPin
 
@@ -105,7 +107,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (_ui.value.phase == Phase.Ready) onUnlocked()
     }
 
-    fun setTab(t: Tab) = _ui.update { it.copy(tab = t) }
+    fun setTab(t: Tab) { if (Caps.tab(t, _ui.value.status)) _ui.update { it.copy(tab = t) } }
 
     /** Switch to another car on the account. Each car keeps its own name, charging log and range learning. */
     fun selectVehicle(v: no.lionflow.app.api.Vehicle) {

@@ -91,7 +91,7 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
             Divider()
             DetailRow("Battery health", st?.batteryHealthPct?.let { "${it.toInt()} %" } ?: "—")
         }
-        PrimaryButton(
+        if (vm.remoteReady) PrimaryButton(
             text = when {
                 ui.commandInProgress?.contains("harg") == true -> "Sending…"
                 st?.isCharging == true -> "Stop charging"
@@ -107,7 +107,7 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
             "Charging power is worked out by LionFlow (the car only reports range per hour): measured from the energy added between two car reports, or estimated from the time left until then. Scheduled start time is set in the car or in the MyPeugeot app; “Stop charging” waits until the scheduled time.",
             style = Type.tiny, color = c.muted,
         )
-        ChargeLimitCard(vm, ui, s)
+        if (vm.remoteReady) ChargeLimitCard(vm, ui, s) else RemoteSetupHint(vm)
         ChargeLogSection(ui, s)
     }
 }
@@ -133,7 +133,7 @@ fun ClimateScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LfIcon(LfIcons.Fan, if (st?.preconditioningOn == true) c.orangeInk else c.muted, 40.dp)
                 Text(if (st?.preconditioningOn == true) "Pre-heating is on" else "Pre-heating is off", style = Type.stat, color = c.text)
-                PrimaryButton(
+                if (vm.remoteReady) PrimaryButton(
                     text = when {
                         ui.commandInProgress?.contains("heating") == true -> "Sending…"
                         st?.preconditioningOn == true -> "Stop pre-heating"
@@ -150,7 +150,7 @@ fun ClimateScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
             }
         }
 
-        PreheatSchedules(vm, ui)
+        if (vm.remoteReady) PreheatSchedules(vm, ui) else RemoteSetupHint(vm)
 
         // Weather where you are
         LfCard {
@@ -211,4 +211,13 @@ private fun daysLabel(days: List<String>): String {
         set.isEmpty() -> "Once"
         else -> all.filter { it in set }.joinToString(", ")
     }
+}
+
+/** Shown where remote buttons would be when remote control isn't set up (nothing if the car can't do it). */
+@Composable
+fun RemoteSetupHint(vm: AppViewModel) {
+    if (!vm.remotePossible) return
+    val c = LocalLf.current
+    Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.accentInk,
+        modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 4.dp))
 }

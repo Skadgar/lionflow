@@ -76,6 +76,11 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
     val km = list.sumOf { it.distanceKm }
     val kwh = list.mapNotNull { it.kwh }.sum()
     val avg = if (km > 0 && kwh > 0) kwh / km * 100 else null
+    val liters = list.mapNotNull { it.liters }.sum()
+    val fuelKm = list.filter { it.liters != null }.sumOf { it.distanceKm }
+    val avgL = if (fuelKm > 0 && liters > 0) liters / fuelKm * 100 else null
+    // Show l/100 km for petrol cars, or when only fuel was used (hybrids show both if both exist).
+    val showFuel = avgL != null && (avg == null || no.lionflow.app.ui.Caps.fuel(ui.status))
 
     ScreenColumn(wide) {
         if (!wide) BackLink("Home") { vm.setTab(Tab.Home) }
@@ -85,7 +90,8 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
         LfCard {
             Row(Modifier.fillMaxWidth()) {
                 Stat(Modifier.weight(1f), fmtDistance(km, s).substringBefore(" "), if (s.distanceUnit == "mi") "mi driven" else "km driven")
-                Stat(Modifier.weight(1f), avg?.let { String.format(Locale.US, "%.1f", it) } ?: "—", "kWh/100 km")
+                if (showFuel) Stat(Modifier.weight(1f), String.format(Locale.US, "%.1f", avgL), "l/100 km")
+                if (!showFuel || (avg != null && no.lionflow.app.ui.Caps.battery(ui.status))) Stat(Modifier.weight(1f), avg?.let { String.format(Locale.US, "%.1f", it) } ?: "—", "kWh/100 km")
                 Stat(Modifier.weight(1f), "${list.size}", "trips")
             }
             // bars per day (week) or per week (month)
@@ -125,6 +131,7 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(fmtDistance(t.distanceKm, s), style = Type.label.copy(fontSize = 17.sp), color = c.text)
                             t.avgKwhPer100?.let { Text(String.format(Locale.US, "%.1f kWh/100", it), style = Type.tiny, color = c.muted) }
+                            t.avgLPer100?.let { Text(String.format(Locale.US, "%.1f l/100", it), style = Type.tiny, color = c.muted) }
                         }
                     }
                 }

@@ -34,7 +34,7 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             no.lionflow.app.widget.WidgetData.save(applicationContext, st)
             // While charging, check again in ~10 minutes so the charging log gets a good start/end.
             // LionFlow's own charge limit.
-            ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charging stopped at your limit", msg) }
+            ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
             if (st.isCharging) {
                 val near = s.chargeLimitOn && (st.batteryPct ?: 0.0) >= s.chargeLimitPct - 6
                 androidx.work.WorkManager.getInstance(applicationContext).enqueueUniqueWork(

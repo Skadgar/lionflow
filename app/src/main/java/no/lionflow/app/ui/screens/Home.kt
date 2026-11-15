@@ -80,8 +80,8 @@ fun HomeScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean, exp
             Box(Modifier.weight(1f)) {
                 ScreenColumn(wide = true, maxWidth = 460) {
                     Spacer(Modifier.height(4.dp))
-                    ChargingSummary(vm, ui, s)
-                    ClimateSummary(vm, ui, s)
+                    if (no.lionflow.app.ui.Caps.battery(ui.status)) ChargingSummary(vm, ui, s)
+                    if (no.lionflow.app.ui.Caps.climate(ui.status)) ClimateSummary(vm, ui, s)
                     ServiceSummary(vm, ui, s)
                     if (expanded) TripsSummary(vm, ui, s)
                 }
@@ -292,14 +292,16 @@ private fun QuickActions(vm: AppViewModel, ui: UiState) {
     val confirm = LocalConfirm.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         val locked = st?.locked ?: true
-        QuickAction(Modifier.weight(1f), if (locked) LfIcons.Lock else LfIcons.Unlock, if (locked) "Unlock" else "Lock", highlighted = true, busy = ui.commandInProgress == "Lock" || ui.commandInProgress == "Unlock") {
-            confirm(if (locked) "Unlock your car" else "Lock your car") { vm.lockCar(!locked) }
+        if (vm.remoteReady) {
+            if (no.lionflow.app.ui.Caps.lockState(st)) QuickAction(Modifier.weight(1f), if (locked) LfIcons.Lock else LfIcons.Unlock, if (locked) "Unlock" else "Lock", highlighted = true, busy = ui.commandInProgress == "Lock" || ui.commandInProgress == "Unlock") {
+                confirm(if (locked) "Unlock your car" else "Lock your car") { vm.lockCar(!locked) }
+            }
+            QuickAction(Modifier.weight(1f), LfIcons.Bulb, "Flash", busy = ui.commandInProgress == "Flash lights") { confirm("Flash the lights") { vm.lights() } }
+            QuickAction(Modifier.weight(1f), LfIcons.Horn, "Horn", busy = ui.commandInProgress == "Horn") { confirm("Sound the horn") { vm.horn() } }
         }
-        QuickAction(Modifier.weight(1f), LfIcons.Bulb, "Flash", busy = ui.commandInProgress == "Flash lights") { confirm("Flash the lights") { vm.lights() } }
-        QuickAction(Modifier.weight(1f), LfIcons.Horn, "Horn", busy = ui.commandInProgress == "Horn") { confirm("Sound the horn") { vm.horn() } }
-        QuickAction(Modifier.weight(1f), LfIcons.Pin, "Find car") { vm.setTab(Tab.Map) }
+        if (no.lionflow.app.ui.Caps.position(st)) QuickAction(Modifier.weight(1f), LfIcons.Pin, "Find car") { vm.setTab(Tab.Map) }
     }
-    if (!vm.remoteReady) {
+    if (!vm.remoteReady && vm.remotePossible) {
         Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
             modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 4.dp))
     }
@@ -340,6 +342,7 @@ private fun TripsCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
                     listOfNotNull(
                         "${week.size} trips",
                         if (km > 1 && kwh > 0) (if (s.distanceUnit == "mi") String.format(java.util.Locale.US, "%.1f mi/kWh", km / kwh / 1.609344) else String.format(java.util.Locale.US, "%.1f kWh/100 km", kwh / km * 100)) else null,
+                        week.filter { it.liters != null }.let { f -> val l = f.sumOf { it.liters ?: 0.0 }; val d = f.sumOf { it.distanceKm }; if (d > 1 && l > 0) String.format(java.util.Locale.US, "%.1f l/100 km", l / d * 100) else null },
                     ).joinToString(" · "),
                     style = Type.small, color = c.muted,
                 )
@@ -506,14 +509,16 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
     // Quick actions
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         val locked = st?.locked ?: true
-        QuickAction(Modifier.weight(1f), if (locked) LfIcons.Lock else LfIcons.Unlock, if (locked) "Unlock" else "Lock", highlighted = !locked, busy = ui.commandInProgress == "Lock" || ui.commandInProgress == "Unlock") {
-            confirm(if (locked) "Unlock your car" else "Lock your car") { vm.lockCar(!locked) }
+        if (vm.remoteReady) {
+            if (no.lionflow.app.ui.Caps.lockState(st)) QuickAction(Modifier.weight(1f), if (locked) LfIcons.Lock else LfIcons.Unlock, if (locked) "Unlock" else "Lock", highlighted = !locked, busy = ui.commandInProgress == "Lock" || ui.commandInProgress == "Unlock") {
+                confirm(if (locked) "Unlock your car" else "Lock your car") { vm.lockCar(!locked) }
+            }
+            QuickAction(Modifier.weight(1f), LfIcons.Bulb, "Flash", busy = ui.commandInProgress == "Flash lights") { confirm("Flash the lights") { vm.lights() } }
+            QuickAction(Modifier.weight(1f), LfIcons.Horn, "Horn", busy = ui.commandInProgress == "Horn") { confirm("Sound the horn") { vm.horn() } }
         }
-        QuickAction(Modifier.weight(1f), LfIcons.Bulb, "Flash", busy = ui.commandInProgress == "Flash lights") { confirm("Flash the lights") { vm.lights() } }
-        QuickAction(Modifier.weight(1f), LfIcons.Horn, "Horn", busy = ui.commandInProgress == "Horn") { confirm("Sound the horn") { vm.horn() } }
-        QuickAction(Modifier.weight(1f), LfIcons.Pin, "Find car") { vm.setTab(Tab.Map) }
+        if (no.lionflow.app.ui.Caps.position(st)) QuickAction(Modifier.weight(1f), LfIcons.Pin, "Find car") { vm.setTab(Tab.Map) }
     }
-    if (!vm.remoteReady) {
+    if (!vm.remoteReady && vm.remotePossible) {
         Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
             modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 6.dp))
     }
@@ -608,7 +613,7 @@ fun ChargingSummary(vm: AppViewModel, ui: UiState, s: AppSettings) {
             no.lionflow.app.ui.components.Pill(if (st?.isCharging == true) "Charging" else if (st?.plugged == true) "Plugged in" else "Unplugged", c.okBg, c.okText)
         }
         Text(chargingLine(st), style = Type.small, color = c.muted)
-        no.lionflow.app.ui.components.PrimaryButton(if (st?.isCharging == true) "Stop charging" else "Charge now", Modifier.fillMaxWidth(), enabled = st?.plugged == true) {
+        if (vm.remoteReady) no.lionflow.app.ui.components.PrimaryButton(if (st?.isCharging == true) "Stop charging" else "Charge now", Modifier.fillMaxWidth(), enabled = st?.plugged == true) {
             val start = st?.isCharging != true
             confirm(if (start) "Start charging" else "Stop charging") { vm.charging(start) }
         }
@@ -626,7 +631,7 @@ fun ClimateSummary(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 Text("Climate · outside ${fmtTemp(st?.outsideTempC ?: ui.weather?.tempC, s)}", style = Type.small, color = c.muted)
                 Text(if (st?.preconditioningOn == true) "Pre-heating" else "Off", style = Type.stat, color = c.text)
             }
-            no.lionflow.app.ui.components.PrimaryButton(if (st?.preconditioningOn == true) "Stop" else "Pre-heat", color = c.orange) {
+            if (vm.remoteReady) no.lionflow.app.ui.components.PrimaryButton(if (st?.preconditioningOn == true) "Stop" else "Pre-heat", color = c.orange) {
                 val on = st?.preconditioningOn != true
                 confirm(if (on) "Start pre-heating" else "Stop pre-heating") { vm.preconditioning(on) }
             }

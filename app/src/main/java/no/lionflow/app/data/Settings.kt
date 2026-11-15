@@ -140,6 +140,11 @@ class SettingsStore(context: Context) {
         get() = p.getLong("limitStoppedFor", 0L)
         set(v) { p.edit().putLong("limitStoppedFor", v).apply() }
 
+    /** Charge-limit attempts this session: "session,attempts,lastTryMillis,gaveUp". */
+    var limitState: String
+        get() = p.getString("limitState", "") ?: ""
+        set(v) { p.edit().putString("limitState", v).apply() }
+
     fun nameFor(vin: String): String? = p.getString("carName_$vin", null)
     fun setNameFor(vin: String, name: String) = p.edit().putString("carName_$vin", name).apply()
 

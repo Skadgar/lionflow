@@ -589,7 +589,6 @@ Last month	Mois dernier	Letzter Monat	Mes pasado	Forrige måned
 This year	Cette année	Dieses Jahr	Este año	I år
 Last year	L'an dernier	Letztes Jahr	Año pasado	I fjor
 {0} · {1} without price	{0} · {1} sans prix	{0} · {1} ohne Preis	{0} · {1} sin precio	{0} · {1} uten pris
-Next service	Prochain entretien	Nächster Service	Próximo mantenimiento	Neste service
 at your current driving	selon votre conduite actuelle	bei Ihrer aktuellen Fahrweise	según tu conducción actual	med kjøringen din nå
 by date	selon la date	nach Datum	por fecha	etter dato
 In {0} days	Dans {0} jours	In {0} Tagen	En {0} días	Om {0} dager
@@ -599,3 +598,5 @@ Parked at {0}	Garée à {0}	Geparkt bei {0}	Aparcado en {0}	Parkert ved {0}
 Parked in {0}	Garée à {0}	Geparkt in {0}	Aparcado en {0}	Parkert i {0}
 More	Plus	Mehr	Más	Mer
 Car asleep · last report {0}	Voiture en veille · dernier rapport {0}	Auto schläft · letzte Meldung {0}	Coche en reposo · último informe {0}	Bilen sover · sist rapportert {0}
+Asking the car to stop charging at {0} % (your limit is {1} %)	Demande à la voiture d'arrêter la charge à {0} % (votre limite est {1} %)	Auto wird gebeten, bei {0} % mit dem Laden aufzuhören (Ihr Limit ist {1} %)	Pidiendo al coche que deje de cargar al {0} % (tu límite es {1} %)	Ber bilen stoppe ladingen på {0} % (grensen din er {1} %)
+The car kept charging (now {0} %) — it ignored the stop. Unplug or stop it in the car.	La voiture a continué à charger (maintenant {0} %) — elle a ignoré l'arrêt. Débranchez-la ou arrêtez la charge dans la voiture.	Das Auto lädt weiter (jetzt {0} %) — es hat den Stopp ignoriert. Kabel ziehen oder im Auto stoppen.	El coche siguió cargando (ahora {0} %): ignoró la parada. Desenchúfalo o detén la carga en el coche.	Bilen fortsatte å lade (nå {0} %) — den ignorerte stoppen. Koble fra eller stopp i bilen.
