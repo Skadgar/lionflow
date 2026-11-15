@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -228,42 +230,11 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
             }
         }
 
-        // Next service
-        val kmLeft = st?.kmToService
-        val daysLeft = st?.daysToService
-        LfCard {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Next service", style = Type.small, color = c.muted)
-                    if (kmLeft == null && daysLeft == null) {
-                        Text(if (st == null) "Waiting for data…" else "Not reported", style = Type.display.copy(fontSize = 24.sp), color = c.text)
-                        if (st != null) Text("Peugeot hasn't sent service data for this car yet. It usually appears after the car has reported a few times.", style = Type.small, color = c.muted)
-                    } else {
-                        if (kmLeft != null) {
-                            Text("In ${fmtDistance(kmLeft, s)}", style = Type.display.copy(fontSize = 28.sp), color = c.text)
-                            st?.odometerKm?.let { odo -> Text("at about ${fmtDistance(odo + kmLeft, s)}", style = Type.small, color = c.muted) }
-                        }
-                        if (daysLeft != null) {
-                            val due = Date(System.currentTimeMillis() + (daysLeft * 86_400_000L).toLong())
-                            val dateText = SimpleDateFormat("d MMMM yyyy", no.lionflow.app.ui.l10n.L10n.locale).format(due)
-                            val months = (daysLeft / 30.4).toInt()
-                            Text(
-                                (if (kmLeft != null) "or by " else "By ") + dateText + " (" + (if (months >= 1) "$months months" else "${daysLeft.toInt()} days") + ")" +
-                                    if (kmLeft != null) " · whichever comes first" else "",
-                                style = Type.small, color = c.muted,
-                            )
-                        }
-                    }
-                }
-                if (kmLeft != null || daysLeft != null) {
-                    val soon = (kmLeft ?: 1e9) < 1000 || (daysLeft ?: 1e9) < 30
-                    Pill(if (soon) "Due soon" else "On track", if (soon) c.raised else c.okBg, if (soon) c.orangeInk else c.okText)
-                }
-            }
-            daysLeft?.let { ProgressBar((1 - it / 365.0).toFloat(), c.blueInk, 8.dp) }
-            SecondaryButton("Find a workshop", Modifier.fillMaxWidth()) {
-                platform.openUrl("https://www.google.com/maps/search/Peugeot+verksted")
-            }
+        // Timeline: next service (top), today, last logged service (bottom)
+        LaunchedEffect(Unit) { if (ui.trips.isEmpty() && !ui.tripsLoading) vm.loadTrips() }
+        ServiceTimeline(ui, s)
+        SecondaryButton("Find a workshop", Modifier.fillMaxWidth()) {
+            platform.openUrl("https://www.google.com/maps/search/Peugeot+verksted")
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             LfCard(Modifier.weight(1f), radius = 20.dp, padding = PaddingValues(14.dp)) {
@@ -331,5 +302,76 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
             confirmButton = { TextButton(onClick = { vm.deleteServiceEntry(e); toDelete = null }) { Text("Delete", color = c.danger) } },
             dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Keep", color = c.muted) } },
         )
+    }
+}
+
+/** Next service, today and the last logged service as a vertical timeline (like the MyPeugeot app). */
+@Composable
+private fun ServiceTimeline(ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val st = ui.status
+    val now = System.currentTimeMillis()
+    val kmLeft = st?.kmToService
+    val daysLeft = st?.daysToService
+    val odo = st?.odometerKm
+    // Your driving: km per day over the last 30 days of trips
+    val since = now - 30 * 86_400_000L
+    val perDay = ui.trips.filter { (it.startMillis ?: 0L) >= since }.sumOf { it.distanceKm } / 30.0
+    val byKmDays = if (kmLeft != null && perDay > 0.5) kmLeft / perDay else null
+    val soonest = listOfNotNull(byKmDays, daysLeft).minOrNull()
+    val dateFmt = SimpleDateFormat("d MMM yyyy", no.lionflow.app.ui.l10n.L10n.locale)
+    fun inText(days: Double): String {
+        val m = (days / 30.4).toInt()
+        return when { days < 1 -> "today"; m >= 1 -> "in about $m months"; else -> "in ${days.toInt()} days" }
+    }
+    val last = ui.serviceHistory.maxByOrNull { it.dateMillis }
+
+    LfCard(padding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 16.dp)) {
+        Text("Service plan", style = Type.label, color = c.text)
+        // Next service
+        TimelineRow(icon = LfIcons.Wrench, dotColor = if ((kmLeft ?: 1e9) < 1000 || (daysLeft ?: 1e9) < 30) c.orangeInk else c.text, big = true, lineBelow = true) {
+            if (kmLeft == null && daysLeft == null) {
+                Text(if (st == null) "Waiting for data…" else "Peugeot hasn't sent service data yet", style = Type.small, color = c.muted)
+                Text("Next periodic service", style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+            } else {
+                Text(soonest?.let { "Estimated " + inText(it) } ?: "Upcoming", style = Type.small, color = c.blueInk)
+                Text("Next periodic service", style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+                listOfNotNull(
+                    kmLeft?.let { k -> "In ${fmtDistance(k, s)}" + (odo?.let { " (at ≈ ${fmtDistance(it + k, s)})" } ?: "") },
+                    daysLeft?.let { "By date: " + dateFmt.format(Date(now + (it * 86_400_000L).toLong())) },
+                    byKmDays?.let { "At your driving (≈ ${fmtDistance(perDay * 30, s)}/month): " + dateFmt.format(Date(now + (it * 86_400_000L).toLong())) },
+                ).forEach { Text(it, style = Type.small, color = c.muted) }
+                if (kmLeft != null && daysLeft != null) Text("Whichever comes first", style = Type.tiny, color = c.muted)
+            }
+        }
+        // Today
+        TimelineRow(icon = null, dotColor = c.accent, big = false, lineBelow = last != null) {
+            Row(Modifier.clip(RoundedCornerShape(10.dp)).background(c.accent).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Today  ", style = Type.small, color = c.onAccent)
+                Text(fmtDistance(odo, s), style = Type.label, color = c.onAccent)
+            }
+        }
+        // Last logged service
+        if (last != null) TimelineRow(icon = LfIcons.Check, dotColor = c.okText, big = true, lineBelow = false) {
+            Text("Done " + SimpleDateFormat("d MMM yyyy", no.lionflow.app.ui.l10n.L10n.locale).format(Date(last.dateMillis)), style = Type.small, color = c.okText)
+            Text(last.title, style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+            if (last.note.isNotBlank()) Text(last.note, style = Type.small, color = c.muted)
+        }
+    }
+}
+
+@Composable
+private fun TimelineRow(icon: androidx.compose.ui.graphics.vector.ImageVector?, dotColor: androidx.compose.ui.graphics.Color, big: Boolean, lineBelow: Boolean, content: @Composable () -> Unit) {
+    val c = LocalLf.current
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.width(48.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.width(3.dp).height(10.dp).background(c.bar))
+            val size = if (big) 44.dp else 18.dp
+            Box(Modifier.size(size).clip(CircleShape).background(dotColor), contentAlignment = Alignment.Center) {
+                if (icon != null) LfIcon(icon, c.card, 22.dp)
+            }
+            if (lineBelow) Box(Modifier.width(3.dp).weight(1f).background(c.bar))
+        }
+        Column(Modifier.weight(1f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) { content() }
     }
 }

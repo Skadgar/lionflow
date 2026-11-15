@@ -614,3 +614,12 @@ No route was recorded for this trip.	Aucun trajet enregistré pour ce déplaceme
 Tip: turn on Route tracking in Settings to see your drives on a map.	Astuce : activez le suivi des trajets dans les réglages pour voir vos trajets sur une carte.	Tipp: Routenaufzeichnung in den Einstellungen einschalten, um Fahrten auf der Karte zu sehen.	Consejo: activa el registro de rutas en Ajustes para ver tus viajes en un mapa.	Tips: slå på ruteregistrering i Innstillinger for å se turene på kart.
 Connected to your car	Connecté à votre voiture	Mit deinem Auto verbunden	Conectado a tu coche	Koblet til bilen
 Tap to record this drive's route	Touchez pour enregistrer ce trajet	Tippen, um die Route dieser Fahrt aufzuzeichnen	Toca para grabar la ruta de este viaje	Trykk for å registrere ruten på denne turen
+Service plan	Plan d'entretien	Wartungsplan	Plan de mantenimiento	Serviceplan
+Next periodic service	Prochain entretien périodique	Nächste Inspektion	Próximo mantenimiento periódico	Neste periodiske service
+Estimated {0}	Estimé {0}	Voraussichtlich {0}	Estimado {0}	Anslått {0}
+in about {0} months	dans environ {0} mois	in etwa {0} Monaten	en unos {0} meses	om ca. {0} måneder
+By date: {0}	Par date : {0}	Nach Datum: {0}	Por fecha: {0}	Etter dato: {0}
+At your driving (≈ {0}/month): {1}	Selon votre conduite (≈ {0}/mois) : {1}	Bei deiner Fahrweise (≈ {0}/Monat): {1}	Según tu conducción (≈ {0}/mes): {1}	Med din kjøring (≈ {0}/mnd): {1}
+Whichever comes first	Selon la première échéance	Je nachdem, was zuerst eintritt	Lo que ocurra primero	Det som kommer først
+Today  	Aujourd'hui  	Heute  	Hoy  	I dag  
+Done {0}	Fait le {0}	Erledigt {0}	Hecho {0}	Utført {0}
