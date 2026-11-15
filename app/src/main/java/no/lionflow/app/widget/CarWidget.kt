@@ -47,9 +47,35 @@ object WidgetData {
             .put("precond", st.preconditioningOn)
             .put("carTime", st.updatedAtMillis ?: now)
             .put("fetched", now)
+            .put("lat", st.lat ?: Double.NaN)
+            .put("lon", st.lon ?: Double.NaN)
         prefs(ctx).edit().putString("snap", j.toString()).putBoolean("refreshing", false).remove("status").apply()
         CarWidget.updateAll(ctx)
+        val lat = st.lat; val lon = st.lon
+        if (lat != null && lon != null) resolvePlace(ctx, lat, lon)
     }
+
+    /** "Home", a saved charger's name, or a street address (looked up once per spot). */
+    private fun resolvePlace(ctx: Context, lat: Double, lon: Double) {
+        val cl = no.lionflow.app.model.ChargeLog
+        val cfg = cl.places.value
+        cfg.home?.let { h -> if (h.lat != null && h.lon != null && cl.distanceM(lat, lon, h.lat, h.lon) <= 50) { setPlace(ctx, "Home"); return } }
+        cfg.known.forEach { k -> if (k.lat != null && k.lon != null && cl.distanceM(lat, lon, k.lat, k.lon) <= 75) { setPlace(ctx, k.name.ifBlank { "Charger" }); return } }
+        val key = String.format(java.util.Locale.US, "%.4f,%.4f", lat, lon)
+        val p = prefs(ctx)
+        if (p.getString("placeKey", null) == key && p.getString("place", null) != null) return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            val a = try { cl.reverseGeocode(lat, lon) } catch (_: Exception) { null }
+            if (a != null) { p.edit().putString("placeKey", key).apply(); setPlace(ctx, a, translate = false) }
+        }
+    }
+
+    private fun setPlace(ctx: Context, place: String, translate: Boolean = true) {
+        prefs(ctx).edit().putString("place", place).putBoolean("placeTr", translate).apply()
+        CarWidget.updateAll(ctx)
+    }
+
+    fun place(ctx: Context): String? = prefs(ctx).getString("place", null)?.let { if (prefs(ctx).getBoolean("placeTr", false)) tr(it) else it }
 
     fun load(ctx: Context): JSONObject? = prefs(ctx).getString("snap", null)?.let { JSONObject(it) }
 
@@ -159,11 +185,14 @@ class CarWidget : AppWidgetProvider() {
                 v.setTextViewText(R.id.w_outside, tr(if (outside > -100) fmtTemp(outside, s) else "—"))
             }
 
-            val line = WidgetData.status(ctx) ?: updatedLine(snap, app.api.isSignedIn)
-            v.setTextViewText(R.id.w_updated, tr(line))
-            v.setTextViewText(R.id.w_updated_top, tr(line))
+            val line = tr(WidgetData.status(ctx) ?: updatedLine(snap, app.api.isSignedIn))
+            val place = if (snap != null && app.api.isSignedIn) WidgetData.place(ctx) else null
+            // Under the name: where the car is. Short widgets also put the "Updated" line there.
+            val top = listOfNotNull(place?.let { "📍 $it" }, line.takeIf { compact }).joinToString(" · ")
+            v.setTextViewText(R.id.w_updated, line)
+            v.setTextViewText(R.id.w_updated_top, top)
             v.setViewVisibility(R.id.w_updated, if (compact) View.GONE else View.VISIBLE)
-            v.setViewVisibility(R.id.w_updated_top, if (compact) View.VISIBLE else View.GONE)
+            v.setViewVisibility(R.id.w_updated_top, if (top.isNotEmpty()) View.VISIBLE else View.GONE)
 
             val open = PendingIntent.getActivity(
                 ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -186,7 +215,7 @@ class CarWidget : AppWidgetProvider() {
             val carTime = snap.optLong("carTime", fetched)
             // If the car itself hasn't reported for a while, say so — otherwise "Updated" would be misleading.
             return if (now - carTime > 30 * 60_000 && fetched - carTime > 30 * 60_000) {
-                "Checked ${minutesAgo(fetched, now)} · car last reported ${minutesAgo(carTime, now)} (asleep)"
+                "Car asleep · last report ${minutesAgo(carTime, now)}"
             } else {
                 "Updated ${minutesAgo(carTime, now)}"
             }
