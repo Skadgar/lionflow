@@ -290,7 +290,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val v = _ui.value.vehicle ?: api.currentVehicle() ?: throw IllegalStateException("No car on this account")
                 val raw = api.status(v)
                 val maint = api.maintenance(v)
-                val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(raw, maint))
+                val st = applyHolds(no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(raw, maint)))
                 val now = System.currentTimeMillis()
                 settings.lastRefresh = now
                 no.lionflow.app.widget.WidgetData.save(getApplication<Application>(), st)
@@ -314,6 +314,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- remote commands ----------------
 
+    // What the user just asked for, kept until the car's status catches up (Peugeot's server lags behind).
+    private var holdPrecond: Pair<Boolean, Long>? = null
+    private var holdLock: Pair<Boolean, Long>? = null
+
+    private fun applyHolds(st: VehicleStatus): VehicleStatus {
+        val now = System.currentTimeMillis()
+        var out = st
+        holdPrecond?.let { (want, until) ->
+            if (now > until || st.preconditioningOn == want) holdPrecond = null
+            else out = out.copy(preconditioningOn = want)
+        }
+        holdLock?.let { (want, until) ->
+            if (now > until || st.locked == want) holdLock = null
+            else out = out.copy(locked = want)
+        }
+        return out
+    }
+
+    private fun refreshSoon() = viewModelScope.launch {
+        for (d in listOf(3_000L, 30_000L, 90_000L)) { delay(d); refresh() }
+    }
+
     fun runCommand(label: String, optimistic: (VehicleStatus) -> VehicleStatus = { it }, block: suspend (Tracker) -> CommandResult) {
         if (!remote.isSetUp) {
             toast("Set up remote control first (Settings › Security)")
@@ -327,7 +349,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // Arrives later only when we stopped waiting at "delivered".
                 onFinal = { r ->
                     when (r) {
-                        is CommandResult.Failed -> { remote.addLog("$label failed: ${r.reason}"); toast("$label didn't go through: ${r.reason}") }
+                        is CommandResult.Failed -> { holdPrecond = null; holdLock = null; remote.addLog("$label failed: ${r.reason}"); toast("$label didn't go through: ${r.reason}") }
                         else -> {}
                     }
                     viewModelScope.launch { delay(2_000); refresh() }
@@ -339,10 +361,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // Show the result straight away; the real status follows.
                     _ui.update { s -> s.copy(commandInProgress = null, commandProgress = null, status = s.status?.let(optimistic)) }
                     toast(if (r is CommandResult.Delivered) "$label — the car got it" else "$label — done")
-                    delay(3_000)
-                    refresh()
+                    refreshSoon()
                 }
                 is CommandResult.Failed -> {
+                    holdPrecond = null; holdLock = null
                     _ui.update { it.copy(commandInProgress = null, commandProgress = null) }
                     remote.addLog("$label failed: ${r.reason}")
                     toast("$label: ${r.reason}")
@@ -351,10 +373,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun lockCar(lock: Boolean) = runCommand(if (lock) "Lock" else "Unlock", { it.copy(locked = lock) }) { p -> remote.lock(lock, p) }
+    fun lockCar(lock: Boolean) = runCommand(if (lock) "Lock" else "Unlock", { holdLock = lock to System.currentTimeMillis() + 300_000; it.copy(locked = lock) }) { p -> remote.lock(lock, p) }
     fun horn() = runCommand("Horn") { p -> remote.horn(p) }
     fun lights() = runCommand("Flash lights") { p -> remote.lights(p) }
-    fun preconditioning(on: Boolean) = runCommand(if (on) "Pre-heating" else "Stop pre-heating", { it.copy(preconditioningOn = on) }) { p ->
+    fun preconditioning(on: Boolean) = runCommand(if (on) "Pre-heating" else "Stop pre-heating", { holdPrecond = on to System.currentTimeMillis() + 300_000; it.copy(preconditioningOn = on) }) { p ->
         val st = _ui.value.status ?: return@runCommand CommandResult.Failed("No status yet")
         remote.preconditioning(on, st.programsJson(), p)
     }

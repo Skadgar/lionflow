@@ -56,8 +56,13 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             if (s.notifyPreheat && prev.optBoolean("precond") && !st.preconditioningOn)
                 notify(3, "Pre-heating finished", "Your car should be warm and ready.")
 
-            val unlockedSince = if (st.locked == false && st.ignition == "Stop") {
-                if (prev.optLong("unlockedSince", 0L) > 0) prev.optLong("unlockedSince") else now
+            // Only count as parked if the car isn't moving and hasn't driven since the last check.
+            val odo = st.odometerKm ?: -1.0
+            val prevOdo = prev.optDouble("odo", -1.0)
+            val drove = odo >= 0 && prevOdo >= 0 && kotlin.math.abs(odo - prevOdo) > 0.05
+            val parkedUnlocked = st.locked == false && st.ignition == "Stop" && !st.moving
+            val unlockedSince = if (parkedUnlocked) {
+                if (!drove && prev.optLong("unlockedSince", 0L) > 0) prev.optLong("unlockedSince") else now
             } else 0L
             if (s.notifyUnlocked && unlockedSince > 0 && now - unlockedSince > 10 * 60_000 && !prev.optBoolean("unlockedNotified"))
                 notify(4, "Car left unlocked", "Your car has been parked unlocked for a while.")
@@ -74,6 +79,7 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
                 .put("charging", st.chargingStatus ?: "")
                 .put("precond", st.preconditioningOn)
                 .put("unlockedSince", unlockedSince)
+                .put("odo", odo)
                 .put("unlockedNotified", unlockedSince > 0 && (prev.optBoolean("unlockedNotified") || now - unlockedSince > 10 * 60_000))
                 .put("low", lowNow)
                 .put("service", serviceSoon)
