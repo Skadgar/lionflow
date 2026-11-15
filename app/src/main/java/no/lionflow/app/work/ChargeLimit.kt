@@ -36,7 +36,12 @@ object ChargeLimit {
     private fun overLimit(app: LionFlowApp, st: VehicleStatus): Boolean {
         val s = app.settings.value
         if (!s.chargeLimitOn || !st.isCharging || !app.remote.isSetUp) return false
-        return (st.batteryPct ?: return false) >= s.chargeLimitPct
+        val pct = st.batteryPct ?: return false
+        // The car reports every few minutes, so stop a little early when charging fast:
+        // add what it will gain before the next check (at most 3 %).
+        val kw = no.lionflow.app.model.ChargePower.reading(st)?.kw ?: 0.0
+        val gain = (kw * (5.0 / 60.0) / no.lionflow.app.model.ChargePower.usableKwh(st) * 100).coerceIn(0.0, 3.0)
+        return pct + gain >= s.chargeLimitPct
     }
 
     /** True if something should be done now (a try, or telling the user it didn't work). */
@@ -49,8 +54,8 @@ object ChargeLimit {
 
     /**
      * Start time for the "delayed" charge. Uses the car's own scheduled time, unless that is missing or
-     * within the next hour (then charging would just start again) — then it picks the time it is now,
-     * which means "start again in 24 hours" and is changed back by the user's next schedule.
+     * within the next hour (then charging would just start again) — then it picks a time
+     * 12 hours from now.
      */
     private fun delayTime(st: VehicleStatus): Pair<Int, Int> {
         val now = Calendar.getInstance()
@@ -60,7 +65,9 @@ object ChargeLimit {
             val until = ((h * 60 + m) - nowMin + 1440) % 1440
             if (until >= 60) return h to m
         }
-        val t = (nowMin - 1 + 1440) % 1440
+        // A time in the past (e.g. "a minute ago") makes the car start charging right away, so pick
+        // one well ahead. If charging starts again then, the limit stops it again.
+        val t = (nowMin + 12 * 60) % 1440
         return (t / 60) to (t % 60)
     }
 
