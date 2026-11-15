@@ -152,7 +152,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(signingIn = true) }
             try {
                 api.exchangeCode(code)
-                api.loadUserInfo()
+                try { api.loadUserInfo() } catch (e: AuthExpiredException) { throw e } catch (_: Exception) {}
                 val all = api.vehicles()
                 val v = api.pick(all)
                 _ui.update { it.copy(vehicle = v, vehicles = all, signingIn = false, phase = Phase.SetupRemote) }
@@ -168,10 +168,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, setupError = null) }
             try {
+                if (api.customerId == null) {
+                    try { api.loadUserInfo() } catch (_: Exception) {}
+                    if (api.customerId == null) {
+                        _ui.update { it.copy(busy = false, setupError = NO_REMOTE) }
+                        return@launch
+                    }
+                }
                 api.requestSmsCode()
                 _ui.update { it.copy(busy = false, smsSent = true) }
             } catch (e: Exception) {
-                _ui.update { it.copy(busy = false, setupError = "Couldn't send the SMS — ${no.lionflow.app.api.Http.describe(e)}") }
+                val code = (e as? no.lionflow.app.api.ApiException)?.code
+                _ui.update { it.copy(busy = false, setupError = if (code == 400 || code == 403) NO_REMOTE else "Couldn't send the SMS — ${no.lionflow.app.api.Http.describe(e)}") }
             }
         }
     }
@@ -681,5 +689,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 toast("Couldn't save the photo")
             }
         }
+    }
+
+    private companion object {
+        const val NO_REMOTE = "Peugeot doesn't offer remote control for this car to LionFlow. Check that remote commands (like pre-heating) work in the MyPeugeot app and that remote services are activated there. You can still skip and use LionFlow for status, charging and trips."
     }
 }

@@ -166,14 +166,13 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
     // ---------------- account & vehicles ----------------
 
     /** Returns the customer id and stores it. */
-    suspend fun loadUserInfo(): String = authed { token ->
+    suspend fun loadUserInfo(): String? = authed { token ->
         val url = "$API/applications/cvs/v4/mauv/car-associations?${clientQuery()}"
         val req = otpHeaders(Request.Builder().url(url), token).header("x-transaction-id", "1234").get().build()
         val arr = Http.json(req) as? JSONArray ?: JSONArray()
-        val first = arr.optJSONObject(0) ?: throw ApiException(0, "Missing user info — is the car added in the MyPeugeot app?")
-        val customer = first.optString("customer")
-        if (customer.isEmpty()) throw ApiException(0, "Missing customer id")
-        secure.put(K_CUSTOMER, customer)
+        // Some cars (e.g. newer models) have no remote-services link here; status still works without it.
+        val customer = arr.objects().map { it.optString("customer") }.firstOrNull { it.isNotEmpty() }
+        if (customer != null) secure.put(K_CUSTOMER, customer)
         customer
     }
 
