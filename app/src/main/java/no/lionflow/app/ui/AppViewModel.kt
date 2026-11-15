@@ -557,7 +557,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val next = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")
                     page = next?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
                     guard++
-                } while (page != null && guard < 10)
+                } while (page != null && guard < 50)
                 val imported = loadImportedTrips()
                 val merged = (all + imported).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }
                 _ui.update { it.copy(trips = merged, tripsLoading = false) }

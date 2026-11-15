@@ -179,7 +179,7 @@ object CarHub {
                     page = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")
                         ?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
                     guard++
-                } while (page != null && guard < 10)
+                } while (page != null && guard < 50)
                 _trips.value = all.distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }
             } catch (e: Exception) {
                 tripsLoadedAt = 0L

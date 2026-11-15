@@ -233,7 +233,7 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
 
     /** One page of trips since the given ISO timestamp. */
     suspend fun trips(v: Vehicle, sinceIso: String?, pageToken: String? = null): JSONObject = authed { token ->
-        var url = "$API/connectedcar/v4/user/vehicles/${v.id}/trips?${clientQuery()}&distance=0.1-"
+        var url = "$API/connectedcar/v4/user/vehicles/${v.id}/trips?${clientQuery()}&distance=0.1-&pageSize=60"
         if (sinceIso != null) url += "&timestamps=$sinceIso/"
         if (pageToken != null) url += "&pageToken=$pageToken"
         Http.json(carHeaders(Request.Builder().url(url), token).get().build()) as? JSONObject ?: JSONObject()

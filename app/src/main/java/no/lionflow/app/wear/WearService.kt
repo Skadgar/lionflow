@@ -102,7 +102,7 @@ class WearService : WearableListenerService() {
             j.optJSONObject("_embedded")?.optJSONArray("trips")?.objects()?.forEach { trips += Trip.parse(it) }
             page = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
             guard++
-        } while (page != null && guard < 5)
+        } while (page != null && guard < 50)
         val uniq = trips.distinctBy { it.id }
         val today = uniq.filter { (it.startMillis ?: 0L) >= todayStart }.sumOf { it.distanceKm }
         val yesterday = uniq.filter { (it.startMillis ?: 0L) in yStart until todayStart }.sumOf { it.distanceKm }
