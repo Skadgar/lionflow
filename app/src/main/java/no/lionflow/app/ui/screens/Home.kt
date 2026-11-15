@@ -80,10 +80,12 @@ fun HomeScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean, exp
             Box(Modifier.weight(1f)) {
                 ScreenColumn(wide = true, maxWidth = 460) {
                     Spacer(Modifier.height(4.dp))
+                    // Things the left column doesn't already show
                     if (no.lionflow.app.ui.Caps.battery(ui.status)) ChargingSummary(vm, ui, s)
                     if (no.lionflow.app.ui.Caps.climate(ui.status)) ClimateSummary(vm, ui, s)
-                    ServiceSummary(vm, ui, s)
-                    if (expanded) TripsSummary(vm, ui, s)
+                    TripsCard(vm, ui, s)
+                    if (no.lionflow.app.ui.Caps.battery(ui.status)) MonthCostCard(vm)
+                    ServiceCard(vm, ui, s)
                 }
             }
         }
@@ -612,7 +614,25 @@ fun ChargingSummary(vm: AppViewModel, ui: UiState, s: AppSettings) {
             Text("Charging", style = Type.label, color = c.text, modifier = Modifier.weight(1f))
             no.lionflow.app.ui.components.Pill(if (st?.isCharging == true) "Charging" else if (st?.plugged == true) "Plugged in" else "Unplugged", c.okBg, c.okText)
         }
-        Text(chargingLine(st), style = Type.small, color = c.muted)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("${st?.batteryPct?.toInt() ?: "—"} %", style = Type.display.copy(fontSize = 34.sp, fontWeight = FontWeight.SemiBold), color = c.text)
+            Spacer(Modifier.width(10.dp))
+            Text("≈ ${fmtDistance(st?.rangeKm, s)}", style = Type.small, color = c.muted, modifier = Modifier.padding(bottom = 6.dp))
+            Spacer(Modifier.weight(1f))
+            if (s.chargeLimitOn) Text("Limit ${s.chargeLimitPct} %", style = Type.tiny, color = c.muted, modifier = Modifier.padding(bottom = 6.dp))
+        }
+        ProgressBar(((st?.batteryPct ?: 0.0) / 100).toFloat(), c.meter)
+        Text(chargingLine(st), style = Type.small, color = c.text2)
+        if (st?.isCharging == true) st.remainingMinutes?.let { rem ->
+            val done = java.util.Date(System.currentTimeMillis() + rem * 60_000L)
+            Text("Done at about " + java.text.SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("HH:mm"), no.lionflow.app.ui.l10n.L10n.locale).format(done), style = Type.tiny, color = c.muted)
+        }
+        val last = no.lionflow.app.model.ChargeLog.sessions.collectAsState().value.firstOrNull()
+        if (st?.isCharging != true && last != null) {
+            val m = no.lionflow.app.model.ChargeLog.match(last)
+            Text("Last: " + java.text.SimpleDateFormat("EEE d MMM", no.lionflow.app.ui.l10n.L10n.locale).format(java.util.Date(last.start)) +
+                " · ${String.format(java.util.Locale.US, "%.1f", last.kwh)} kWh · ${m.label}", style = Type.tiny, color = c.muted)
+        }
         if (vm.remoteReady) no.lionflow.app.ui.components.PrimaryButton(if (st?.isCharging == true) "Stop charging" else "Charge now", Modifier.fillMaxWidth(), enabled = st?.plugged == true) {
             val start = st?.isCharging != true
             confirm(if (start) "Start charging" else "Stop charging") { vm.charging(start) }
@@ -630,6 +650,8 @@ fun ClimateSummary(vm: AppViewModel, ui: UiState, s: AppSettings) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Climate · outside ${fmtTemp(st?.outsideTempC ?: ui.weather?.tempC, s)}", style = Type.small, color = c.muted)
                 Text(if (st?.preconditioningOn == true) "Pre-heating" else "Off", style = Type.stat, color = c.text)
+                nextSchedule(st)?.let { Text("Next schedule: $it", style = Type.tiny, color = c.muted) }
+                ui.weather?.let { w -> Text("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)} where you are", style = Type.tiny, color = c.muted) }
             }
             if (vm.remoteReady) no.lionflow.app.ui.components.PrimaryButton(if (st?.preconditioningOn == true) "Stop" else "Pre-heat", color = c.orange) {
                 val on = st?.preconditioningOn != true
@@ -660,5 +682,55 @@ fun TripsSummary(vm: AppViewModel, ui: UiState, s: AppSettings) {
         val week = ui.trips.filter { (it.startMillis ?: 0) > System.currentTimeMillis() - 7 * 86_400_000L }
         Text(if (ui.trips.isEmpty()) "Open to load your drives" else "${fmtDistance(week.sumOf { it.distanceKm }, s)} this week", style = Type.stat, color = c.text)
         Spacer(Modifier.width(1.dp))
+    }
+}
+
+/** The next enabled pre-heating schedule, e.g. "Mon 07:30". */
+private fun nextSchedule(st: no.lionflow.app.model.VehicleStatus?): String? {
+    val progs = st?.programs?.filter { it.enabled && it.days.isNotEmpty() } ?: return null
+    if (progs.isEmpty()) return null
+    val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val cal = java.util.Calendar.getInstance()
+    val today = (cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7 // Mon = 0
+    val nowMin = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+    var best: Pair<Int, String>? = null
+    for (p in progs) for (d in p.days) {
+        val di = days.indexOf(d); if (di < 0) continue
+        var offset = (di - today + 7) % 7 * 1440 + p.hour * 60 + p.minute - nowMin
+        if (offset < 0) offset += 7 * 1440
+        val label = (if (offset < 1440 && di == today) "today" else d) + " " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute)
+        if (best == null || offset < best.first) best = offset to label
+    }
+    return best?.second
+}
+
+/** Charging cost and energy this month, split home/away. */
+@Composable
+private fun MonthCostCard(vm: AppViewModel) {
+    val c = LocalLf.current
+    val sessions by no.lionflow.app.model.ChargeLog.sessions.collectAsState()
+    val cfg by no.lionflow.app.model.ChargeLog.places.collectAsState()
+    if (sessions.isEmpty()) return
+    val from = java.util.Calendar.getInstance().apply { set(java.util.Calendar.DAY_OF_MONTH, 1); set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0) }.timeInMillis
+    val month = sessions.filter { it.start >= from }
+    val kwhSum = month.sumOf { it.kwh }
+    val homeKwh = month.filter { no.lionflow.app.model.ChargeLog.match(it, cfg).kind == "home" }.sumOf { it.kwh }
+    val cost = month.sumOf { it.kwh * (no.lionflow.app.model.ChargeLog.match(it, cfg).price ?: 0.0) }
+    LfCard(onClick = { vm.setTab(Tab.Charging) }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Charging this month", style = Type.label, color = c.text, modifier = Modifier.weight(1f))
+            Text("${month.size} sessions", style = Type.tiny, color = c.muted)
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(String.format(java.util.Locale.US, "%.0f kWh", kwhSum), style = Type.display.copy(fontSize = 30.sp, fontWeight = FontWeight.SemiBold), color = c.text)
+            Spacer(Modifier.weight(1f))
+            Text("≈ " + String.format(java.util.Locale.US, "%.0f", cost) + " " + cfg.currency, style = Type.stat.copy(fontSize = 20.sp), color = c.accentInk)
+        }
+        ProgressBar(if (kwhSum > 0) (homeKwh / kwhSum).toFloat() else 0f, c.meter)
+        Row {
+            Text(String.format(java.util.Locale.US, "Home %.0f kWh", homeKwh), style = Type.tiny, color = c.text2)
+            Spacer(Modifier.weight(1f))
+            Text(String.format(java.util.Locale.US, "Away %.0f kWh", kwhSum - homeKwh), style = Type.tiny, color = c.muted)
+        }
     }
 }

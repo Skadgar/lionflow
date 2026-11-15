@@ -171,37 +171,99 @@ private fun SessionRow(sess: ChargeSession, cfg: PlacesConfig, onClick: () -> Un
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun SessionDialog(sess: ChargeSession, cfg: PlacesConfig, s: AppSettings, onClose: () -> Unit) {
     val c = LocalLf.current
     val m = ChargeLog.match(sess, cfg)
-    val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM yyyy, HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
+    val day = SimpleDateFormat("EEE d MMM yyyy", no.lionflow.app.ui.l10n.L10n.locale)
+    val hm = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
     var confirmDelete by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onClose, containerColor = c.card,
-        title = { Text(m.label, color = c.text) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                line("Started", fmt.format(Date(sess.start)))
-                line("Ended", fmt.format(Date(sess.end)))
-                line("Duration", dur(sess.hours))
-                line("Battery", "${sess.startPct.toInt()} % → ${sess.endPct.toInt()} %")
-                line("Energy", kwh(sess.kwh))
-                line("Average", sess.avgKw?.let { "${f1(it)} kW" } ?: "—")
-                line("Peak", sess.peakKw?.let { "${f1(it)} kW" } ?: "—")
-                line("Type", if (sess.mode == "Quick") "Fast charger (DC)" else "AC")
-                line("Place", when (m.kind) { "home" -> "Home"; "known" -> "${m.label} (your charger)"; else -> sess.source ?: "Public / other" })
-                line("Address", sess.address ?: if (sess.lat == null) "Car didn't report a position" else "Looking up…")
-                line("Cost", when { m.price == null -> "No price set"; m.price == 0.0 -> "Free"; else -> "≈ ${money(sess.kwh * m.price, cfg.currency)} (${m.price} ${cfg.currency}/kWh)" })
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val home = m.kind == "home"
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onClose, sheetState = sheet, containerColor = c.bg,
+        dragHandle = { Box(Modifier.padding(top = 10.dp, bottom = 4.dp).size(width = 40.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(c.line2)) },
+    ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Header: place + date
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(if (home) c.okBg else c.raisedBlue), contentAlignment = Alignment.Center) {
+                    LfIcon(if (home) LfIcons.Home else LfIcons.Bolt, if (home) c.accentInk else c.blueInk, 22.dp)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(m.label, style = Type.display.copy(fontSize = 24.sp), color = c.text, maxLines = 1)
+                    Text("${day.format(Date(sess.start))} · ${hm.format(Date(sess.start))}–${hm.format(Date(sess.end))}", style = Type.small, color = c.muted)
+                }
+                Box(Modifier.size(36.dp).clip(CircleShape).background(c.raised).clickable(onClick = onClose), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Close, c.text2, 18.dp) }
             }
-        },
-        confirmButton = { TextButton(onClick = onClose) { Text("Close", color = c.accentInk) } },
-        dismissButton = {
-            TextButton(onClick = { if (confirmDelete) { ChargeLog.delete(sess.id); onClose() } else confirmDelete = true }) {
-                Text(if (confirmDelete) "Tap again to delete" else "Delete", color = c.danger)
+
+            // Hero: energy + cost, battery bar
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(22.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Energy", style = Type.tiny, color = c.muted)
+                        Text(kwh(sess.kwh), style = Type.display.copy(fontSize = 34.sp, fontWeight = FontWeight.SemiBold), color = c.text)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Cost", style = Type.tiny, color = c.muted)
+                        Text(when { m.price == null -> "—"; m.price == 0.0 -> "Free"; else -> "≈ " + money(sess.kwh * m.price, cfg.currency) }, style = Type.display.copy(fontSize = 26.sp), color = c.accentInk)
+                    }
+                }
+                // battery from → to
+                Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(c.bar)) {
+                    val a = (sess.startPct / 100).toFloat().coerceIn(0f, 1f); val b = (sess.endPct / 100).toFloat().coerceIn(0f, 1f)
+                    Box(Modifier.fillMaxWidth(b).height(10.dp).clip(RoundedCornerShape(5.dp)).background(c.meter))
+                    Box(Modifier.fillMaxWidth(a).height(10.dp).clip(RoundedCornerShape(5.dp)).background(c.line2))
+                }
+                Row {
+                    Text("${sess.startPct.toInt()} %", style = Type.small, color = c.muted)
+                    Spacer(Modifier.weight(1f))
+                    Text("+${(sess.endPct - sess.startPct).toInt()} %", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+                    Spacer(Modifier.weight(1f))
+                    Text("${sess.endPct.toInt()} %", style = Type.small, color = c.text)
+                }
+                if (m.price != null && m.price > 0) Text("${m.price} ${cfg.currency}/kWh", style = Type.tiny, color = c.muted)
             }
-        },
-    )
+
+            // Stat grid
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(Modifier.weight(1f), "Duration", dur(sess.hours))
+                StatTile(Modifier.weight(1f), "Type", if (sess.mode == "Quick") "Fast (DC)" else "AC")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(Modifier.weight(1f), "Average", sess.avgKw?.let { "${f1(it)} kW" } ?: "—")
+                StatTile(Modifier.weight(1f), "Peak", sess.peakKw?.let { "${f1(it)} kW" } ?: "—")
+            }
+
+            // Where
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(18.dp)).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LfIcon(LfIcons.Pin, c.muted, 20.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(when (m.kind) { "home" -> "Home"; "known" -> "${m.label} (your charger)"; else -> sess.source ?: "Public / other" }, style = Type.label, color = c.text)
+                    Text(sess.address ?: if (sess.lat == null) "The car didn't report a position" else "Looking up address…", style = Type.small, color = c.muted)
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { if (confirmDelete) { ChargeLog.delete(sess.id); onClose() } else confirmDelete = true }) {
+                    Text(if (confirmDelete) "Tap again to delete" else "Delete session", color = c.danger)
+                }
+                Spacer(Modifier.weight(1f))
+                no.lionflow.app.ui.components.PrimaryButton("Done") { onClose() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatTile(modifier: Modifier, label: String, value: String) {
+    val c = LocalLf.current
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Text(label, style = Type.tiny, color = c.muted)
+        Text(value, style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+    }
 }
 
 @Composable
