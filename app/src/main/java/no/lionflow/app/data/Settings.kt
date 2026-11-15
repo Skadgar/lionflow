@@ -32,6 +32,8 @@ data class AppSettings(
     val carVideo: Boolean = true,       // YouTube in Android Auto, only while parked
     val chargeLimitOn: Boolean = false, // LionFlow stops charging at chargeLimitPct
     val chargeLimitPct: Int = 80,
+    val serviceKm: Int = 0,             // service interval in km; 0 = default for the car type
+    val serviceMonths: Int = 0,         // service interval in months; 0 = default
     val routeTracking: Boolean = false, // record routes with the phone's GPS while connected to the car over Bluetooth
     val routeBtAddr: String = "",       // the car's Bluetooth address
     val routeBtName: String = "",
@@ -74,6 +76,8 @@ class SettingsStore(context: Context) {
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
         chargeLimitPct = p.getInt("chargeLimitPct", 80),
         routeTracking = p.getBoolean("routeTracking", false),
+        serviceKm = p.getInt("serviceKm", 0),
+        serviceMonths = p.getInt("serviceMonths", 0),
         routeBtAddr = p.getString("routeBtAddr", "") ?: "",
         routeBtName = p.getString("routeBtName", "") ?: "",
     )
@@ -109,6 +113,8 @@ class SettingsStore(context: Context) {
             .putBoolean("chargeLimitOn", s.chargeLimitOn)
             .putInt("chargeLimitPct", s.chargeLimitPct)
             .putBoolean("routeTracking", s.routeTracking)
+            .putInt("serviceKm", s.serviceKm)
+            .putInt("serviceMonths", s.serviceMonths)
             .putString("routeBtAddr", s.routeBtAddr)
             .putString("routeBtName", s.routeBtName)
             .apply()

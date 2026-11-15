@@ -232,7 +232,7 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
 
         // Timeline: next service (top), today, last logged service (bottom)
         LaunchedEffect(Unit) { if (ui.trips.isEmpty() && !ui.tripsLoading) vm.loadTrips() }
-        ServiceTimeline(ui, s)
+        ServiceTimeline(vm, ui, s)
         SecondaryButton("Find a workshop", Modifier.fillMaxWidth()) {
             platform.openUrl("https://www.google.com/maps/search/Peugeot+verksted")
         }
@@ -307,8 +307,12 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
 
 /** Next service, today and the last logged service as a vertical timeline (like the MyPeugeot app). */
 @Composable
-private fun ServiceTimeline(ui: UiState, s: AppSettings) {
+private fun ServiceTimeline(vm: AppViewModel, ui: UiState, s: AppSettings) {
     val c = LocalLf.current
+    var editInterval by remember { mutableStateOf(false) }
+    // Peugeot doesn't send the interval; defaults: electric 25 000 km / 2 years, petrol and hybrid 25 000 km / 1 year.
+    val intKm = if (s.serviceKm > 0) s.serviceKm else 25_000
+    val intMonths = if (s.serviceMonths > 0) s.serviceMonths else if (st0(ui)?.energyType == "Electric" || ui.status == null) 24 else 12
     val st = ui.status
     val now = System.currentTimeMillis()
     val kmLeft = st?.kmToService
@@ -328,6 +332,24 @@ private fun ServiceTimeline(ui: UiState, s: AppSettings) {
 
     LfCard(padding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 16.dp)) {
         Text("Service plan", style = Type.label, color = c.text)
+        // The one after next: next service + one interval
+        if (kmLeft != null || daysLeft != null) {
+            val km2 = (kmLeft ?: 0.0) + intKm
+            val days2 = (daysLeft ?: 0.0) + intMonths * 30.44
+            val byKm2 = if (perDay > 0.5) km2 / perDay else null
+            val soon2 = listOfNotNull(byKm2, days2).minOrNull()
+            TimelineRow(icon = LfIcons.Wrench, dotColor = c.muted, big = true, lineBelow = true) {
+                Text(soon2?.let { "Estimated " + inText(it) } ?: "Later", style = Type.small, color = c.muted)
+                Text("Following service", style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+                listOfNotNull(
+                    odo?.let { "At ≈ ${fmtDistance(it + km2, s)}" },
+                    "By date: " + dateFmt.format(Date(now + (days2 * 86_400_000L).toLong())),
+                    byKm2?.let { "At your driving: " + dateFmt.format(Date(now + (it * 86_400_000L).toLong())) },
+                ).forEach { Text(it, style = Type.small, color = c.muted) }
+                Text("Every ${fmtDistance(intKm.toDouble(), s)} or $intMonths months — tap to change", style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                    modifier = Modifier.clickable { editInterval = true }.padding(vertical = 4.dp))
+            }
+        }
         // Next service
         TimelineRow(icon = LfIcons.Wrench, dotColor = if ((kmLeft ?: 1e9) < 1000 || (daysLeft ?: 1e9) < 30) c.orangeInk else c.text, big = true, lineBelow = true) {
             if (kmLeft == null && daysLeft == null) {
@@ -358,6 +380,34 @@ private fun ServiceTimeline(ui: UiState, s: AppSettings) {
             if (last.note.isNotBlank()) Text(last.note, style = Type.small, color = c.muted)
         }
     }
+    if (editInterval) IntervalDialog(intKm, intMonths, onDismiss = { editInterval = false }) { km, months ->
+        vm.settings.update { it.copy(serviceKm = km, serviceMonths = months) }
+        editInterval = false
+    }
+}
+
+private fun st0(ui: UiState) = ui.status
+
+@Composable
+private fun IntervalDialog(km: Int, months: Int, onDismiss: () -> Unit, onSave: (Int, Int) -> Unit) {
+    val c = LocalLf.current
+    var kmText by remember { mutableStateOf(km.toString()) }
+    var moText by remember { mutableStateOf(months.toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Service interval") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("See your service booklet. Used to estimate the service after next.", style = Type.small, color = c.muted)
+                androidx.compose.material3.OutlinedTextField(kmText, { kmText = it.filter(Char::isDigit).take(6) }, label = { Text("Kilometres") }, singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                androidx.compose.material3.OutlinedTextField(moText, { moText = it.filter(Char::isDigit).take(3) }, label = { Text("Months") }, singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(kmText.toIntOrNull()?.coerceIn(1000, 100_000) ?: km, moText.toIntOrNull()?.coerceIn(1, 60) ?: months) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
