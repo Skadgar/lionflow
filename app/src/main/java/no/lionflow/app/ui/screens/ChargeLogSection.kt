@@ -116,8 +116,8 @@ fun ChargeLogSection(ui: UiState, s: AppSettings) {
     }
 
     // ---- sessions ----
-    if (sessions.isEmpty() && active == null) {
-        Text("No charging sessions yet. LionFlow logs a session each time it sees the car charging (it checks every ~10 minutes while charging).", style = Type.small, color = c.muted)
+    if (sessions.isEmpty()) {
+        if (active == null) Text("No charging sessions yet. LionFlow logs a session each time it sees the car charging (it checks every ~10 minutes while charging).", style = Type.small, color = c.muted)
     } else {
         LfCard {
             val list = if (showAll) sessions else sessions.take(12)
@@ -222,11 +222,11 @@ private fun PlacesDialog(cfg: PlacesConfig, ui: UiState, onClose: () -> Unit) {
                     modifier = Modifier.clickable { editing = ChargePlace("k" + System.currentTimeMillis(), "", "", null, null, 0.0) }.padding(vertical = 6.dp))
                 Divider()
                 Text("Other chargers (estimate)", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.text)
-                OutlinedTextField(ac, { ac = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
+                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = ac, onValueChange = { ac = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
                     label = { Text("AC price per kWh") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(dc, { dc = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
+                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = dc, onValueChange = { dc = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
                     label = { Text("Fast charger (DC) price per kWh") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(cur, { cur = it.take(4) }, singleLine = true, colors = colors, label = { Text("Currency") })
+                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = cur, onValueChange = { cur = it.take(4) }, singleLine = true, colors = colors, label = { Text("Currency") })
             }
         },
         confirmButton = {
@@ -247,13 +247,16 @@ private fun PlacesDialog(cfg: PlacesConfig, ui: UiState, onClose: () -> Unit) {
 @Composable
 private fun PlaceLine(title: String, p: ChargePlace?, onClick: () -> Unit) {
     val c = LocalLf.current
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp)) {
-        Text(title.ifBlank { "Charger" }, style = Type.body, color = c.text)
-        Text(
-            if (p == null || p.lat == null) "Not set — tap to add"
-            else (p.address.ifBlank { "Location set" }) + " · " + if (p.price == 0.0) "free" else "${p.price}/kWh",
-            style = Type.tiny, color = c.muted,
-        )
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title.ifBlank { "Charger" }, style = Type.body, color = c.text)
+            Text(
+                if (p == null || p.lat == null) "Not set — tap to add"
+                else (p.address.ifBlank { "Location set" }) + " · " + if (p.price == 0.0) "free" else "${p.price}/kWh",
+                style = Type.tiny, color = c.muted,
+            )
+        }
+        LfIcon(LfIcons.Chevron, c.muted, 18.dp)
     }
 }
 
@@ -285,14 +288,14 @@ private fun PlaceEditor(p: ChargePlace, ui: UiState, onClose: () -> Unit) {
         title = { Text(if (isHome) "Home" else if (p.name.isBlank()) "Add charger" else p.name, color = c.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!isHome) OutlinedTextField(name, { name = it.take(30) }, singleLine = true, colors = colors, label = { Text("Name (e.g. Work, Cabin)") })
-                OutlinedTextField(address, { address = it.take(120); lat = null; lon = null }, singleLine = true, colors = colors, label = { Text("Address") })
+                if (!isHome) OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = name, onValueChange = { name = it.take(30) }, singleLine = true, colors = colors, label = { Text("Name (e.g. Work, Cabin)") })
+                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = address, onValueChange = { address = it.take(120); lat = null; lon = null }, singleLine = true, colors = colors, label = { Text("Address") })
                 if (carLat != null && carLon != null) Text("Use the car's current location", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
                     modifier = Modifier.clickable {
                         lat = carLat; lon = carLon; status = "Using the car's location"
                         scope.launch { try { ChargeLog.reverseGeocode(carLat, carLon)?.let { address = it; lat = carLat; lon = carLon } } catch (_: Exception) { } }
                     }.padding(vertical = 4.dp))
-                OutlinedTextField(price, { price = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
+                OutlinedTextField(modifier = Modifier.fillMaxWidth(), value = price, onValueChange = { price = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }.take(6) }, singleLine = true, colors = colors,
                     label = { Text("Price per kWh (empty = free)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 Text(if (isHome) "Sessions within 50 m of this spot count as home." else "Sessions within 75 m of this spot use this charger's price.", style = Type.tiny, color = c.muted)
                 status?.let { Text(it, style = Type.tiny, color = c.text2) }

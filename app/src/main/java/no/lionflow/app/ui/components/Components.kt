@@ -58,7 +58,7 @@ fun LfCard(
 ) {
     val c = LocalLf.current
     val shape = RoundedCornerShape(radius)
-    var m = modifier.clip(shape).background(c.card).border(1.dp, c.line, shape)
+    var m = modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.line, shape)
     if (onClick != null) m = m.clickable(onClick = onClick)
     Column(m.padding(padding), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
