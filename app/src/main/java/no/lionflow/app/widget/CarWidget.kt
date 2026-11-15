@@ -47,12 +47,13 @@ object WidgetData {
             .put("precond", st.preconditioningOn)
             .put("carTime", st.updatedAtMillis ?: now)
             .put("fetched", now)
-            .put("lat", st.lat ?: Double.NaN)
-            .put("lon", st.lon ?: Double.NaN)
+        // Some cars don't report a position; JSON can't hold NaN, so only add real numbers.
+        st.lat?.takeIf { it.isFinite() }?.let { j.put("lat", it) }
+        st.lon?.takeIf { it.isFinite() }?.let { j.put("lon", it) }
         prefs(ctx).edit().putString("snap", j.toString()).putBoolean("refreshing", false).remove("status").apply()
         CarWidget.updateAll(ctx)
         val lat = st.lat; val lon = st.lon
-        if (lat != null && lon != null) resolvePlace(ctx, lat, lon)
+        if (lat != null && lon != null && lat.isFinite() && lon.isFinite()) resolvePlace(ctx, lat, lon)
     }
 
     /** "Home", a saved charger's name, or a street address (looked up once per spot). */
