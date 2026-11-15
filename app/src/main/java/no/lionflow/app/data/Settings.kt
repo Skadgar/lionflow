@@ -32,6 +32,9 @@ data class AppSettings(
     val carVideo: Boolean = true,       // YouTube in Android Auto, only while parked
     val chargeLimitOn: Boolean = false, // LionFlow stops charging at chargeLimitPct
     val chargeLimitPct: Int = 80,
+    val routeTracking: Boolean = false, // record routes with the phone's GPS while connected to the car over Bluetooth
+    val routeBtAddr: String = "",       // the car's Bluetooth address
+    val routeBtName: String = "",
     val batteryKwh: Double = 0.0,       // usable battery size for kW maths; 0 = use what the car reports (else 73)
 )
 
@@ -70,6 +73,9 @@ class SettingsStore(context: Context) {
         batteryKwh = p.getFloat("batteryKwh", 0f).toDouble(),
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
         chargeLimitPct = p.getInt("chargeLimitPct", 80),
+        routeTracking = p.getBoolean("routeTracking", false),
+        routeBtAddr = p.getString("routeBtAddr", "") ?: "",
+        routeBtName = p.getString("routeBtName", "") ?: "",
     )
 
     fun update(block: (AppSettings) -> AppSettings) {
@@ -102,6 +108,9 @@ class SettingsStore(context: Context) {
             .putFloat("batteryKwh", s.batteryKwh.toFloat())
             .putBoolean("chargeLimitOn", s.chargeLimitOn)
             .putInt("chargeLimitPct", s.chargeLimitPct)
+            .putBoolean("routeTracking", s.routeTracking)
+            .putString("routeBtAddr", s.routeBtAddr)
+            .putString("routeBtName", s.routeBtName)
             .apply()
         _state.value = s
     }

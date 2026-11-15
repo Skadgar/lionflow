@@ -69,6 +69,8 @@ fun BackLink(label: String, onClick: () -> Unit) {
 fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
     val c = LocalLf.current
     var period by remember { mutableStateOf("week") }
+    var openTrip by remember { mutableStateOf<no.lionflow.app.model.Trip?>(null) }
+    var openRoute by remember { mutableStateOf<no.lionflow.app.route.Route?>(null) }
     LaunchedEffect(Unit) { if (ui.trips.isEmpty() && !ui.tripsLoading) vm.loadTrips() }
     val days = if (period == "week") 7 else 30
     val since = System.currentTimeMillis() - days * 86_400_000L
@@ -122,8 +124,9 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
                 val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM · HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
                 list.take(50).forEachIndexed { i, t ->
                     if (i > 0) Divider()
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(c.raisedBlue), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Route, c.blueInk, 20.dp) }
+                    val route = no.lionflow.app.route.Routes.forTrip(ui.routes, t.startMillis, t.endMillis)
+                    Row(Modifier.fillMaxWidth().clickable { openTrip = t; openRoute = route }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(c.raisedBlue), contentAlignment = Alignment.Center) { LfIcon(if (route != null) LfIcons.Map else LfIcons.Route, c.blueInk, 20.dp) }
                         Column(Modifier.weight(1f)) {
                             Text(t.startMillis?.let { fmt.format(Date(it)) } ?: "Trip", style = Type.label, color = c.text)
                             Text(listOfNotNull(t.durationSec?.let { "${(it / 60).toInt()} min" }, t.avgSpeedKmh?.let { "${it.toInt()} km/h avg" }).joinToString(" · "), style = Type.small, color = c.muted)
@@ -137,7 +140,57 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
                 }
             }
         }
+        // Routes recorded on the phone that don't match a trip from Peugeot
+        val unmatched = ui.routes.filter { r -> r.startMillis >= since && ui.trips.none { t -> no.lionflow.app.route.Routes.forTrip(listOf(r), t.startMillis, t.endMillis) != null } }
+        if (unmatched.isNotEmpty()) {
+            Text("Recorded routes", style = Type.label, color = c.text)
+            LfCard(padding = PaddingValues(0.dp)) {
+                val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM · HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
+                unmatched.take(30).forEachIndexed { i, r ->
+                    if (i > 0) Divider()
+                    Row(Modifier.fillMaxWidth().clickable { openTrip = null; openRoute = r }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(c.raisedBlue), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Map, c.blueInk, 20.dp) }
+                        Column(Modifier.weight(1f)) {
+                            Text(fmt.format(Date(r.startMillis)), style = Type.label, color = c.text)
+                            Text("${((r.endMillis - r.startMillis) / 60_000)} min", style = Type.small, color = c.muted)
+                        }
+                        Text(fmtDistance(r.km, s), style = Type.label.copy(fontSize = 17.sp), color = c.text)
+                    }
+                }
+            }
+        }
+        if (!s.routeTracking) Text("Tip: turn on Route tracking in Settings to see your drives on a map.", style = Type.tiny, color = c.muted)
+        if (openTrip != null || openRoute != null) TripDetail(vm, openTrip, openRoute, s) { openTrip = null; openRoute = null }
     }
+}
+
+@Composable
+private fun TripDetail(vm: AppViewModel, trip: no.lionflow.app.model.Trip?, route: no.lionflow.app.route.Route?, s: AppSettings, onDismiss: () -> Unit) {
+    val c = LocalLf.current
+    val pts = remember(route) { route?.let { no.lionflow.app.route.Routes.points(it.file) }.orEmpty() }
+    val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM · HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text((trip?.startMillis ?: route?.startMillis)?.let { fmt.format(Date(it)) } ?: "Trip") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (pts.size >= 2) RouteMap(pts)
+                else Text(if (s.routeTracking) "No route was recorded for this trip." else "Turn on Route tracking in Settings to record routes on a map.", style = Type.small, color = c.muted)
+                val km = trip?.distanceKm ?: route?.km
+                val lines = listOfNotNull(
+                    km?.let { "Distance: " + fmtDistance(it, s) },
+                    (trip?.durationSec?.let { (it / 60).toInt() } ?: route?.let { ((it.endMillis - it.startMillis) / 60_000).toInt() })?.let { "Duration: $it min" },
+                    trip?.avgSpeedKmh?.let { "Average speed: ${it.toInt()} km/h" },
+                    trip?.avgKwhPer100?.let { String.format(Locale.US, "Consumption: %.1f kWh/100 km", it) },
+                    trip?.avgLPer100?.let { String.format(Locale.US, "Fuel: %.1f l/100 km", it) },
+                    trip?.liters?.let { String.format(Locale.US, "Fuel used: %.1f l", it) },
+                )
+                lines.forEach { Text(it, style = Type.body, color = c.text) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = { if (route != null) TextButton(onClick = { vm.deleteRoute(route); onDismiss() }) { Text("Delete route") } },
+    )
 }
 
 private fun startOfToday(): Long = Calendar.getInstance().apply {

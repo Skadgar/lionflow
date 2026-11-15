@@ -600,3 +600,17 @@ More	Plus	Mehr	Más	Mer
 Car asleep · last report {0}	Voiture en veille · dernier rapport {0}	Auto schläft · letzte Meldung {0}	Coche en reposo · último informe {0}	Bilen sover · sist rapportert {0}
 Asking the car to stop charging at {0} % (your limit is {1} %)	Demande à la voiture d'arrêter la charge à {0} % (votre limite est {1} %)	Auto wird gebeten, bei {0} % mit dem Laden aufzuhören (Ihr Limit ist {1} %)	Pidiendo al coche que deje de cargar al {0} % (tu límite es {1} %)	Ber bilen stoppe ladingen på {0} % (grensen din er {1} %)
 The car kept charging (now {0} %) — it ignored the stop. Unplug or stop it in the car.	La voiture a continué à charger (maintenant {0} %) — elle a ignoré l'arrêt. Débranchez-la ou arrêtez la charge dans la voiture.	Das Auto lädt weiter (jetzt {0} %) — es hat den Stopp ignoriert. Kabel ziehen oder im Auto stoppen.	El coche siguió cargando (ahora {0} %): ignoró la parada. Desenchúfalo o detén la carga en el coche.	Bilen fortsatte å lade (nå {0} %) — den ignorerte stoppen. Koble fra eller stopp i bilen.
+Route tracking	Suivi des trajets	Routenaufzeichnung	Registro de rutas	Ruteregistrering
+Record routes	Enregistrer les trajets	Routen aufzeichnen	Grabar rutas	Registrer ruter
+Uses your phone's GPS while it's connected to the car over Bluetooth. Routes stay on this phone.	Utilise le GPS du téléphone lorsqu'il est connecté à la voiture en Bluetooth. Les trajets restent sur ce téléphone.	Nutzt das GPS des Handys, solange es per Bluetooth mit dem Auto verbunden ist. Routen bleiben auf diesem Handy.	Usa el GPS del móvil mientras está conectado al coche por Bluetooth. Las rutas se quedan en este móvil.	Bruker telefonens GPS mens den er koblet til bilen med Bluetooth. Rutene blir på denne telefonen.
+Car's Bluetooth	Bluetooth de la voiture	Bluetooth des Autos	Bluetooth del coche	Bilens Bluetooth
+Tap to choose your car	Touchez pour choisir votre voiture	Tippen, um dein Auto zu wählen	Toca para elegir tu coche	Trykk for å velge bilen
+Choose your car	Choisissez votre voiture	Wähle dein Auto	Elige tu coche	Velg bilen din
+Delete all recorded routes	Supprimer tous les trajets enregistrés	Alle aufgezeichneten Routen löschen	Borrar todas las rutas grabadas	Slett alle registrerte ruter
+Recorded routes	Trajets enregistrés	Aufgezeichnete Routen	Rutas grabadas	Registrerte ruter
+Recording route	Enregistrement du trajet	Route wird aufgezeichnet	Grabando ruta	Registrerer rute
+Delete route	Supprimer le trajet	Route löschen	Borrar ruta	Slett rute
+No route was recorded for this trip.	Aucun trajet enregistré pour ce déplacement.	Für diese Fahrt wurde keine Route aufgezeichnet.	No se grabó ninguna ruta para este viaje.	Ingen rute ble registrert for denne turen.
+Tip: turn on Route tracking in Settings to see your drives on a map.	Astuce : activez le suivi des trajets dans les réglages pour voir vos trajets sur une carte.	Tipp: Routenaufzeichnung in den Einstellungen einschalten, um Fahrten auf der Karte zu sehen.	Consejo: activa el registro de rutas en Ajustes para ver tus viajes en un mapa.	Tips: slå på ruteregistrering i Innstillinger for å se turene på kart.
+Connected to your car	Connecté à votre voiture	Mit deinem Auto verbunden	Conectado a tu coche	Koblet til bilen
+Tap to record this drive's route	Touchez pour enregistrer ce trajet	Tippen, um die Route dieser Fahrt aufzuzeichnen	Toca para grabar la ruta de este viaje	Trykk for å registrere ruten på denne turen

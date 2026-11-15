@@ -58,6 +58,7 @@ data class UiState(
     val chargers: List<Charger> = emptyList(),
     val chargerError: String? = null,
     val trips: List<Trip> = emptyList(),
+    val routes: List<no.lionflow.app.route.Route> = emptyList(),
     val tripsLoading: Boolean = false,
     val serviceHistory: List<ServiceEntry> = emptyList(),
     val commandInProgress: String? = null,
@@ -572,7 +573,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- trips ----------------
 
+    fun reloadRoutes() = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        val r = no.lionflow.app.route.Routes.list(getApplication())
+        _ui.update { it.copy(routes = r) }
+    }
+
+    fun deleteRoute(r: no.lionflow.app.route.Route) { no.lionflow.app.route.Routes.delete(r); reloadRoutes() }
+
     fun loadTrips(days: Int = 30) {
+        reloadRoutes()
         val v = _ui.value.vehicle ?: return
         viewModelScope.launch {
             _ui.update { it.copy(tripsLoading = true) }

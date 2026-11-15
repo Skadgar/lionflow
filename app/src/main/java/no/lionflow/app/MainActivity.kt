@@ -63,6 +63,11 @@ class MainActivity : FragmentActivity(), Platform {
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.action == no.lionflow.app.route.RouteService.ACTION_START_FROM_TAP) {
+            intent.action = null
+            no.lionflow.app.route.RouteService.start(this)
+            return
+        }
         val data: Uri = intent?.data ?: return
         if (data.scheme == "mymap") {
             intent.data = null // a sign-in code can only be used once

@@ -157,6 +157,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             ToggleRow("Wake car when app opens", "Commands go through faster. Uses a little of the 12 V battery; at most every 10 min", s.wakeOnOpen, showDivider = false) { v -> set { it.copy(wakeOnOpen = v) } }
         }
 
+        RouteTrackingSettings(vm, s)
+
         SectionTitle("Chargers on the map")
         GroupCard {
             SegRow("Source", listOf("osm" to "OpenStreetMap", "nobil" to "NOBIL"), s.chargerSource) { v -> set { it.copy(chargerSource = v) }; vm.loadChargers() }
