@@ -232,8 +232,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         GroupCard {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("LionFlow is free, has no ads and never will. It's made in my spare time. If it makes your Peugeot a bit nicer to live with, a small donation helps keep it going. Thank you! ☕", style = Type.small, color = c.text2)
-                no.lionflow.app.ui.components.PrimaryButton("Donate with PayPal", Modifier.fillMaxWidth()) {
-                    platform.openUrl("https://www.paypal.com/donate/?hosted_button_id=4R43AXWVE94UJ")
+                no.lionflow.app.ui.components.PrimaryButton("Buy me a coffee on Ko-fi", Modifier.fillMaxWidth()) {
+                    platform.openUrl("https://ko-fi.com/thocubeat")
                 }
             }
         }

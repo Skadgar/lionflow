@@ -100,7 +100,7 @@ LionFlow is an independent app, not made, endorsed or supported by Peugeot or St
 
 LionFlow is free, has no ads and never will. If it makes your Peugeot a bit nicer to live with, you can buy me a coffee:
 
-[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-0070ba?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?hosted_button_id=4R43AXWVE94UJ)
+[![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/thocubeat)
 
 Thank you! ☕
 
