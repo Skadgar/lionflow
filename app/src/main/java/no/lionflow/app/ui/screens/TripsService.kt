@@ -310,14 +310,16 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
 private fun ServiceTimeline(vm: AppViewModel, ui: UiState, s: AppSettings) {
     val c = LocalLf.current
     var editInterval by remember { mutableStateOf(false) }
-    // Peugeot doesn't send the interval; defaults: electric 25 000 km / 2 years, petrol and hybrid 25 000 km / 1 year.
-    val intKm = if (s.serviceKm > 0) s.serviceKm else 25_000
-    val intMonths = if (s.serviceMonths > 0) s.serviceMonths else if (st0(ui)?.energyType == "Electric" || ui.status == null) 24 else 12
+    // Peugeot doesn't send the interval; default 12 500 km / 1 year (as in the MyPeugeot plan).
+    val intKm = if (s.serviceKm > 0) s.serviceKm else 12_500
+    val intMonths = if (s.serviceMonths > 0) s.serviceMonths else 12
     val st = ui.status
     val now = System.currentTimeMillis()
-    val kmLeft = st?.kmToService
-    val daysLeft = st?.daysToService
     val odo = st?.odometerKm
+    // If Peugeot doesn't send service data, work it out from the interval: the next multiple of it on the odometer.
+    val fromInterval = st?.kmToService == null && st?.daysToService == null && odo != null
+    val kmLeft = st?.kmToService ?: if (fromInterval) (Math.floor(odo!! / intKm) + 1) * intKm - odo else null
+    val daysLeft = st?.daysToService
     // Your driving: km per day over the last 30 days of trips
     val since = now - 30 * 86_400_000L
     val perDay = ui.trips.filter { (it.startMillis ?: 0L) >= since }.sumOf { it.distanceKm } / 30.0
@@ -358,6 +360,7 @@ private fun ServiceTimeline(vm: AppViewModel, ui: UiState, s: AppSettings) {
             } else {
                 Text(soonest?.let { "Estimated " + inText(it) } ?: "Upcoming", style = Type.small, color = c.blueInk)
                 Text("Next periodic service", style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+                if (fromInterval) Text("Worked out from the service interval — Peugeot doesn't send service data for this car", style = Type.tiny, color = c.muted)
                 listOfNotNull(
                     kmLeft?.let { k -> "In ${fmtDistance(k, s)}" + (odo?.let { " (at ≈ ${fmtDistance(it + k, s)})" } ?: "") },
                     daysLeft?.let { "By date: " + dateFmt.format(Date(now + (it * 86_400_000L).toLong())) },
