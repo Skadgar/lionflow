@@ -7,7 +7,7 @@ object Caps {
     fun battery(st: VehicleStatus?) = st == null || st.energyType != "Fuel"
     fun fuel(st: VehicleStatus?) = st != null && st.energyType != "Electric"
     fun position(st: VehicleStatus?) = st?.lat != null && st.lon != null
-    fun climate(st: VehicleStatus?) = st == null || st.raw.has("preconditioning")
+    fun climate(st: VehicleStatus?) = st == null || st.raw.has("preconditioning") || st.raw.has("airConditioning") || st.energyType != "Fuel"
     fun lockState(st: VehicleStatus?) = st == null || st.locked != null
 
     fun tab(tab: Tab, st: VehicleStatus?) = when (tab) {
