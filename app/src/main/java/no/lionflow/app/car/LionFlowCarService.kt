@@ -166,46 +166,53 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val b = GridTemplate.Builder().setTitle(tr(CarHub.message.value ?: s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
         if (st == null) return b.setLoading(true).build()
 
-        val items = mutableListOf<GridItem>()
-        fun tile(title: String, text: String?, icon: Int, tint: CarColor? = null, onClick: (() -> Unit)? = null) {
-            items += GridItem.Builder().setTitle(tr(title).ifBlank { "—" })
+        val lion = CarColor.createCustom(0xFFC8F560.toInt(), 0xFFC8F560.toInt())   // LionFlow green
+        // Each tile has a priority: when the car only allows a few tiles, the highest numbers are dropped first.
+        class T(val item: GridItem, val prio: Int)
+        val items = mutableListOf<T>()
+        fun tile(prio: Int, title: String, text: String?, icon: Int, tint: CarColor? = null, onClick: (() -> Unit)? = null) {
+            items += T(GridItem.Builder().setTitle(tr(title).ifBlank { "—" })
                 .apply { text?.takeIf { it.isNotBlank() }?.let { setText(tr(it)) } }
                 .setImage(carContext.icon(icon, tint), GridItem.IMAGE_TYPE_ICON)
                 .apply { onClick?.let { setOnClickListener(it) } }
-                .build()
+                .build(), prio)
         }
 
-        tile("${st.batteryPct?.toInt() ?: "—"} %", "≈ ${fmtDistance(st.rangeKm, s)}" + if (st.rangeEstimated) " (est.)" else "", R.drawable.ic_car_battery)
-        tile(if (st.isCharging) (ChargePower.label(st) ?: "Charging") else if (st.plugged) "Plugged in" else "Not plugged in",
+        // Order: 1 battery, 2 charging, 3 climate, 4 trips, 5 doors, 6 odometer, 7 service, 8 chargers, 9 YouTube.
+        // Trips, chargers and YouTube are the buttons (green); in a row of four, trips is 4th and chargers 8th.
+        tile(0, "${st.batteryPct?.toInt() ?: "—"} %", "≈ ${fmtDistance(st.rangeKm, s)}" + if (st.rangeEstimated) " (est.)" else "", R.drawable.ic_car_battery)
+        tile(1, if (st.isCharging) (ChargePower.label(st) ?: "Charging") else if (st.plugged) "Plugged in" else "Not plugged in",
             if (st.isCharging) st.remainingMinutes?.let { m -> "${m / 60} h ${m % 60} min left" } ?: "Charging" else CarHub.chargingLine(st),
             R.drawable.ic_car_bolt, if (st.isCharging) CarColor.GREEN else null)
+        tile(3, if (st.preconditioningOn) "Pre-heating on" else "Climate",
+            st.outsideTempC?.let { "${fmtTemp(it, s)} outside" },
+            R.drawable.ic_car_climate, if (st.preconditioningOn) CarColor.GREEN else null)
         val trips = CarHub.trips.value
         val week = trips?.filter { (it.startMillis ?: 0L) >= System.currentTimeMillis() - 7 * 86_400_000L }
         val km = week?.sumOf { it.distanceKm } ?: 0.0
-        tile(if (trips == null) "Trips" else "7 days: ${fmtDistance(km, s)}", if (trips == null) "Loading…" else "${week?.size ?: 0} trips",
-            R.drawable.ic_car_route) { screenManager.push(TripsScreen(carContext)) }
-        tile("Chargers", "Nearest first", R.drawable.ic_car_charger) { screenManager.push(ChargersScreen(carContext)) }
-        tile(if (st.preconditioningOn) "Pre-heating on" else "Climate",
-            st.outsideTempC?.let { "${fmtTemp(it, s)} outside" },
-            R.drawable.ic_car_climate, if (st.preconditioningOn) CarColor.GREEN else null)
-        tile(CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
+        tile(2, if (trips == null) "Trips" else "7 days: ${fmtDistance(km, s)}", if (trips == null) "Loading…" else "${week?.size ?: 0} trips",
+            R.drawable.ic_car_route, lion) { screenManager.push(TripsScreen(carContext)) }
+        tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
+        tile(5, st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", "Total driven", R.drawable.ic_car_center)
+        tile(6, "Service", serviceLine(st, s), R.drawable.ic_car_refresh)
+        tile(2, "Chargers", "Nearest first", R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext)) }
         if (s.carVideo) {
             guard.update()
             val parked = guard.parked.value
-            tile("YouTube", if (parked) "Tap to watch" else "Only while parked", R.drawable.ic_car_play) {
+            tile(2, "YouTube", if (parked) "Tap to watch" else "Only while parked", R.drawable.ic_car_play, lion) {
                 guard.update()
                 if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
                 else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
             }
         }
-        tile(st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", serviceLine(st, s), R.drawable.ic_car_refresh)
 
         val max = try {
             carContext.getCarService(androidx.car.app.constraints.ConstraintManager::class.java)
                 .getContentLimit(androidx.car.app.constraints.ConstraintManager.CONTENT_LIMIT_TYPE_GRID)
-        } catch (_: Exception) { 6 }.coerceAtLeast(6)
+        } catch (_: Exception) { 6 }.coerceAtLeast(4)
+        while (items.size > max) items.removeAt(items.indexOfLast { it.prio == items.maxOf { t -> t.prio } })
         val list = ItemList.Builder()
-        items.take(max).forEach { list.addItem(it) }
+        items.forEach { list.addItem(it.item) }
         return b.setSingleList(list.build()).build()
     }
 
