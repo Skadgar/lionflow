@@ -97,7 +97,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         main.post { web?.loadUrl(url) }
     }
 
-    private fun ytIcon(res: Int) = androidx.car.app.model.CarIcon.Builder(androidx.core.graphics.drawable.IconCompat.createWithResource(carContext, res)).build()
+    private fun ytIcon(res: Int) = carContext.icon(res)
 
     override fun onGetTemplate(): Template {
         val strip = ActionStrip.Builder()

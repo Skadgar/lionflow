@@ -48,8 +48,23 @@ class LionFlowCarService : CarAppService() {
     override fun onCreateSession(): Session = MainSession()
 }
 
-private fun CarContext.icon(res: Int, tint: CarColor? = null): CarIcon =
-    CarIcon.Builder(IconCompat.createWithResource(this, res)).apply { tint?.let { setTint(it) } }.build()
+// Icons are sent to the car as bitmaps, not as resource ids: Android Auto caches icons by resource number, and after an
+// update (when the numbers shift) it showed the wrong symbols.
+private val iconBitmaps = HashMap<Int, android.graphics.Bitmap>()
+
+internal fun CarContext.icon(res: Int, tint: CarColor? = null): CarIcon {
+    val bmp = synchronized(iconBitmaps) {
+        iconBitmaps.getOrPut(res) {
+            val d = androidx.core.content.ContextCompat.getDrawable(this, res)!!.mutate()
+            val size = 96
+            val b = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            d.setBounds(0, 0, size, size)
+            d.draw(android.graphics.Canvas(b))
+            b
+        }
+    }
+    return CarIcon.Builder(IconCompat.createWithBitmap(bmp)).apply { tint?.let { setTint(it) } }.build()
+}
 
 private fun CarContext.listLimit(): Int = try {
     getCarService(androidx.car.app.constraints.ConstraintManager::class.java)
@@ -136,23 +151,16 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
                 .build(), prio)
         }
 
-        // Order: 1 battery, 2 charging, 3 climate, 4 trips, 5 doors, 6 odometer, 7 service, 8 chargers, 9 YouTube.
-        // Trips, chargers and YouTube are the buttons (green); in a row of four, trips is 4th and chargers 8th.
-        tile(0, "${st.batteryPct?.toInt() ?: "—"} %", "≈ ${fmtDistance(st.rangeKm, s)}" + if (st.rangeEstimated) " (est.)" else "", R.drawable.ic_car_battery)
-        tile(1, if (st.isCharging) (ChargePower.label(st) ?: "Charging") else if (st.plugged) "Plugged in" else "Not plugged in",
-            if (st.isCharging) st.remainingMinutes?.let { m -> "${m / 60} h ${m % 60} min left" } ?: "Charging" else CarHub.chargingLine(st),
-            R.drawable.ic_car_bolt, if (st.isCharging) CarColor.GREEN else null)
-        tile(3, if (st.preconditioningOn) "Pre-heating on" else "Climate",
-            st.outsideTempC?.let { "${fmtTemp(it, s)} outside" },
-            R.drawable.ic_car_climate, if (st.preconditioningOn) CarColor.GREEN else null)
+        // Order: doors, odometer, service, trips (4th), chargers, YouTube (last).
+        // Trips and chargers are green, YouTube red. If the car shows fewer tiles, the status tiles go first.
+        tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
+        tile(5, st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", "Total driven", R.drawable.ic_car_gauge)
+        tile(6, "Service", serviceLine(st, s), R.drawable.ic_car_refresh)
         val trips = CarHub.trips.value
         val week = trips?.filter { (it.startMillis ?: 0L) >= System.currentTimeMillis() - 7 * 86_400_000L }
         val km = week?.sumOf { it.distanceKm } ?: 0.0
-        tile(2, if (trips == null) "Trips" else "7 days: ${fmtDistance(km, s)}", if (trips == null) "Loading…" else "${week?.size ?: 0} trips",
+        tile(1, if (trips == null) "Trips" else "7 days: ${fmtDistance(km, s)}", if (trips == null) "Loading…" else "${week?.size ?: 0} trips",
             R.drawable.ic_car_route, lion) { screenManager.push(TripsScreen(carContext)) }
-        tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
-        tile(5, st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", "Total driven", R.drawable.ic_car_center)
-        tile(6, "Service", serviceLine(st, s), R.drawable.ic_car_refresh)
         val fuelOnly = st.energyType == "Fuel"
         tile(2, if (fuelOnly) "Fuel stations" else if (st.energyType == "Hybrid") "Chargers & fuel" else "Chargers", "Nearest first",
             if (fuelOnly) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext)) }
