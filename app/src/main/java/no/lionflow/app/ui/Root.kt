@@ -200,18 +200,20 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
         val screenWidth = maxWidth
         val expanded = maxWidth >= 900.dp
         if (wide) {
+            // Tablet / unfolded foldable: the navigation sits on the right, within thumb reach, with Home at the bottom.
             Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight()) { TabContent(vm, ui, settings, wide = true, expanded = expanded) }
+                Box(Modifier.width(1.dp).fillMaxHeight().background(c.navLine))
                 Column(
                     Modifier.width(88.dp).fillMaxHeight().background(c.nav).windowInsetsPadding(WindowInsets.systemBars).padding(vertical = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     LionLogo(32.dp)
-                    Spacer(Modifier.height(12.dp))
-                    for (item in railTabs.filter { Caps.tab(it.tab, ui.status) }) RailItem(item, ui.tab == item.tab) { vm.setTab(item.tab) }
+                    Spacer(Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        for (item in railTabs.filter { Caps.tab(it.tab, ui.status) }.reversed()) RailItem(item, ui.tab == item.tab) { vm.setTab(item.tab) }
+                    }
                 }
-                Box(Modifier.width(1.dp).fillMaxHeight().background(c.navLine))
-                Box(Modifier.weight(1f).fillMaxHeight()) { TabContent(vm, ui, settings, wide = true, expanded = expanded) }
             }
         } else {
             Column(Modifier.fillMaxSize()) {
