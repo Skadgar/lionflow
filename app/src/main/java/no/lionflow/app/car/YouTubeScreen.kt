@@ -140,9 +140,11 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     override fun onGetTemplate(): Template {
         // Close X, top right.
-        val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build())
-            .build()
+        // In fullscreen the X is swapped for an empty, do-nothing action (the template needs one).
+        val strip = ActionStrip.Builder().addAction(
+            if (fullscreen != null) Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_blank)).setOnClickListener { }.build()
+            else Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build()
+        ).build()
         return NavigationTemplate.Builder()
             .setActionStrip(strip)
             .setMapActionStrip(ActionStrip.Builder().addAction(Action.PAN).build())
@@ -307,14 +309,14 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
                 override fun onShowCustomView(view: View, callback: CustomViewCallback) {
                     fullscreen = view
                     controls?.visibility = View.GONE
-                    applyPadding()
+                    applyPadding(); invalidate()
                     r.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                 }
                 override fun onHideCustomView() {
                     fullscreen?.let { r.removeView(it) }
                     fullscreen = null
                     controls?.visibility = View.VISIBLE
-                    applyPadding()
+                    applyPadding(); invalidate()
                 }
             }
         }
