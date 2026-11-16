@@ -59,7 +59,7 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
             LfCard { Text("This car has no battery to charge. Fuel level and range are on the Home screen.", style = Type.body, color = c.text2) }
             return@ScreenColumn
         }
-        ScreenHeader(if (st?.plugged == true) "Plugged in" else "Not plugged in", "Charging")
+        ScreenHeader(s.carName, "Charging")
         Box(Modifier.fillMaxWidth().height(230.dp), contentAlignment = Alignment.Center) {
             Ring(((st?.batteryPct ?: 0.0) / 100).toFloat(), c.meter, 210.dp)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -79,10 +79,6 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
         }
         TimeToTarget(ui, s)
         LfCard {
-            DetailRow("Status", when (st?.chargingStatus) {
-                "InProgress" -> "Charging"; "Finished" -> "Finished"; "Stopped" -> "Paused"; "Disconnected" -> "Unplugged"; "Failure" -> "Error"; null -> "—"; else -> st?.chargingStatus ?: "—"
-            })
-            Divider()
             DetailRow("Charging power", no.lionflow.app.model.ChargePower.label(st) ?: if (st?.isCharging == true) "Calculating…" else "—")
             Divider()
             DetailRow("Range added per hour", st?.chargingRateKmh?.takeIf { it > 0 }?.let { "${fmtDistance(it, s)}/h" } ?: "—")

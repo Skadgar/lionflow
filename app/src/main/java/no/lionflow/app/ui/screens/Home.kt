@@ -76,7 +76,7 @@ import no.lionflow.app.ui.theme.Type
 fun HomeScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean, expanded: Boolean) {
     if (wide) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-            Box(Modifier.weight(1f)) { ScreenColumn(wide = true, maxWidth = 460) { HomeMain(vm, ui, s) } }
+            Box(Modifier.weight(1f)) { ScreenColumn(wide = true, maxWidth = 460) { HomeMain(vm, ui, s, wide = true) } }
             Box(Modifier.weight(1f)) {
                 ScreenColumn(wide = true, maxWidth = 460) {
                     Spacer(Modifier.height(4.dp))
@@ -412,7 +412,7 @@ private fun NavCard(modifier: Modifier, icon: ImageVector, title: String, subtit
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
+private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean = false) {
     val c = LocalLf.current
     val st = ui.status
     val confirm = LocalConfirm.current
@@ -475,8 +475,8 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
         ui.weather?.let { w -> Chip("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)}", LfIcons.Cloud) { vm.setTab(Tab.Climate) } }
     }
 
-    // Battery
-    LfCard(onClick = { vm.setTab(Tab.Charging) }, padding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
+    // Battery (on wide screens the charging card in the right column already shows it)
+    if (!wide) LfCard(onClick = { vm.setTab(Tab.Charging) }, padding = androidx.compose.foundation.layout.PaddingValues(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text(if (ui.status?.energyType == "Fuel") "Fuel" else "Battery", style = Type.small, color = c.muted)
@@ -497,7 +497,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
         }
     }
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (!wide) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         SmallCard(Modifier.weight(1f), LfIcons.Route, c.blueInk, "Trips", "See your drives") { vm.setTab(Tab.Trips); vm.loadTrips() }
         SmallCard(Modifier.weight(1f), LfIcons.Wrench, c.orangeInk, st?.kmToService?.let { fmtDistance(it, s) } ?: "Service", "To next service") { vm.setTab(Tab.Service) }
     }
@@ -645,7 +645,6 @@ fun ClimateSummary(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 Text("Climate · outside ${fmtTemp(st?.outsideTempC ?: ui.weather?.tempC, s)}", style = Type.small, color = c.muted)
                 Text(if (st?.preconditioningOn == true) "Pre-heating" else "Off", style = Type.stat, color = c.text)
                 nextSchedule(st)?.let { Text("Next schedule: $it", style = Type.tiny, color = c.muted) }
-                ui.weather?.let { w -> Text("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)} where you are", style = Type.tiny, color = c.muted) }
             }
             if (vm.remoteReady) no.lionflow.app.ui.components.PrimaryButton(if (st?.preconditioningOn == true) "Stop" else "Pre-heat", color = c.orange) {
                 val on = st?.preconditioningOn != true
