@@ -9,12 +9,12 @@ val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 android {
     // Same package and signing key as the phone app: Wear OS only lets the two talk when both match.
     namespace = "no.lionflow.wear"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "no.lionflow.app"
         minSdk = 30
-        targetSdk = 34
+        targetSdk = 36
         versionCode = buildNumber
         // Shown version (1.1.x) comes from the build; versionCode keeps counting up for Android.
         versionName = System.getenv("APP_VERSION_NAME") ?: "1.1.0-dev"

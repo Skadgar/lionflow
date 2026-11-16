@@ -8,12 +8,12 @@ val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 
 android {
     namespace = "no.lionflow.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "no.lionflow.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = buildNumber
         // Shown version (1.1.x) comes from the build; versionCode keeps counting up for Android.
         versionName = System.getenv("APP_VERSION_NAME") ?: "1.1.0-dev"
