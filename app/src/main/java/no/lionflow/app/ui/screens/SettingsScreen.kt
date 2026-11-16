@@ -190,7 +190,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
         SectionTitle("Android Auto")
         GroupCard {
-            ToggleRow("YouTube in the car (parked only)", "Opens only when the car reports standing still (or GPS shows no movement), and closes the moment the car moves", s.carVideo, showDivider = false) { v -> set { it.copy(carVideo = v) } }
+            ToggleRow("YouTube in the car (parked only)", "Opens only when the car reports standing still (or GPS shows no movement), and closes the moment the car moves", s.carVideo) { v -> set { it.copy(carVideo = v) } }
+            ToggleRow("3D map on the driver display", "Shows a map with a 3D car behind the steering wheel, in cars that allow apps there. Needs location permission for LionFlow", s.carCluster, showDivider = false) { v -> set { it.copy(carCluster = v) } }
         }
         Text(
             if (vm.fromPlay) "Installed from Google Play, so LionFlow shows up in Android Auto's app launcher."
