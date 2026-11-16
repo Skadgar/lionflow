@@ -121,9 +121,6 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
             .addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener {
                 CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…")
             }.build())
-        val actionsOk = CarHub.actionsAllowed(carContext) == null
-        if (actionsOk)
-            strip.addAction(Action.Builder().setTitle(tr("Actions")).setOnClickListener { screenManager.push(ActionsScreen(carContext)) }.build())
         val b = GridTemplate.Builder().setTitle(tr(CarHub.message.value ?: s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
         if (st == null) return b.setLoading(true).build()
 
@@ -139,8 +136,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         tile("${st.batteryPct?.toInt() ?: "—"} %", "≈ ${fmtDistance(st.rangeKm, s)}" + if (st.rangeEstimated) " (est.)" else "", R.drawable.ic_car_battery)
         tile(if (st.isCharging) (ChargePower.label(st) ?: "Charging") else if (st.plugged) "Plugged in" else "Not plugged in",
             if (st.isCharging) st.remainingMinutes?.let { m -> "${m / 60} h ${m % 60} min left" } ?: "Charging" else CarHub.chargingLine(st),
-            R.drawable.ic_car_bolt, if (st.isCharging) CarColor.GREEN else null,
-            if (actionsOk) ({ screenManager.push(ActionsScreen(carContext)) }) else null)
+            R.drawable.ic_car_bolt, if (st.isCharging) CarColor.GREEN else null)
         val trips = CarHub.trips.value
         val week = trips?.filter { (it.startMillis ?: 0L) >= System.currentTimeMillis() - 7 * 86_400_000L }
         val km = week?.sumOf { it.distanceKm } ?: 0.0
@@ -149,10 +145,8 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         tile("Chargers", "Nearest first", R.drawable.ic_car_charger) { screenManager.push(ChargersScreen(carContext)) }
         tile(if (st.preconditioningOn) "Pre-heating on" else "Climate",
             st.outsideTempC?.let { "${fmtTemp(it, s)} outside" },
-            R.drawable.ic_car_climate, if (st.preconditioningOn) CarColor.GREEN else null,
-            if (actionsOk) ({ screenManager.push(ActionsScreen(carContext)) }) else null)
-        tile(CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock, null,
-            if (actionsOk && st.locked != null) ({ screenManager.push(ActionsScreen(carContext)) }) else null)
+            R.drawable.ic_car_climate, if (st.preconditioningOn) CarColor.GREEN else null)
+        tile(CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
         if (s.carVideo) {
             guard.update()
             val parked = guard.parked.value
@@ -183,34 +177,6 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
     private fun consumption(kwhPer100Km: Double, s: no.lionflow.app.data.AppSettings) =
         if (s.distanceUnit == "mi") String.format(java.util.Locale.US, "%.1f mi/kWh", 100 / kwhPer100Km / 1.609344)
         else String.format(java.util.Locale.US, "%.1f kWh/100 km", kwhPer100Km)
-}
-
-// ---------------------------------------------------------------- remote actions
-
-class ActionsScreen(ctx: CarContext) : LiveScreen(ctx) {
-    override fun build(): Template {
-        val st = CarHub.status.value
-        val busy = CarHub.busy.value
-        val list = ItemList.Builder()
-        fun row(title: String, text: String, icon: Int, onClick: () -> Unit) =
-            list.addItem(Row.Builder().setTitle(tr(title)).addText(tr(text)).setImage(carContext.icon(icon))
-                .setEnabled(!busy).setOnClickListener(onClick).build())
-
-        val locked = st?.locked == true
-        row(if (locked) "Unlock" else "Lock", if (locked) "Doors are locked" else "Doors are unlocked", R.drawable.ic_car_lock) { CarHub.lock(carContext, !locked) }
-        val heat = st?.preconditioningOn == true
-        row(if (heat) "Stop pre-heating" else "Pre-heat", "Heats or cools the cabin for about 30 minutes", R.drawable.ic_car_climate) { CarHub.preheat(carContext, !heat) }
-        val charging = st?.isCharging == true
-        row(if (charging) "Stop charging" else "Charge now", st?.let { CarHub.chargingLine(it) } ?: "—", R.drawable.ic_car_bolt) { CarHub.charge(carContext, !charging) }
-        row("Flash lights", "Find the car in a car park", R.drawable.ic_car_lights) { CarHub.lights(carContext) }
-        row("Horn", "Sounds the horn twice", R.drawable.ic_car_horn) { CarHub.horn(carContext) }
-
-        return ListTemplate.Builder()
-            .setTitle(tr(CarHub.message.value ?: "Remote actions"))
-            .setHeaderAction(Action.BACK)
-            .setSingleList(list.build())
-            .build()
-    }
 }
 
 // ---------------------------------------------------------------- chargers (list only)
