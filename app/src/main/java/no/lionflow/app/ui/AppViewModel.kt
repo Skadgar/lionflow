@@ -595,9 +595,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadChargers(lat: Double? = null, lon: Double? = null) {
         val src = settings.value.chargerSource
-        val key = settings.value.nobilKey.trim()
+        val key = no.lionflow.app.BuildConfig.NOBIL_KEY
         if (src == "nobil" && key.isEmpty()) {
-            _ui.update { it.copy(chargerError = "Add your NOBIL key in Settings, or switch to OpenStreetMap") }
+            _ui.update { it.copy(chargerError = "NOBIL isn't available in this build — switch to OpenStreetMap") }
             return
         }
         val la = lat ?: _ui.value.myLat ?: _ui.value.status?.lat ?: return

@@ -17,6 +17,8 @@ android {
         versionCode = buildNumber
         // Shown version (1.1.x) comes from the build; versionCode keeps counting up for Android.
         versionName = System.getenv("APP_VERSION_NAME") ?: "1.1.0-dev"
+        // NOBIL charger API key, from GitHub Secrets (NOBIL_API_KEY); empty in local builds.
+        buildConfigField("String", "NOBIL_KEY", "\"${System.getenv("NOBIL_API_KEY") ?: ""}\"")
     }
 
     signingConfigs {

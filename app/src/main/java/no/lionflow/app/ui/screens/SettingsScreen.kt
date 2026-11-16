@@ -161,10 +161,12 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
         SectionTitle("Chargers on the map")
         GroupCard {
-            SegRow("Source", listOf("osm" to "OpenStreetMap", "nobil" to "NOBIL"), s.chargerSource) { v -> set { it.copy(chargerSource = v) }; vm.loadChargers() }
-            Divider()
-            if (s.chargerSource == "nobil") {
-                LinkRow(if (s.nobilKey.isBlank()) "Add NOBIL API key" else "NOBIL API key added", "Free key from info.nobil.no/api · official Nordic register", LfIcons.Bolt, last = true) { editNobil = true }
+            if (no.lionflow.app.BuildConfig.NOBIL_KEY.isNotEmpty()) {
+                SegRow("Source", listOf("osm" to "OpenStreetMap", "nobil" to "NOBIL"), s.chargerSource) { v -> set { it.copy(chargerSource = v) }; vm.loadChargers() }
+                Divider()
+            }
+            if (s.chargerSource == "nobil" && no.lionflow.app.BuildConfig.NOBIL_KEY.isNotEmpty()) {
+                Text("The official charging-station register for Norway, Sweden, Denmark, Finland and Iceland — accurate power and connector data.", style = Type.tiny, color = c.muted, modifier = Modifier.padding(16.dp))
             } else {
                 Text("Free and worldwide, no key needed. Data from OpenStreetMap volunteers — usually complete, power is sometimes missing.", style = Type.tiny, color = c.muted, modifier = Modifier.padding(16.dp))
             }

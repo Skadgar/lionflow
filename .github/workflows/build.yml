@@ -46,6 +46,7 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          NOBIL_API_KEY: ${{ secrets.NOBIL_API_KEY }}
         run: |
           gradle :app:assembleRelease :wear:assembleRelease --stacktrace --no-daemon
           # The Play bundle is built separately, without the GitHub self-updater's permissions.

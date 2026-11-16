@@ -196,7 +196,7 @@ object CarHub {
     fun loadChargers(ctx: Context, lat: Double, lon: Double) {
         val app = app(ctx)
         val src = app.settings.value.chargerSource
-        val key = app.settings.value.nobilKey.trim()
+        val key = no.lionflow.app.BuildConfig.NOBIL_KEY
         try {
             val j = JSONObject(cacheFile(ctx).readText())
             val near = Math.abs(j.getDouble("lat") - lat) < 0.03 && Math.abs(j.getDouble("lon") - lon) < 0.05
