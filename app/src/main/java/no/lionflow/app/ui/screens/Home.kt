@@ -187,15 +187,7 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
                     }
                 }
                 if (st != null) {
-                    val place by vm.parkedAt.collectAsState()
-                    val places by no.lionflow.app.model.ChargeLog.places.collectAsState()
-                    androidx.compose.runtime.LaunchedEffect(st.lat, st.lon, st.moving, places) { if (!st.moving) vm.updateParkedPlace(st.lat, st.lon) }
-                    val label = when {
-                        st.moving -> "Driving"
-                        place == null -> "Parked"
-                        place!!.startsWith("@") -> place!!.removePrefix("@")   // a saved place: just its name
-                        else -> "Parked in " + place
-                    }
+                    val label = parkedLabel(vm, st)
                     Row(Modifier.weight(1f).clickable { vm.setTab(Tab.Map) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                         LfIcon(LfIcons.Pin, c.text, 20.dp)
                         Text(label, style = Type.body.copy(shadow = if (c.isDark) PhotoShadow else null), color = c.text, maxLines = 1, modifier = Modifier.weight(1f, fill = false),
@@ -479,7 +471,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
             false -> Chip("Unlocked", LfIcons.Unlock, c.orangeInk)
             null -> Chip("Doors —", LfIcons.Lock)
         }
-        if (st != null) Chip(if (st.moving) "Driving" else "Parked", LfIcons.Pin) { vm.setTab(Tab.Map) }
+        if (st != null) Chip(parkedLabel(vm, st), LfIcons.Pin) { vm.setTab(Tab.Map) }
         ui.weather?.let { w -> Chip("${fmtTemp(w.tempC, s)} · ${WeatherApi.describe(w.symbol)}", LfIcons.Cloud) { vm.setTab(Tab.Climate) } }
     }
 
@@ -748,5 +740,20 @@ fun DemoBanner(vm: AppViewModel) {
             Text("Sample car and made-up data. Nothing is sent to a real car.", style = Type.tiny, color = c.text2)
         }
         Text("Sign in", style = Type.label, color = c.accentInk, modifier = Modifier.clickable { vm.exitDemo() }.padding(6.dp))
+    }
+}
+
+
+/** "Driving", "Parked at Home", "Parked at <charger or address>", or just "Parked" while the place is still being looked up. */
+@androidx.compose.runtime.Composable
+private fun parkedLabel(vm: no.lionflow.app.ui.AppViewModel, st: no.lionflow.app.model.VehicleStatus): String {
+    val place by vm.parkedAt.collectAsState()
+    val places by no.lionflow.app.model.ChargeLog.places.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(st.lat, st.lon, st.moving, places) { if (!st.moving) vm.updateParkedPlace(st.lat, st.lon) }
+    val p = place
+    return when {
+        st.moving -> "Driving"
+        p == null -> "Parked"
+        else -> "Parked at " + p.removePrefix("@")
     }
 }
