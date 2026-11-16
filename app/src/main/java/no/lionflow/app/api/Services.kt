@@ -156,11 +156,11 @@ object OsmChargers {
 
     class BusyException : Exception("The free charger servers are busy right now")
 
-    suspend fun near(lat: Double, lon: Double, radiusM: Int = 12000, limit: Int = 80): List<Charger> {
+    suspend fun near(lat: Double, lon: Double, radiusM: Int = 12000, limit: Int = 80, amenity: String = "charging_station"): List<Charger> {
         var last: Exception? = null
         for (url in ENDPOINTS) {
             try {
-                return query(url, lat, lon, radiusM, limit)
+                return query(url, lat, lon, radiusM, limit, amenity)
             } catch (e: ApiException) {
                 last = e
                 if (e.code != 429 && e.code < 500) throw e
@@ -171,10 +171,10 @@ object OsmChargers {
         throw if (last is ApiException || last == null) BusyException() else last
     }
 
-    private suspend fun query(endpoint: String, lat: Double, lon: Double, radiusM: Int, limit: Int): List<Charger> {
+    private suspend fun query(endpoint: String, lat: Double, lon: Double, radiusM: Int, limit: Int, amenity: String): List<Charger> {
         val q = "[out:json][timeout:25];(" +
-            "node[\"amenity\"=\"charging_station\"](around:$radiusM,$lat,$lon);" +
-            "way[\"amenity\"=\"charging_station\"](around:$radiusM,$lat,$lon);" +
+            "node[\"amenity\"=\"$amenity\"](around:$radiusM,$lat,$lon);" +
+            "way[\"amenity\"=\"$amenity\"](around:$radiusM,$lat,$lon);" +
             ");out center $limit;"
         val req = Request.Builder().url(endpoint)
             .header("User-Agent", Http.USER_AGENT)
@@ -200,7 +200,7 @@ object OsmChargers {
                     if (kw > maxKw) maxKw = kw
                 }
             }
-            val name = listOf("name", "operator", "brand", "network").map { t.optString(it) }.firstOrNull { it.isNotBlank() } ?: "Charging station"
+            val name = listOf("name", "operator", "brand", "network").map { t.optString(it) }.firstOrNull { it.isNotBlank() } ?: (if (amenity == "fuel") "Fuel station" else "Charging station")
             Charger(
                 id = "osm-${e.optString("type")}-${e.optLong("id")}",
                 name = name,

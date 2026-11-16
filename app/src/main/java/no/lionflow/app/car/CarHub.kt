@@ -44,6 +44,29 @@ object CarHub {
     private val _chargers = MutableStateFlow<List<Charger>>(emptyList())
     val chargers: StateFlow<List<Charger>> = _chargers
 
+    private val _fuel = MutableStateFlow<List<Charger>>(emptyList())
+    /** Petrol stations near the car (OpenStreetMap), for petrol cars and plug-in hybrids. */
+    val fuel: StateFlow<List<Charger>> = _fuel
+    private var fuelAt = 0L
+    private var fuelLat = 0.0
+    private var fuelLon = 0.0
+
+    fun loadFuel(ctx: Context, lat: Double, lon: Double) {
+        val now = System.currentTimeMillis()
+        if (_fuel.value.isNotEmpty() && now - fuelAt < 6 * 3600_000L && distanceM(lat, lon, fuelLat, fuelLon) < 3000) return
+        scope.launch {
+            try {
+                val list = OsmChargers.near(lat, lon, 15000, 60, "fuel")
+                if (list.isNotEmpty()) {
+                    _fuel.value = list.withDistance(lat, lon)
+                    fuelAt = System.currentTimeMillis(); fuelLat = lat; fuelLon = lon
+                }
+            } catch (_: Exception) {
+                if (_fuel.value.isEmpty()) say("Fuel station servers are busy — try again in a minute")
+            }
+        }
+    }
+
     /** Short line about what's happening right now ("Pre-heating — car is waking up"). */
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message

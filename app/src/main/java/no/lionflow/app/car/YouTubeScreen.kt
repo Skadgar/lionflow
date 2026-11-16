@@ -138,7 +138,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     private val endDrag = Runnable {
         val w = web ?: return@Runnable
         if (dragDown != 0L) {
-            val e = MotionEvent.obtain(dragDown, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, dragX, dragY, 0)
+            val e = touchEvent(dragDown, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, dragX, dragY, 0)
             try { w.dispatchTouchEvent(e) } finally { e.recycle() }
             dragDown = 0L
         }
@@ -156,7 +156,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             val action = when (i) { 0 -> MotionEvent.ACTION_DOWN; steps + 1 -> MotionEvent.ACTION_UP; else -> MotionEvent.ACTION_MOVE }
             val yy = from + (to - from) * (i.coerceAtMost(steps) / steps.toFloat())
             main.postDelayed({
-                val e = MotionEvent.obtain(t, t + i * 16L, action, x, yy, 0)
+                val e = touchEvent(t, t + i * 16L, action, x, yy, 0)
                 try { w.dispatchTouchEvent(e) } finally { e.recycle() }
             }, i * 16L)
         }
@@ -175,13 +175,13 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             main.removeCallbacks(endDrag)
             if (dragDown == 0L) {
                 dragDown = now; dragX = w.width / 2f; dragY = w.height / 2f
-                val d = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, dragX, dragY, 0)
+                val d = touchEvent(now, now, MotionEvent.ACTION_DOWN, dragX, dragY, 0)
                 try { w.dispatchTouchEvent(d) } finally { d.recycle() }
             }
             // The car reports how far the content should move; the finger moves the opposite way.
             dragX = (dragX - distanceX).coerceIn(1f, w.width - 1f)
             dragY = (dragY - distanceY).coerceIn(1f, w.height - 1f)
-            val m = MotionEvent.obtain(dragDown, now, MotionEvent.ACTION_MOVE, dragX, dragY, 0)
+            val m = touchEvent(dragDown, now, MotionEvent.ACTION_MOVE, dragX, dragY, 0)
             try { w.dispatchTouchEvent(m) } finally { m.recycle() }
             main.postDelayed(endDrag, 120)
         }
@@ -203,11 +203,15 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     }
 
     /** A tap as a real finger sends it: down, a little movement, up. */
+    /** Synthetic touches must say they come from a touchscreen, or WebView may ignore them (Shorts swipes, the seek bar). */
+    private fun touchEvent(downTime: Long, eventTime: Long, action: Int, x: Float, y: Float, meta: Int): MotionEvent =
+        MotionEvent.obtain(downTime, eventTime, action, x, y, meta).also { it.source = android.view.InputDevice.SOURCE_TOUCHSCREEN }
+
     private fun touch(target: View, lx: Float, ly: Float) {
         val t = SystemClock.uptimeMillis()
         fun send(action: Int, dt: Long, dx: Float) {
             main.postDelayed({
-                val e = MotionEvent.obtain(t, t + dt, action, lx + dx, ly, 0)
+                val e = touchEvent(t, t + dt, action, lx + dx, ly, 0)
                 try { target.dispatchTouchEvent(e) } finally { e.recycle() }
             }, dt)
         }

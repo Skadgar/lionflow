@@ -89,7 +89,7 @@ abstract class LiveScreen(ctx: CarContext) : Screen(ctx) {
     init {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(CarHub.status, CarHub.message, CarHub.busy, CarHub.chargers) { _, _, _, _ -> Unit }
+                combine(CarHub.status, CarHub.message, CarHub.busy, CarHub.chargers, CarHub.fuel) { _, _, _, _, _ -> Unit }
                     .collect { invalidate() }
             }
         }
@@ -153,11 +153,13 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
         tile(5, st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", "Total driven", R.drawable.ic_car_center)
         tile(6, "Service", serviceLine(st, s), R.drawable.ic_car_refresh)
-        tile(2, "Chargers", "Nearest first", R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext)) }
+        val fuelOnly = st.energyType == "Fuel"
+        tile(2, if (fuelOnly) "Fuel stations" else if (st.energyType == "Hybrid") "Chargers & fuel" else "Chargers", "Nearest first",
+            if (fuelOnly) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext)) }
         if (s.carVideo) {
             guard.update()
             val parked = guard.parked.value
-            tile(2, "YouTube", if (parked) "Tap to watch" else "Only while parked", R.drawable.ic_car_play, lion) {
+            tile(2, "YouTube", if (parked) "Tap to watch" else "Only while parked", R.drawable.ic_car_play, CarColor.RED) {
                 guard.update()
                 if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
                 else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
@@ -190,22 +192,50 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
 
 class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
     init {
-        CarHub.status.value?.let { st -> st.lat?.let { la -> st.lon?.let { lo -> CarHub.loadChargers(ctx, la, lo) } } }
+        CarHub.status.value?.let { st ->
+            st.lat?.let { la -> st.lon?.let { lo ->
+                if (st.energyType != "Fuel") CarHub.loadChargers(ctx, la, lo)
+                if (st.energyType != "Electric") CarHub.loadFuel(ctx, la, lo)
+            } }
+        }
+    }
+
+    /** Opens Google Maps (or the car's navigation app) with the place as the destination. */
+    private fun navigateTo(ch: no.lionflow.app.api.Charger) {
+        try {
+            val uri = android.net.Uri.parse("geo:${ch.lat},${ch.lon}?q=${ch.lat},${ch.lon}(${android.net.Uri.encode(ch.name)})")
+            carContext.startCarApp(Intent(CarContext.ACTION_NAVIGATE, uri))
+        } catch (e: Exception) {
+            CarToast.makeText(carContext, tr("Couldn't open navigation"), CarToast.LENGTH_LONG).show()
+        }
     }
 
     override fun build(): Template {
         val s = CarHub.app(carContext).settings.value
-        val all = CarHub.chargers.value
-        val b = ListTemplate.Builder().setTitle(tr("Chargers near the car")).setHeaderAction(Action.BACK)
-        if (all.isEmpty()) return b.setLoading(true).build()
+        val type = CarHub.status.value?.energyType ?: "Electric"
+        val chargers = if (type == "Fuel") emptyList() else CarHub.chargers.value
+        val fuel = if (type == "Electric") emptyList() else CarHub.fuel.value
+        val title = when (type) { "Fuel" -> "Fuel stations near the car"; "Hybrid" -> "Chargers and fuel near the car"; else -> "Chargers near the car" }
+        val b = ListTemplate.Builder().setTitle(tr(title)).setHeaderAction(Action.BACK)
+        if (chargers.isEmpty() && fuel.isEmpty()) return b.setLoading(true).build()
+
+        // Plug-in hybrids get both kinds: half the rows each (nearest first), then merged by distance.
+        val limit = carContext.listLimit()
+        val shown = when {
+            fuel.isEmpty() -> chargers.take(limit).map { it to false }
+            chargers.isEmpty() -> fuel.take(limit).map { it to true }
+            else -> (chargers.take((limit + 1) / 2).map { it to false } + fuel.take(limit / 2).map { it to true })
+                .sortedBy { it.first.distanceM ?: Int.MAX_VALUE }
+        }
         val list = ItemList.Builder()
-        all.take(carContext.listLimit()).forEach { ch ->
+        shown.forEach { (ch, isFuel) ->
             val bits = mutableListOf<String>()
             ch.distanceM?.let { m -> bits += if (s.distanceUnit != "mi" && m < 1000) "$m m" else if (s.distanceUnit != "mi" && m < 10_000) String.format(java.util.Locale.US, "%.1f km", m / 1000.0) else fmtDistance(m / 1000.0, s) }
-            if (ch.maxKw > 0) bits += "${ch.maxKw.toInt()} kW"
-            if (ch.points > 0) bits += "${ch.points} points"
-            list.addItem(Row.Builder().setTitle(tr(ch.name)).addText(tr(bits.joinToString(" · ").ifBlank { ch.address }))
-                .setImage(carContext.icon(R.drawable.ic_car_charger, if (ch.maxKw >= 50) CarColor.GREEN else null)).build())
+            if (!isFuel && ch.maxKw > 0) bits += "${ch.maxKw.toInt()} kW"
+            if (!isFuel && ch.points > 0) bits += "${ch.points} points"
+            list.addItem(Row.Builder().setTitle(tr(ch.name)).addText(tr(bits.joinToString(" · ").ifBlank { ch.address.ifBlank { "Tap to navigate" } }))
+                .setImage(carContext.icon(if (isFuel) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, if (!isFuel && ch.maxKw >= 50) CarColor.GREEN else null))
+                .setOnClickListener { navigateTo(ch) }.build())
         }
         return b.setSingleList(list.build()).build()
     }
