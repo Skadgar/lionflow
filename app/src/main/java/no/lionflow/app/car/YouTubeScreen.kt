@@ -68,6 +68,16 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         }
     }
 
+    /** YouTube's start page is empty when nobody is signed in, so go straight to search the first time. */
+    private var askedSearch = false
+    override fun onStart(owner: LifecycleOwner) {
+        if (askedSearch || closing || pendingUrl != HOME) return
+        askedSearch = true
+        main.post {
+            if (!closing) try { screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) }) } catch (_: Exception) { }
+        }
+    }
+
     override fun onDestroy(owner: LifecycleOwner) {
         try { carContext.getCarService(AppManager::class.java).setSurfaceCallback(null) } catch (_: Exception) { }
         main.post { tearDown() }
