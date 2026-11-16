@@ -30,7 +30,6 @@ data class AppSettings(
     val timeFormat: String = "system",   // system | 24 | 12  // system | en | fr | de | es | nb
     val carActions: Boolean = true,     // remote actions from Android Auto
     val carVideo: Boolean = true,       // YouTube in Android Auto, only while parked
-    val carCluster: Boolean = true,     // 3D map with the car on the driver display
     val chargeLimitOn: Boolean = false, // LionFlow stops charging at chargeLimitPct
     val chargeLimitPct: Int = 80,
     val oilChangeMillis: Long = 0L,     // when the engine oil was last changed (plug-in hybrids): counts engine km since
@@ -74,7 +73,6 @@ class SettingsStore(context: Context) {
         language = p.getString("language", "system") ?: "system",
         timeFormat = p.getString("timeFormat", "system") ?: "system",
         carVideo = p.getBoolean("carVideo", true),
-        carCluster = p.getBoolean("carCluster", true),
         batteryKwh = p.getFloat("batteryKwh", 0f).toDouble(),
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
         chargeLimitPct = p.getInt("chargeLimitPct", 80),
@@ -113,7 +111,6 @@ class SettingsStore(context: Context) {
             .putString("language", s.language)
             .putString("timeFormat", s.timeFormat)
             .putBoolean("carVideo", s.carVideo)
-            .putBoolean("carCluster", s.carCluster)
             .putFloat("batteryKwh", s.batteryKwh.toFloat())
             .putBoolean("chargeLimitOn", s.chargeLimitOn)
             .putInt("chargeLimitPct", s.chargeLimitPct)

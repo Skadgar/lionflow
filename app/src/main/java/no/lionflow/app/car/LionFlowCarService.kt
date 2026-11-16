@@ -45,10 +45,6 @@ class LionFlowCarService : CarAppService() {
         else HostValidator.Builder(applicationContext).addAllowedHosts(androidx.car.app.R.array.hosts_allowlist_sample).build()
     }
 
-    override fun onCreateSession(sessionInfo: androidx.car.app.SessionInfo): Session =
-        if (sessionInfo.displayType == androidx.car.app.SessionInfo.DISPLAY_TYPE_CLUSTER) ClusterSession() else MainSession()
-
-    @Deprecated("Older hosts")
     override fun onCreateSession(): Session = MainSession()
 }
 
@@ -74,45 +70,7 @@ class MainSession : Session() {
         }
         CarHub.refresh(carContext)
         CarHub.loadTrips(carContext)
-        offerDriverDisplay()
         return OverviewScreen(carContext, guard)
-    }
-
-    /** Asks the car to give LionFlow's map to the driver display (the cluster behind the wheel). */
-    private fun offerDriverDisplay() {
-        val app = CarHub.app(carContext)
-        if (!app.settings.value.carCluster || !app.api.isSignedIn) return
-        try {
-            val nav = carContext.getCarService(androidx.car.app.navigation.NavigationManager::class.java)
-            nav.setNavigationManagerCallback(object : androidx.car.app.navigation.NavigationManagerCallback {
-                override fun onStopNavigation() {}   // another app (e.g. Google Maps) took the driver display
-                override fun onAutoDriveEnabled() {}
-            })
-            nav.navigationStarted()
-            lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
-                override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) { try { nav.navigationEnded() } catch (_: Exception) { } }
-            })
-        } catch (e: Exception) {
-            android.util.Log.w("LionFlowCar", "driver display not available", e)
-        }
-    }
-}
-
-/** The driver display: just the map with the 3D car. The cluster has no touch input. */
-class ClusterSession : Session() {
-    override fun onCreateScreen(intent: Intent): Screen {
-        CarMapRenderer(carContext, this)
-        if (CarMapRenderer.hasLocation(carContext)) {
-            CarLocationService.start(carContext)
-            lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
-                override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) { CarLocationService.stop(carContext) }
-            })
-        }
-        return object : Screen(carContext) {
-            override fun onGetTemplate(): Template = androidx.car.app.navigation.model.NavigationTemplate.Builder()
-                .setActionStrip(ActionStrip.Builder().addAction(Action.Builder().setTitle("LionFlow").setOnClickListener { }.build()).build())
-                .build()
-        }
     }
 }
 
