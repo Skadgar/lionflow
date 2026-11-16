@@ -61,6 +61,8 @@ object CarHub {
     /** True while LionFlow holds the driver display (navigation "started" without a route). */
 
 
+    /** What the last refresh did, shown at the bottom of the car overview while we track down car problems. */
+    @Volatile var diag: String = "no refresh yet"
     private var lastRefresh = 0L
     private var refreshing = false
     private var clearJob: Job? = null
@@ -73,17 +75,22 @@ object CarHub {
         val now = System.currentTimeMillis()
         if (!force && now - lastRefresh < 60_000 && _status.value != null) return
         refreshing = true
+        diag = "refreshing…"
         scope.launch {
             try {
                 val v = app.api.currentVehicle()
+                if (v == null) diag = "no vehicle found on the account"
                 if (v != null) {
+                    diag = "vehicle ok, getting status…"
                     val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(v), null))
                     _status.value = st
+                    diag = "status ok"
                     lastRefresh = System.currentTimeMillis()
                     no.lionflow.app.widget.WidgetData.save(ctx.applicationContext, st)
                     if (_chargers.value.isEmpty()) st.lat?.let { la -> st.lon?.let { lo -> loadChargers(ctx, la, lo) } }
                 }
             } catch (e: Exception) {
+                diag = "error: ${e.javaClass.simpleName} ${Http.describe(e)}".take(120)
                 say("Couldn't update — ${Http.describe(e)}")
             } finally {
                 refreshing = false

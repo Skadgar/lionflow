@@ -121,7 +121,11 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         if (CarHub.actionsAllowed(carContext) == null)
             strip.addAction(Action.Builder().setTitle(tr("Actions")).setOnClickListener { screenManager.push(ActionsScreen(carContext)) }.build())
         val b = ListTemplate.Builder().setTitle(tr(s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
-        if (st == null) return b.setLoading(true).build()
+        val dbg = Row.Builder().setTitle("Debug: car API ${carContext.carAppApiLevel} · ${if (app.api.isSignedIn) "signed in" else "signed out"}")
+            .addText(CarHub.diag).build()
+        if (st == null) return b.setSingleList(ItemList.Builder()
+            .addItem(Row.Builder().setTitle(tr("Getting car status…")).addText(tr("Tap Refresh if this stays")).build())
+            .addItem(dbg).build()).build()
 
         // Battery & charging
         val power = ChargePower.label(st)
@@ -201,6 +205,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
             val all = ItemList.Builder()
             sections.forEach { (l, _) -> l.items.forEach { all.addItem(it) } }
             videoRow?.let { all.addItem(it) }
+            all.addItem(dbg)
             return b.setSingleList(all.build()).build()
         }
         return b
