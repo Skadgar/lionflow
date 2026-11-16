@@ -680,3 +680,16 @@ Turn on Route tracking in Settings to see your drives on a map.	Activez le suivi
 Reaches {0} % at {1}	Atteint {0} % à {1}	Erreicht {0} % um {1}	Llega al {0} % a las {1}	Når {0} % kl. {1}
 Set alarm for {0}	Régler une alarme pour {0}	Wecker auf {0} stellen	Poner alarma a las {0}	Sett alarm til {0}
 Already past {0} %	Déjà au-delà de {0} %	Bereits über {0} %	Ya pasó del {0} %	Allerede over {0} %
+Electric and engine driving	Conduite électrique et thermique	Elektro- und Motorfahrt	Conducción eléctrica y con motor	Elektrisk og motorkjøring
+electric	électrique	elektrisch	eléctrico	elektrisk
+km electric	km électriques	km elektrisch	km eléctricos	km elektrisk
+mi electric	mi électriques	mi elektrisch	mi eléctricas	mi elektrisk
+km engine	km thermique	km Motor	km con motor	km på motor
+mi engine	mi thermique	mi Motor	mi con motor	mi på motor
+kWh from battery	kWh de la batterie	kWh aus der Batterie	kWh de la batería	kWh fra batteriet
+kWh/100 km on electric trips	kWh/100 km en électrique	kWh/100 km bei Elektrofahrten	kWh/100 km en trayectos eléctricos	kWh/100 km på elektriske turer
+Engine km since oil change	Km moteur depuis la vidange	Motor-km seit Ölwechsel	Km de motor desde el cambio de aceite	Motor-km siden oljeskift
+Oil was changed today	L'huile a été changée aujourd'hui	Öl wurde heute gewechselt	Hoy se cambió el aceite	Oljen ble skiftet i dag
+Oil changed again today	Huile changée à nouveau aujourd'hui	Öl heute erneut gewechselt	Aceite cambiado de nuevo hoy	Olje skiftet igjen i dag
+on the engine	sur le moteur	mit dem Motor	con el motor	på motoren
+driven in total	parcourus au total	insgesamt gefahren	recorridos en total	kjørt totalt
