@@ -1,5 +1,7 @@
 package no.lionflow.app.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
@@ -87,6 +89,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val remoteReady: Boolean get() = remote.isSetUp || isDemo
     /** Demo mode: a sample car, no account. */
     val isDemo: Boolean get() = no.lionflow.app.demo.Demo.isOn(getApplication())
+    /** Store screenshots: demo without the "Demo mode" banner. */
+    var hideDemoBanner by androidx.compose.runtime.mutableStateOf(false)
     /** False when Peugeot has no remote-services link for this car — then don't offer setup at all. */
     val remotePossible: Boolean get() = api.customerId != null || remote.isSetUp || isDemo
     fun commandLog(): String = remote.log.joinToString("\n").ifEmpty { "No commands sent since the app was opened." }
@@ -499,6 +503,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val fromPlay: Boolean get() = no.lionflow.app.update.Updater.installedFromPlay(getApplication())
 
     fun checkForUpdate(force: Boolean) {
+        if (no.lionflow.app.BuildConfig.DEBUG) return // test/screenshot builds
         if (fromPlay) return // Google Play keeps this copy up to date
         if (!force && !settings.value.autoUpdate) return
         val now = System.currentTimeMillis()

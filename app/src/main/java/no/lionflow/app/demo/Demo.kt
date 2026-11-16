@@ -28,10 +28,10 @@ object Demo {
     fun setOn(ctx: Context, on: Boolean) { prefs(ctx).edit().putBoolean("on", on).apply() }
 
     // The sample car's state; commands change it.
-    private var battery = 72.0
+    private var battery = 64.0
     private var locked = true
     private var precond = false
-    private var charging = false
+    private var charging = true
     private var plugged = true
     private var chargeType = "Partial"
     private var programs = listOf(
@@ -41,7 +41,7 @@ object Demo {
         Program(4, emptyList(), 0, 0, false),
     )
 
-    fun reset() { battery = 72.0; locked = true; precond = false; charging = false; plugged = true; chargeType = "Partial" }
+    fun reset() { battery = 64.0; locked = true; precond = false; charging = true; plugged = true; chargeType = "Partial" }
 
     fun status(): VehicleStatus {
         val now = System.currentTimeMillis()
@@ -49,7 +49,7 @@ object Demo {
         return VehicleStatus(
             raw = raw, batteryPct = battery, rangeKm = battery * 4.3, plugged = plugged,
             chargingStatus = if (charging) "InProgress" else if (plugged) "Stopped" else "Disconnected",
-            chargingMode = if (charging) "Slow" else "No", chargingRateKmh = if (charging) 45.0 else null,
+            chargingMode = if (charging) "Slow" else "No", chargingRateKmh = if (charging) 48.0 else null,
             remainingMinutes = if (charging) ((80 - battery).coerceAtLeast(0.0) * 9).toInt() else null,
             nextDelayedHour = 1, nextDelayedMinute = 0, batteryHealthPct = 98.0, odometerKm = 13_412.0,
             locked = locked, openDoors = emptyList(), outsideTempC = 6.0, preconditioningOn = precond,

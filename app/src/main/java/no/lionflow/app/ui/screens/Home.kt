@@ -100,7 +100,7 @@ private fun HomePhone(vm: AppViewModel, ui: UiState, s: AppSettings) {
     val scroll = androidx.compose.foundation.rememberScrollState()
     Column(Modifier.fillMaxWidth().verticalScroll(scroll)) {
         Hero(vm, ui, s)
-        if (vm.isDemo) Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp)) { DemoBanner(vm) }
+        if (vm.isDemo && !vm.hideDemoBanner) Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp)) { DemoBanner(vm) }
         Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             UpdateCard(vm, ui)
             BatteryCard(vm, ui, s)
@@ -469,7 +469,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
         }
     }
 
-    if (vm.isDemo) DemoBanner(vm)
+    if (vm.isDemo && !vm.hideDemoBanner) DemoBanner(vm)
     CarPhoto(vm, ui)
 
     // Status chips

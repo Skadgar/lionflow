@@ -63,6 +63,14 @@ class MainActivity : FragmentActivity(), Platform {
     }
 
     private fun handleIntent(intent: Intent?) {
+        // Used by the store-screenshot workflow: open demo mode on a given tab (never replaces a signed-in account).
+        if (intent?.hasExtra("demo_tab") == true) {
+            if (!vm.isDemo && vm.ui.value.phase == no.lionflow.app.ui.Phase.SignedOut) vm.startDemo()
+            if (vm.isDemo && no.lionflow.app.BuildConfig.DEBUG) vm.hideDemoBanner = true
+            if (vm.isDemo) runCatching { no.lionflow.app.ui.Tab.valueOf(intent.getStringExtra("demo_tab") ?: "Home") }.getOrNull()?.let { vm.setTab(it) }
+            intent.removeExtra("demo_tab")
+            return
+        }
         if (intent?.action == no.lionflow.app.route.RouteService.ACTION_START_FROM_TAP) {
             intent.action = null
             no.lionflow.app.route.RouteService.start(this)
