@@ -2,6 +2,8 @@
 # The output is encrypted with Google's public key; only Google can read it.
 name: Export key for Play
 on: workflow_dispatch
+permissions:
+  contents: write
 jobs:
   pepk:
     runs-on: ubuntu-latest
@@ -30,5 +32,9 @@ jobs:
               --output=lionflow-play-key.zip --include-cert --rsa-aes-encryption --encryption-key-path=.github/play/encryption_public_key.pem
           rm -f "$RUNNER_TEMP/release.jks"
           ls -l lionflow-play-key.zip
-      - uses: actions/upload-artifact@v4
-        with: { name: lionflow-play-key, path: lionflow-play-key.zip, retention-days: 1 }
+      # A draft release is only visible to the repo owner; delete it after uploading to Play.
+      - name: Put it in a draft release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release delete play-key -y --cleanup-tag 2>/dev/null || true
+          gh release create play-key lionflow-play-key.zip --draft --title "Play signing key (encrypted for Google) - delete after use" --notes "Upload this zip in Play Console > App signing. It is encrypted so only Google can read it."
