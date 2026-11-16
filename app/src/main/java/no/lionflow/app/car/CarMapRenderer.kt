@@ -99,7 +99,7 @@ class CarMapRenderer(
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isCompassEnabled = false
             val start = CarHub.status.value?.let { st -> st.lat?.let { la -> st.lon?.let { lo -> LatLng(la, lo) } } } ?: LatLng(59.91, 10.75)
-            m.cameraPosition = CameraPosition.Builder().target(start).zoom(16.5).tilt(60.0).build()
+            m.cameraPosition = CameraPosition.Builder().target(start).zoom(17.0).tilt(55.0).build()
             m.setStyle(Style.Builder().fromUri(STYLE_DARK)) { st ->
                 style = st
                 add3dBuildings(st)
@@ -148,8 +148,8 @@ class CarMapRenderer(
             lc.isLocationComponentEnabled = true
             lc.renderMode = RenderMode.GPS
             lc.cameraMode = CameraMode.TRACKING_GPS
-            lc.zoomWhileTracking(16.5)
-            lc.tiltWhileTracking(60.0)
+            lc.zoomWhileTracking(17.0)
+            lc.tiltWhileTracking(55.0)
         } catch (_: Exception) { }
     }
 
@@ -209,9 +209,9 @@ class CarMapRenderer(
         } else if (s?.lat != null && s.lon != null) {
             lat = s.lat; lon = s.lon
         } else return
-        // Make the car about 100 px long whatever the zoom, so it's readable on the driver display.
+        // Keep the car about 44 px long whatever the zoom: readable, but not out of proportion to the houses.
         val mpp = 78271.51696 * cos(Math.toRadians(lat)) / 2.0.pow(m.cameraPosition.zoom)
-        val scale = (100 * mpp / 4.4).coerceIn(0.5, 80.0)
+        val scale = (44 * mpp / 4.4).coerceIn(0.5, 80.0)
         val feats = carFeatures(lat, lon, heading, scale)
         st.getSourceAs<GeoJsonSource>(CAR_SRC)?.setGeoJson(FeatureCollection.fromFeatures(feats))
     }
@@ -229,16 +229,16 @@ class CarMapRenderer(
         }
         fun box(x0: Double, x1: Double, y0: Double, y1: Double) = listOf(x0 to y0, x1 to y0, x1 to y1, x0 to y1)
         val parts = listOf(
-            // wheels
-            Part(box(-1.05, -0.8, 1.0, 1.8), 0.0, 0.55, "#0B0B0C"), Part(box(0.8, 1.05, 1.0, 1.8), 0.0, 0.55, "#0B0B0C"),
-            Part(box(-1.05, -0.8, -1.8, -1.0), 0.0, 0.55, "#0B0B0C"), Part(box(0.8, 1.05, -1.8, -1.0), 0.0, 0.55, "#0B0B0C"),
-            // body, with chamfered corners
-            Part(listOf(-0.95 to -2.0, -0.8 to -2.2, 0.8 to -2.2, 0.95 to -2.0, 0.95 to 1.7, 0.7 to 2.2, -0.7 to 2.2, -0.95 to 1.7), 0.3, 0.95, "#E6E9ED"),
-            // cabin (glass)
-            Part(listOf(-0.8 to -1.3, 0.8 to -1.3, 0.7 to 0.9, -0.7 to 0.9), 0.95, 1.5, "#6F8399"),
+            // wheels (a little outside the body)
+            Part(box(-1.02, -0.78, 1.1, 1.9), 0.0, 0.5, "#0B0B0C"), Part(box(0.78, 1.02, 1.1, 1.9), 0.0, 0.5, "#0B0B0C"),
+            Part(box(-1.02, -0.78, -1.9, -1.1), 0.0, 0.5, "#0B0B0C"), Part(box(0.78, 1.02, -1.9, -1.1), 0.0, 0.5, "#0B0B0C"),
+            // lower body with a rounded nose and tail
+            Part(listOf(-0.9 to -1.95, -0.65 to -2.2, 0.65 to -2.2, 0.9 to -1.95, 0.9 to 1.6, 0.6 to 2.2, -0.6 to 2.2, -0.9 to 1.6), 0.3, 0.8, "#E6E9ED"),
+            // roof / glass: shorter and narrower than the body, so it reads as a car and not a van
+            Part(listOf(-0.72 to -1.5, 0.72 to -1.5, 0.66 to 0.55, -0.66 to 0.55), 0.8, 1.35, "#7B8FA5"),
             // lights
-            Part(box(-0.6, -0.2, 2.2, 2.3), 0.55, 0.75, "#FFF3B0"), Part(box(0.2, 0.6, 2.2, 2.3), 0.55, 0.75, "#FFF3B0"),
-            Part(box(-0.75, -0.3, -2.3, -2.2), 0.55, 0.75, "#FF3B30"), Part(box(0.3, 0.75, -2.3, -2.2), 0.55, 0.75, "#FF3B30"),
+            Part(box(-0.6, -0.2, 2.2, 2.3), 0.5, 0.65, "#FFF3B0"), Part(box(0.2, 0.6, 2.2, 2.3), 0.5, 0.65, "#FFF3B0"),
+            Part(box(-0.75, -0.3, -2.3, -2.2), 0.5, 0.65, "#FF3B30"), Part(box(0.3, 0.75, -2.3, -2.2), 0.5, 0.65, "#FF3B30"),
         )
         return parts.map { part ->
             val ring = part.pts.map { (x, y) -> pt(x, y) }.let { it + it.first() }
