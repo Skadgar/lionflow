@@ -74,6 +74,10 @@
             </intent-filter>
         </receiver>
         <service
+            android:name=".car.CarLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <service
             android:name=".route.RouteService"
             android:exported="false"
             android:foregroundServiceType="location" />

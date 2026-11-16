@@ -23,7 +23,6 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.LocationComponentOptions
-import org.maplibre.android.location.engine.LocationEngineRequest
 import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
@@ -61,6 +60,20 @@ class CarMapRenderer(
     private var visible = Rect()
     private var heading = 0.0
     private var running = false
+    private var lastLoc: android.location.Location? = null
+
+    /** Our own GPS feed, so the map and the car keep moving even when the default engine goes quiet. */
+    private val gps = object : android.location.LocationListener {
+        override fun onLocationChanged(l: android.location.Location) {
+            main.post {
+                lastLoc = l
+                try { map?.locationComponent?.takeIf { it.isLocationComponentActivated }?.forceLocationUpdate(l) } catch (_: Exception) { }
+            }
+        }
+        @Deprecated("old API") override fun onStatusChanged(p: String?, st: Int, e: android.os.Bundle?) {}
+        override fun onProviderEnabled(p: String) {}
+        override fun onProviderDisabled(p: String) {}
+    }
 
     init { owner.lifecycle.addObserver(this) }
 
@@ -115,6 +128,7 @@ class CarMapRenderer(
     private fun tearDown() {
         running = false
         main.removeCallbacks(tick)
+        try { carContext.getSystemService(android.location.LocationManager::class.java).removeUpdates(gps) } catch (_: Exception) { }
         val mv = mapView
         mapView = null; map = null; style = null
         try { mv?.onPause(); mv?.onStop(); mv?.onDestroy() } catch (_: Exception) { }
@@ -140,9 +154,7 @@ class CarMapRenderer(
             lc.activateLocationComponent(
                 LocationComponentActivationOptions.builder(ctx, st)
                     .locationComponentOptions(opts)
-                    .useDefaultLocationEngine(true)
-                    .locationEngineRequest(LocationEngineRequest.Builder(1000)
-                        .setPriority(LocationEngineRequest.PRIORITY_HIGH_ACCURACY).setFastestInterval(500).build())
+                    .useDefaultLocationEngine(false)
                     .build()
             )
             lc.isLocationComponentEnabled = true
@@ -150,6 +162,11 @@ class CarMapRenderer(
             lc.cameraMode = CameraMode.TRACKING_GPS
             lc.zoomWhileTracking(17.0)
             lc.tiltWhileTracking(55.0)
+            val lm = carContext.getSystemService(android.location.LocationManager::class.java)
+            for (provider in listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER)) {
+                try { lm.requestLocationUpdates(provider, 1000L, 0f, gps, android.os.Looper.getMainLooper()) } catch (_: Exception) { }
+            }
+            try { lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)?.let { gps.onLocationChanged(it) } } catch (_: Exception) { }
         } catch (_: Exception) { }
     }
 
@@ -200,7 +217,7 @@ class CarMapRenderer(
     private fun updateCar() {
         val m = map ?: return
         val st = style ?: return
-        val loc = try { m.locationComponent.takeIf { it.isLocationComponentActivated }?.lastKnownLocation } catch (_: Exception) { null }
+        val loc = lastLoc
         val s = CarHub.status.value
         val lat: Double; val lon: Double
         if (loc != null) {
@@ -251,6 +268,9 @@ class CarMapRenderer(
     }
 
     companion object {
+        fun hasLocation(ctx: android.content.Context) =
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
         const val STYLE_DARK = "https://tiles.openfreemap.org/styles/dark"
         private const val CAR_SRC = "lf-car-3d-src"
     }

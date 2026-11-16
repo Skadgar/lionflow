@@ -102,6 +102,12 @@ class MainSession : Session() {
 class ClusterSession : Session() {
     override fun onCreateScreen(intent: Intent): Screen {
         CarMapRenderer(carContext, this)
+        if (CarMapRenderer.hasLocation(carContext)) {
+            CarLocationService.start(carContext)
+            lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+                override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) { CarLocationService.stop(carContext) }
+            })
+        }
         return object : Screen(carContext) {
             override fun onGetTemplate(): Template = androidx.car.app.navigation.model.NavigationTemplate.Builder()
                 .setActionStrip(ActionStrip.Builder().addAction(Action.Builder().setTitle("LionFlow").setOnClickListener { }.build()).build())
