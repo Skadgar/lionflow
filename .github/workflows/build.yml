@@ -46,7 +46,10 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle :app:assembleRelease :app:bundleRelease :wear:assembleRelease --stacktrace --no-daemon
+        run: |
+          gradle :app:assembleRelease :wear:assembleRelease --stacktrace --no-daemon
+          # The Play bundle is built separately, without the GitHub self-updater's permissions.
+          gradle :app:bundleRelease -Pplay=true --stacktrace --no-daemon
 
 
       - name: Rename APK

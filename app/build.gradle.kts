@@ -32,6 +32,10 @@ android {
         }
     }
 
+    // `-Pplay=true` (the Google Play bundle): drop the self-updater's permissions.
+    if (project.hasProperty("play")) {
+        sourceSets.getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
