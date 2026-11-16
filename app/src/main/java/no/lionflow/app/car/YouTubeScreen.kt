@@ -87,15 +87,17 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         main.post { web?.loadUrl(url) }
     }
 
+    private fun ytIcon(res: Int) = androidx.car.app.model.CarIcon.Builder(androidx.core.graphics.drawable.IconCompat.createWithResource(carContext, res)).build()
+
     override fun onGetTemplate(): Template {
         val strip = ActionStrip.Builder()
             .addAction(Action.Builder().setTitle(tr("Search")).setOnClickListener {
                 screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) })
             }.build())
-            .addAction(Action.Builder().setTitle(tr("Back")).setOnClickListener {
+            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_back)).setOnClickListener {
                 main.post { web?.let { if (it.canGoBack()) it.goBack() } }
             }.build())
-            .addAction(Action.Builder().setTitle(tr("Close")).setOnClickListener { close("YouTube closed") }.build())
+            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build())
             .build()
         return NavigationTemplate.Builder()
             .setActionStrip(strip)

@@ -115,7 +115,8 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val s = app.settings.value
         val st = CarHub.status.value
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setTitle(tr("Refresh")).setOnClickListener {
+            // Only one button in the strip may have text; the rest must be icons.
+            .addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener {
                 CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…")
             }.build())
         if (CarHub.actionsAllowed(carContext) == null)
