@@ -99,14 +99,44 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     private fun ytIcon(res: Int) = carContext.icon(res)
 
+    // ---------------- controls on the left of the video ----------------
+
+    private var controls: android.widget.LinearLayout? = null
+    private val controlActions = ArrayList<Pair<View, () -> Unit>>()
+
+    private fun buildControls(ctx: android.content.Context): android.widget.LinearLayout {
+        fun dp(v: Float) = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, v, ctx.resources.displayMetrics).toInt()
+        controlActions.clear()
+        val col = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(10f), 0, 0, 0) }
+        fun add(icon: Int, action: () -> Unit) {
+            val b = android.widget.ImageView(ctx).apply {
+                setImageResource(icon); setColorFilter(Color.WHITE); scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+                setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.parseColor("#B3141619")) }
+            }
+            col.addView(b, android.widget.LinearLayout.LayoutParams(dp(64f), dp(64f)).apply { topMargin = dp(10f) })
+            controlActions += b to action
+        }
+        add(no.lionflow.app.R.drawable.ic_car_search) { screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) }) }
+        add(no.lionflow.app.R.drawable.ic_car_back) { web?.let { if (it.canGoBack()) it.goBack() } }
+        add(no.lionflow.app.R.drawable.ic_car_forward) { web?.let { if (it.canGoForward()) it.goForward() } }
+        add(no.lionflow.app.R.drawable.ic_car_close) { close("YouTube closed") }
+        return col
+    }
+
+    /** Taps on the controls are ours; everything else goes to the page. */
+    private fun hitControl(x: Float, y: Float): Boolean {
+        if (controls?.visibility != View.VISIBLE) return false
+        for ((v, action) in controlActions) {
+            val loc = IntArray(2); v.getLocationInWindow(loc)
+            if (x >= loc[0] && x <= loc[0] + v.width && y >= loc[1] && y <= loc[1] + v.height) { action(); return true }
+        }
+        return false
+    }
+
     override fun onGetTemplate(): Template {
+        // The real controls are drawn on the left of the video (see buildControls); the host still needs one button here.
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_search)).setOnClickListener {
-                screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) })
-            }.build())
-            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_back)).setOnClickListener {
-                main.post { web?.let { if (it.canGoBack()) it.goBack() } }
-            }.build())
             .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build())
             .build()
         return NavigationTemplate.Builder()
@@ -189,6 +219,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     override fun onClick(x: Float, y: Float) {
         main.post {
+            if (hitControl(x, y)) return@post
             val w = web
             val target: View = fullscreen ?: w ?: return@post
             val loc = IntArray(2); target.getLocationInWindow(loc)
@@ -268,17 +299,21 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             webChromeClient = object : WebChromeClient() {
                 override fun onShowCustomView(view: View, callback: CustomViewCallback) {
                     fullscreen = view
+                    controls?.visibility = View.GONE
                     applyPadding()
                     r.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                 }
                 override fun onHideCustomView() {
                     fullscreen?.let { r.removeView(it) }
                     fullscreen = null
+                    controls?.visibility = View.VISIBLE
                     applyPadding()
                 }
             }
         }
         r.addView(w, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        controls = buildControls(p.context)
+        r.addView(controls, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL))
         p.setContentView(r)
         p.show()
         presentation = p; web = w; root = r
@@ -292,7 +327,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             pendingUrl = w.url ?: pendingUrl
             try { w.loadUrl("about:blank"); w.stopLoading(); w.destroy() } catch (_: Exception) { }
         }
-        web = null; fullscreen = null; root = null
+        web = null; fullscreen = null; root = null; controls = null
         try { presentation?.dismiss() } catch (_: Exception) { }
         presentation = null
         display?.release(); display = null
