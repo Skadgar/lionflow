@@ -181,24 +181,31 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         }
         val sections = listOf(charge.build() to "Battery", driving.build() to "Driving", car.build() to "Car")
             .mapNotNull { (l, t) -> fit(l)?.let { it to t } }
+        val videoRow: Row? = if (s.carVideo) {
+            guard.update()
+            val parked = guard.parked.value
+            Row.Builder()
+                .setTitle(tr("YouTube"))
+                .addText(tr(if (parked) "Parked — tap to watch" else guard.reason))
+                .setImage(carContext.icon(R.drawable.ic_car_play))
+                .setBrowsable(true)
+                .setOnClickListener {
+                    guard.update()
+                    if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
+                    else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
+                }.build()
+        } else null
+
+        // Sections need Car API 6. Older Android Auto versions get one plain list instead.
+        if (carContext.carAppApiLevel < 6) {
+            val all = ItemList.Builder()
+            sections.forEach { (l, _) -> l.items.forEach { all.addItem(it) } }
+            videoRow?.let { all.addItem(it) }
+            return b.setSingleList(all.build()).build()
+        }
         return b
             .apply { sections.forEach { (l, t) -> addSectionedList(SectionedItemList.create(l, tr(t))) } }
-            .apply {
-                if (s.carVideo) {
-                    guard.update()
-                    val parked = guard.parked.value
-                    addSectionedList(SectionedItemList.create(ItemList.Builder().addItem(Row.Builder()
-                        .setTitle(tr("YouTube"))
-                        .addText(tr(if (parked) "Parked — tap to watch" else guard.reason))
-                        .setImage(carContext.icon(R.drawable.ic_car_play))
-                        .setBrowsable(true)
-                        .setOnClickListener {
-                            guard.update()
-                            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
-                            else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
-                        }.build()).build(), tr("While parked")))
-                }
-            }
+            .apply { videoRow?.let { addSectionedList(SectionedItemList.create(ItemList.Builder().addItem(it).build(), tr("While parked"))) } }
             .build()
     }
 
