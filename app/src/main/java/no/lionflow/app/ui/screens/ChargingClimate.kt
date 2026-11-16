@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -76,6 +77,7 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
             LfIcon(LfIcons.Bolt, c.accentInk, 20.dp)
             Text(chargingLine(st), style = Type.small.copy(fontSize = 14.sp), color = c.okText)
         }
+        TimeToTarget(ui, s)
         LfCard {
             DetailRow("Status", when (st?.chargingStatus) {
                 "InProgress" -> "Charging"; "Finished" -> "Finished"; "Stopped" -> "Paused"; "Disconnected" -> "Unplugged"; "Failure" -> "Error"; null -> "—"; else -> st?.chargingStatus ?: "—"
@@ -220,4 +222,37 @@ fun RemoteSetupHint(vm: AppViewModel) {
     val c = LocalLf.current
     Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.accentInk,
         modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 4.dp))
+}
+
+
+/** When the battery reaches the charge target (the limit if one is set, otherwise 80 %), with a button to set a phone alarm for it. */
+@Composable
+private fun TimeToTarget(ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val platform = LocalPlatform.current
+    val st = ui.status ?: return
+    if (!st.isCharging) return
+    val soc = st.batteryPct ?: return
+    val rem = st.remainingMinutes ?: return
+    val target = if (s.chargeLimitOn) s.chargeLimitPct else 80
+    if (soc >= target) {
+        LfCard { Text("Already past $target %", style = Type.body, color = c.text2) }
+        return
+    }
+    // AC charging is steady, so the time to the target is the car's time to 100 % scaled by how much of the climb is left.
+    val minutes = rem * (target - soc) / (100 - soc).coerceAtLeast(1.0)
+    val now = System.currentTimeMillis()
+    val base = st.updatedAtMillis?.takeIf { now - it < 30 * 60_000L } ?: now
+    val at = maxOf(base + (minutes * 60_000).toLong(), now + 60_000L)
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = at }
+    val h = cal.get(java.util.Calendar.HOUR_OF_DAY); val m = cal.get(java.util.Calendar.MINUTE)
+    val clock = no.lionflow.app.ui.l10n.TimeFmt.hm(h, m)
+    val left = ((at - now) / 60_000L).toInt()
+    LfCard {
+        Text("Reaches $target % at $clock", style = Type.label.copy(fontSize = 18.sp), color = c.text)
+        Text("In " + (if (left >= 60) "${left / 60} h ${left % 60} min" else "$left min"), style = Type.small, color = c.muted)
+        Spacer(Modifier.height(10.dp))
+        SecondaryButton("Set alarm for $clock", Modifier.fillMaxWidth()) { platform.setAlarm(h, m, "LionFlow: car at $target %") }
+        Text("Worked out from the car's time to 100 %. Handy if the automatic stop doesn't work for you: stop charging yourself when the alarm rings.", style = Type.tiny, color = c.muted, modifier = Modifier.padding(top = 8.dp))
+    }
 }

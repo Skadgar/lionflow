@@ -677,3 +677,6 @@ Fuel	Carburant	Kraftstoff	Combustible	Drivstoff
 Energy used	Énergie utilisée	Verbrauchte Energie	Energía usada	Energi brukt
 Fuel used	Carburant utilisé	Verbrauchter Kraftstoff	Combustible usado	Drivstoff brukt
 Turn on Route tracking in Settings to see your drives on a map.	Activez le suivi des trajets dans les réglages pour voir vos trajets sur une carte.	Routenaufzeichnung in den Einstellungen einschalten, um Fahrten auf der Karte zu sehen.	Activa el registro de rutas en Ajustes para ver tus viajes en un mapa.	Slå på ruteregistrering i Innstillinger for å se turene på kart.
+Reaches {0} % at {1}	Atteint {0} % à {1}	Erreicht {0} % um {1}	Llega al {0} % a las {1}	Når {0} % kl. {1}
+Set alarm for {0}	Régler une alarme pour {0}	Wecker auf {0} stellen	Poner alarma a las {0}	Sett alarm til {0}
+Already past {0} %	Déjà au-delà de {0} %	Bereits über {0} %	Ya pasó del {0} %	Allerede over {0} %

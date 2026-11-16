@@ -29,6 +29,7 @@ interface Platform {
     fun share(file: java.io.File, mime: String)
     fun openUrl(url: String)
     fun openInstallPermission()
+    fun setAlarm(hour: Int, minute: Int, message: String)
 }
 
 class MainActivity : FragmentActivity(), Platform {
@@ -123,6 +124,18 @@ class MainActivity : FragmentActivity(), Platform {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(send, "Export driving data"))
+    }
+
+    override fun setAlarm(hour: Int, minute: Int, message: String) {
+        try {
+            startActivity(Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
+                .putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                .putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                .putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, message)
+                .putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true))
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(this, "No clock app found to set the alarm", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun openInstallPermission() {
