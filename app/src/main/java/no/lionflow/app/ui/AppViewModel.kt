@@ -225,7 +225,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val d = no.lionflow.app.demo.Demo
         no.lionflow.app.model.ChargeLog.enterDemo(getApplication(), d.VIN, d.sessions(), d.places())
         val now = System.currentTimeMillis()
-        _ui.update { it.copy(phase = Phase.Ready, vehicle = d.vehicle, vehicles = listOf(d.vehicle), status = d.status(), trips = d.trips(), lastRefresh = now, now = now) }
+        java.io.File(getApplication<Application>().cacheDir, "demo_photo.jpg").delete()
+        _ui.update { it.copy(phase = Phase.Ready, photoPath = null, vehicle = d.vehicle, vehicles = listOf(d.vehicle), status = d.status(), trips = d.trips(), lastRefresh = now, now = now) }
         startTicker()
         loadLocationAndWeather()
     }
@@ -748,9 +749,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val ctx = getApplication<Application>()
-                val f = File(ctx.filesDir, "car_photo.jpg")
+                // Demo mode gets its own throw-away photo; the real one is never touched or shown.
+                val f = File(if (isDemo) ctx.cacheDir else ctx.filesDir, if (isDemo) "demo_photo.jpg" else "car_photo.jpg")
                 ctx.contentResolver.openInputStream(uri)?.use { input -> f.outputStream().use { input.copyTo(it) } }
-                settings.photoPath = f.absolutePath
+                if (!isDemo) settings.photoPath = f.absolutePath
                 _ui.update { it.copy(photoPath = f.absolutePath + "?" + System.currentTimeMillis()) }
             } catch (e: Exception) {
                 toast("Couldn't save the photo")
