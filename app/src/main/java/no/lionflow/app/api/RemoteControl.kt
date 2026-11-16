@@ -72,7 +72,18 @@ class RemoteControl(private val api: StellantisApi, private val secure: SecureSt
         secure.put(K_OTP, otp.toJson())
         secure.put(K_PIN, pin.trim())
         // Trade a first OTP for an MQTT token so the setup is verified end-to-end.
-        passwordGrant(otp)
+        // Peugeot sometimes rejects the very first code right after activation, so try a few fresh codes.
+        var last: Exception? = null
+        for (i in 0 until 3) {
+            try { passwordGrant(otp); return } catch (e: ApiException) {
+                last = e
+                if (e.code != 400) break
+                kotlinx.coroutines.delay(2_000)
+            }
+        }
+        // Don't leave a half-finished setup behind: the user can start over with a new SMS.
+        secure.put(K_OTP, null); secure.put(K_PIN, null)
+        throw last ?: ApiException(0, "Activation failed")
     }
 
     /** Local check of the security code before a remote action (fingerprint can replace it). */
