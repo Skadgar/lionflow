@@ -140,6 +140,23 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         }
     }
 
+    private var focus: android.media.AudioFocusRequest? = null
+    private fun takeAudio() {
+        try {
+            val am = carContext.getSystemService(android.media.AudioManager::class.java)
+            val req = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE).build())
+                .setOnAudioFocusChangeListener { }.build()
+            am.requestAudioFocus(req); focus = req
+        } catch (_: Exception) { }
+    }
+    private fun dropAudio() {
+        try { focus?.let { carContext.getSystemService(android.media.AudioManager::class.java).abandonAudioFocusRequest(it) } } catch (_: Exception) { }
+        focus = null
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun setUp(c: SurfaceContainer) {
         tearDown()
@@ -157,8 +174,15 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.setSupportMultipleWindows(false)
+            // YouTube treats the default "wv" WebView agent as a stripped-down embed and often won't play; look like Chrome.
+            settings.userAgentString = settings.userAgentString.replace("; wv", "").replace(Regex(" Version/[0-9.]+"), "")
+            val cm = android.webkit.CookieManager.getInstance()
+            cm.setAcceptCookie(true); cm.setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean = !allowed(req.url)
+                override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
+                    if (req.isForMainFrame) CarToast.makeText(carContext, "YouTube: ${err.description}", CarToast.LENGTH_LONG).show()
+                }
             }
             webChromeClient = object : WebChromeClient() {
                 override fun onShowCustomView(view: View, callback: CustomViewCallback) {
@@ -175,6 +199,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         p.setContentView(r)
         p.show()
         presentation = p; web = w; root = r
+        takeAudio()
         w.loadUrl(pendingUrl)
     }
 
@@ -187,6 +212,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         try { presentation?.dismiss() } catch (_: Exception) { }
         presentation = null
         display?.release(); display = null
+        dropAudio()
     }
 
     companion object {
