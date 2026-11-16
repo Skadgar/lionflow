@@ -91,12 +91,18 @@ jobs:
           name: LionFlow-apk
           path: LionFlow.apk
 
+      # Release notes = the commit message, without trailer lines (Co-Authored-By, sessions, etc.)
+      - name: Release notes
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+        run: printf '%s\n' "$MSG" | grep -viE '^(co-authored-by|claude-session|signed-off-by):' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > notes.md
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.APP_VERSION_NAME }}.${{ github.run_number }}
           name: LionFlow ${{ env.APP_VERSION_NAME }}
-          body: ${{ github.event.head_commit.message }}
+          body_path: notes.md
           files: |
             LionFlow-*.apk
             LionFlow.apk
