@@ -1,5 +1,9 @@
 package no.lionflow.app.ui.screens
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -166,33 +170,93 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun TripDetail(vm: AppViewModel, trip: no.lionflow.app.model.Trip?, route: no.lionflow.app.route.Route?, s: AppSettings, onDismiss: () -> Unit) {
     val c = LocalLf.current
     val pts = remember(route) { route?.let { no.lionflow.app.route.Routes.points(it.file) }.orEmpty() }
-    val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM · HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text((trip?.startMillis ?: route?.startMillis)?.let { fmt.format(Date(it)) } ?: "Trip") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (pts.size >= 2) RouteMap(pts)
-                else Text(if (s.routeTracking) "No route was recorded for this trip." else "Turn on Route tracking in Settings to record routes on a map.", style = Type.small, color = c.muted)
-                val km = trip?.distanceKm ?: route?.km
-                val lines = listOfNotNull(
-                    km?.let { "Distance: " + fmtDistance(it, s) },
-                    (trip?.durationSec?.let { (it / 60).toInt() } ?: route?.let { ((it.endMillis - it.startMillis) / 60_000).toInt() })?.let { "Duration: $it min" },
-                    trip?.avgSpeedKmh?.let { "Average speed: ${it.toInt()} km/h" },
-                    trip?.avgKwhPer100?.let { String.format(Locale.US, "Consumption: %.1f kWh/100 km", it) },
-                    trip?.avgLPer100?.let { String.format(Locale.US, "Fuel: %.1f l/100 km", it) },
-                    trip?.liters?.let { String.format(Locale.US, "Fuel used: %.1f l", it) },
-                )
-                lines.forEach { Text(it, style = Type.body, color = c.text) }
+    val day = SimpleDateFormat("EEE d MMM yyyy", no.lionflow.app.ui.l10n.L10n.locale)
+    val hm = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)
+    val start = trip?.startMillis ?: route?.startMillis
+    val end = trip?.endMillis ?: route?.endMillis ?: start?.let { st -> trip?.durationSec?.let { st + (it * 1000).toLong() } }
+    val km = trip?.distanceKm ?: route?.km ?: 0.0
+    val minutes = trip?.durationSec?.let { it / 60 } ?: route?.let { (it.endMillis - it.startMillis) / 60_000.0 }
+    // Average speed from distance and time (the car's own figure isn't reliable on every model).
+    val speed = minutes?.takeIf { it >= 1 && km > 0 }?.let { km / (it / 60) } ?: trip?.avgSpeedKmh
+    var confirmDelete by remember { mutableStateOf(false) }
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val shape = RoundedCornerShape(18.dp)
+    @Composable fun tile(m: Modifier, label: String, value: String) =
+        Column(m.clip(shape).background(c.card).border(1.dp, c.line, shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Text(label, style = Type.tiny, color = c.muted)
+            Text(value, style = Type.stat.copy(fontSize = 20.sp), color = c.text)
+        }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss, sheetState = sheet, containerColor = c.bg,
+        dragHandle = { Box(Modifier.padding(top = 10.dp, bottom = 4.dp).size(width = 40.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(c.line2)) },
+    ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(c.raisedBlue), contentAlignment = Alignment.Center) {
+                    LfIcon(LfIcons.Route, c.blueInk, 22.dp)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(start?.let { day.format(Date(it)) } ?: "Trip", style = Type.display.copy(fontSize = 24.sp), color = c.text, maxLines = 1)
+                    if (start != null) Text(hm.format(Date(start)) + (end?.let { "–" + hm.format(Date(it)) } ?: ""), style = Type.small, color = c.muted)
+                }
+                Box(Modifier.size(36.dp).clip(CircleShape).background(c.raised).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Close, c.text2, 18.dp) }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-        dismissButton = { if (route != null) TextButton(onClick = { vm.deleteRoute(route); onDismiss() }) { Text("Delete route") } },
-    )
+
+            // Map, or a note about route tracking
+            if (pts.size >= 2) RouteMap(pts)
+            else Row(Modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.line, shape).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LfIcon(LfIcons.Map, c.muted, 20.dp)
+                Text(if (s.routeTracking) "No route was recorded for this trip." else "Turn on Route tracking in Settings to see your drives on a map.", style = Type.small, color = c.muted,
+                    modifier = Modifier.weight(1f))
+            }
+
+            // Hero: distance + duration
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(22.dp)).padding(18.dp), verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text("Distance", style = Type.tiny, color = c.muted)
+                    Text(fmtDistance(km, s), style = Type.display.copy(fontSize = 34.sp, fontWeight = FontWeight.SemiBold), color = c.text)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Duration", style = Type.tiny, color = c.muted)
+                    Text(minutes?.let { m -> if (m >= 60) "${(m / 60).toInt()} h ${(m % 60).toInt()} min" else "${m.toInt()} min" } ?: "—",
+                        style = Type.display.copy(fontSize = 26.sp), color = c.accentInk)
+                }
+            }
+
+            // Stats
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                tile(Modifier.weight(1f), "Average speed", speed?.let { if (s.distanceUnit == "mi") "${Math.round(it * 0.621371)} mph" else "${Math.round(it)} km/h" } ?: "—")
+                when {
+                    trip?.avgKwhPer100 != null -> tile(Modifier.weight(1f), "Consumption", String.format(Locale.US, "%.1f kWh/100", trip.avgKwhPer100))
+                    trip?.avgLPer100 != null -> tile(Modifier.weight(1f), "Fuel", String.format(Locale.US, "%.1f l/100", trip.avgLPer100))
+                    else -> tile(Modifier.weight(1f), "Consumption", "—")
+                }
+            }
+            val energy = trip?.kwh?.takeIf { it > 0 }?.let { String.format(Locale.US, "%.1f kWh", it) }
+            val fuel = trip?.liters?.let { String.format(Locale.US, "%.1f l", it) }
+            if (energy != null || fuel != null) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (energy != null) tile(Modifier.weight(1f), "Energy used", energy)
+                if (fuel != null) tile(Modifier.weight(1f), "Fuel used", fuel)
+                if (energy == null || fuel == null) Spacer(Modifier.weight(1f))
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (route != null) TextButton(onClick = { if (confirmDelete) { vm.deleteRoute(route); onDismiss() } else confirmDelete = true }) {
+                    Text(if (confirmDelete) "Tap again to delete" else "Delete route", color = c.danger)
+                }
+                Spacer(Modifier.weight(1f))
+                no.lionflow.app.ui.components.PrimaryButton("Done") { onDismiss() }
+            }
+        }
+    }
 }
 
 private fun startOfToday(): Long = Calendar.getInstance().apply {
