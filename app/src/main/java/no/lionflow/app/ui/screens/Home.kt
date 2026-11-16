@@ -100,6 +100,7 @@ private fun HomePhone(vm: AppViewModel, ui: UiState, s: AppSettings) {
     val scroll = androidx.compose.foundation.rememberScrollState()
     Column(Modifier.fillMaxWidth().verticalScroll(scroll)) {
         Hero(vm, ui, s)
+        if (vm.isDemo) Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp)) { DemoBanner(vm) }
         Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             UpdateCard(vm, ui)
             BatteryCard(vm, ui, s)
@@ -468,6 +469,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings) {
         }
     }
 
+    if (vm.isDemo) DemoBanner(vm)
     CarPhoto(vm, ui)
 
     // Status chips
@@ -732,5 +734,19 @@ private fun MonthCostCard(vm: AppViewModel) {
             Spacer(Modifier.weight(1f))
             Text(String.format(java.util.Locale.US, "Away %.0f kWh", kwhSum - homeKwh), style = Type.tiny, color = c.muted)
         }
+    }
+}
+
+/** Shown on Home in demo mode. */
+@Composable
+fun DemoBanner(vm: AppViewModel) {
+    val c = LocalLf.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raisedBlue).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text("Demo mode", style = Type.label, color = c.blueInk)
+            Text("Sample car and made-up data. Nothing is sent to a real car.", style = Type.tiny, color = c.text2)
+        }
+        Text("Sign in", style = Type.label, color = c.accentInk, modifier = Modifier.clickable { vm.exitDemo() }.padding(6.dp))
     }
 }

@@ -84,9 +84,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val ui: StateFlow<UiState> = _ui.asStateFlow()
     private var ticker: Job? = null
 
-    val remoteReady: Boolean get() = remote.isSetUp
+    val remoteReady: Boolean get() = remote.isSetUp || isDemo
+    /** Demo mode: a sample car, no account. */
+    val isDemo: Boolean get() = no.lionflow.app.demo.Demo.isOn(getApplication())
     /** False when Peugeot has no remote-services link for this car — then don't offer setup at all. */
-    val remotePossible: Boolean get() = api.customerId != null || remote.isSetUp
+    val remotePossible: Boolean get() = api.customerId != null || remote.isSetUp || isDemo
     fun commandLog(): String = remote.log.joinToString("\n").ifEmpty { "No commands sent since the app was opened." }
     val hasPin: Boolean get() = remote.hasPin
 
@@ -97,6 +99,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun decideStartPhase() {
+        if (isDemo) { showDemo(); return }
         if (!api.isSignedIn) {
             _ui.update { it.copy(phase = Phase.SignedOut) }
             return
@@ -206,9 +209,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         onUnlocked()
     }
 
+    // ---------------- demo ----------------
+
+    /** Try the app without an account: a sample car with made-up data. */
+    fun startDemo() {
+        val app = getApplication<Application>()
+        no.lionflow.app.demo.Demo.setOn(app, true)
+        no.lionflow.app.demo.Demo.reset()
+        settings.demoPrevName = settings.value.carName
+        settings.update { it.copy(carName = "Peugeot E-5008 (demo)") }
+        showDemo()
+    }
+
+    private fun showDemo() {
+        val d = no.lionflow.app.demo.Demo
+        no.lionflow.app.model.ChargeLog.enterDemo(getApplication(), d.VIN, d.sessions(), d.places())
+        val now = System.currentTimeMillis()
+        _ui.update { it.copy(phase = Phase.Ready, vehicle = d.vehicle, vehicles = listOf(d.vehicle), status = d.status(), trips = d.trips(), lastRefresh = now, now = now) }
+        startTicker()
+        loadLocationAndWeather()
+    }
+
+    fun exitDemo() {
+        val app = getApplication<Application>()
+        no.lionflow.app.demo.Demo.setOn(app, false)
+        no.lionflow.app.model.ChargeLog.exitDemo()
+        settings.update { it.copy(carName = settings.demoPrevName.ifBlank { "My Peugeot" }) }
+        ticker?.cancel()
+        _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
+        decideStartPhase()
+    }
+
     fun openRemoteSetup() = _ui.update { it.copy(phase = Phase.SetupRemote, smsSent = false, setupError = null) }
 
     fun signOut() {
+        if (isDemo) { exitDemo(); return }
         remote.forget()
         api.signOut()
         settings.clearPersonal()
@@ -295,6 +330,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         if (_ui.value.refreshing) return
+        if (isDemo) {
+            val now = System.currentTimeMillis()
+            _ui.update { it.copy(status = no.lionflow.app.demo.Demo.status(), lastRefresh = now, now = now) }
+            return
+        }
         viewModelScope.launch {
             _ui.update { it.copy(refreshing = true) }
             try {
@@ -348,6 +388,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun runCommand(label: String, optimistic: (VehicleStatus) -> VehicleStatus = { it }, block: suspend (Tracker) -> CommandResult) {
+        if (isDemo) {
+            // Simulated: nothing is sent, the sample car just changes.
+            if (_ui.value.commandInProgress != null) return
+            viewModelScope.launch {
+                _ui.update { it.copy(commandInProgress = label, commandProgress = "Sending…") }
+                delay(1_200)
+                no.lionflow.app.demo.Demo.apply(label)
+                holdPrecond = null; holdLock = null
+                _ui.update { s -> s.copy(commandInProgress = null, commandProgress = null, status = s.status?.let(optimistic)) }
+                toast("$label — done (demo)")
+            }
+            return
+        }
         if (!remote.isSetUp) {
             toast("Set up remote control first (Settings › Security)")
             return
@@ -393,7 +446,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Saves pre-heating schedules to the car (its 4 program slots), keeping pre-heating on/off as it is. */
-    fun savePrograms(programs: List<no.lionflow.app.model.Program>) = runCommand("Saving schedule", { it.copy(programs = programs) }) { p ->
+    fun savePrograms(programs: List<no.lionflow.app.model.Program>) = if (isDemo) {
+        no.lionflow.app.demo.Demo.apply("", programs); runCommand("Saving schedule", { it.copy(programs = programs) }) { CommandResult.Success }
+    } else runCommand("Saving schedule", { it.copy(programs = programs) }) { p ->
         val st = _ui.value.status ?: return@runCommand CommandResult.Failed("No status yet")
         val r = remote.preconditioning(st.preconditioningOn, VehicleStatus.programsJsonOf(programs), p)
         if (r !is CommandResult.Failed) no.lionflow.app.model.ChargePower.setPendingPrograms(programs)
@@ -582,6 +637,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadTrips(days: Int = 30) {
         reloadRoutes()
+        if (isDemo) { _ui.update { it.copy(trips = no.lionflow.app.demo.Demo.trips(), tripsLoading = false) }; return }
         val v = _ui.value.vehicle ?: return
         viewModelScope.launch {
             _ui.update { it.copy(tripsLoading = true) }

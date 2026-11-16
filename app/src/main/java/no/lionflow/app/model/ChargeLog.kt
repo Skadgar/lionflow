@@ -126,6 +126,27 @@ object ChargeLog {
         fillAddresses()
     }
 
+    private var realPrefs: SharedPreferences? = null
+    private var realVin = ""
+
+    /** Demo mode: use a separate, throw-away store filled with sample data. The real log is untouched. */
+    fun enterDemo(ctx: Context, demoVin: String, sessions: List<ChargeSession>, places: PlacesConfig) {
+        if (realPrefs == null) { realPrefs = prefs; realVin = vin }
+        prefs = ctx.getSharedPreferences("charge_log_demo", Context.MODE_PRIVATE).also { it.edit().clear().commit() }
+        vin = demoVin
+        save(sessions)
+        savePlaces(places)
+        _active.value = null
+    }
+
+    fun exitDemo() {
+        val p = realPrefs ?: return
+        prefs = p; vin = realVin; realPrefs = null
+        _sessions.value = loadSessions()
+        _active.value = loadActive()?.let { activeToSession(it) }
+        _places.value = loadPlaces()
+    }
+
     /** Show another car's log. */
     fun setVin(v: String) {
         vin = v

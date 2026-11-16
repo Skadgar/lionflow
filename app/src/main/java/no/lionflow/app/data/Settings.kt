@@ -122,6 +122,11 @@ class SettingsStore(context: Context) {
     }
 
     // Small non-secret runtime values
+    /** The user's own car name, kept while demo mode shows the sample car. */
+    var demoPrevName: String
+        get() = p.getString("demoPrevName", "") ?: ""
+        set(v) { p.edit().putString("demoPrevName", v).apply() }
+
     var lastRefresh: Long
         get() = p.getLong("lastRefresh", 0L)
         set(v) { p.edit().putLong("lastRefresh", v).apply() }

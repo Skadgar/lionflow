@@ -238,7 +238,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             }
         }
 
-        SecondaryButton("Sign out", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { confirmSignOut = true }
+        if (vm.isDemo) SecondaryButton("Exit demo", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { vm.exitDemo() }
+        else SecondaryButton("Sign out", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { confirmSignOut = true }
         Text(
             "LionFlow ${BuildConfig.VERSION_NAME} · Not affiliated with Peugeot or Stellantis.\nMap and chargers © OpenStreetMap contributors, OpenFreeMap · Weather MET Norway · Chargers NOBIL (optional)",
             style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),

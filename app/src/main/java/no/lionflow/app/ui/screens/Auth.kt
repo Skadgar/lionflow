@@ -125,6 +125,7 @@ fun SignInScreen(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                 platform.openSignIn(vm.authorizeUrl())
             }
         }
+        if (!ui.signingIn) SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
         Spacer(Modifier.height(8.dp))
         SecurityNote("You type your email and password on Peugeot's own sign-in page, and the app opens again by itself. If Android asks which app to use, choose LionFlow. Your password never passes through LionFlow — it only keeps an encrypted token on this phone.")
         Text("Not affiliated with Peugeot or Stellantis.", style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
