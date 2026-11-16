@@ -130,8 +130,36 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         else r.setPadding(v.left, v.top, (r.width - v.right).coerceAtLeast(0), (r.height - v.bottom).coerceAtLeast(0))
     }
 
+    // Scrolling is sent as a real finger drag, so Shorts (which swipes inside the page, not the window) works too.
+    private var dragDown = 0L
+    private var dragX = 0f
+    private var dragY = 0f
+    private val endDrag = Runnable {
+        val w = web ?: return@Runnable
+        if (dragDown != 0L) {
+            val e = MotionEvent.obtain(dragDown, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, dragX, dragY, 0)
+            try { w.dispatchTouchEvent(e) } finally { e.recycle() }
+            dragDown = 0L
+        }
+    }
+
     override fun onScroll(distanceX: Float, distanceY: Float) {
-        main.post { web?.evaluateJavascript("window.scrollBy(${distanceX.toInt()},${distanceY.toInt()})", null) }
+        main.post {
+            val w = web ?: return@post
+            val now = SystemClock.uptimeMillis()
+            main.removeCallbacks(endDrag)
+            if (dragDown == 0L) {
+                dragDown = now; dragX = w.width / 2f; dragY = w.height / 2f
+                val d = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, dragX, dragY, 0)
+                try { w.dispatchTouchEvent(d) } finally { d.recycle() }
+            }
+            // The car reports how far the content should move; the finger moves the opposite way.
+            dragX = (dragX - distanceX).coerceIn(1f, w.width - 1f)
+            dragY = (dragY - distanceY).coerceIn(1f, w.height - 1f)
+            val m = MotionEvent.obtain(dragDown, now, MotionEvent.ACTION_MOVE, dragX, dragY, 0)
+            try { w.dispatchTouchEvent(m) } finally { m.recycle() }
+            main.postDelayed(endDrag, 120)
+        }
     }
 
     override fun onClick(x: Float, y: Float) {
