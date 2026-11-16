@@ -1,6 +1,6 @@
 # LionFlow privacy policy
 
-_Last updated: 14 November 2026_
+_Last updated: 16 November 2026_
 
 LionFlow is an unofficial, open-source app for controlling your own Peugeot. It has no servers of its own, no accounts of its own, no ads and no analytics. The developer receives none of your data.
 
@@ -13,13 +13,21 @@ LionFlow is an unofficial, open-source app for controlling your own Peugeot. It 
 | Your location (only while the app or Android Auto map is open) | Map position, weather, nearby chargers | Approximate coordinates go to MET Norway (weather), OpenStreetMap Overpass or NOBIL (chargers) and OpenFreeMap (map tiles for the area you view) |
 | Car photo, service history, imported trips, charging log, home and charger places | Your own notes | Stay on your phone |
 | Address of a charging spot / your home or charger address | Show where you charged; find coordinates for an address you type | OpenStreetMap Nominatim (`nominatim.openstreetmap.org`) receives the coordinates or the address for the lookup |
+| Recorded routes (only if you turn on Route tracking) | Show your drives on a map | Stay on your phone. Recorded with the phone's GPS while it's connected to your car over Bluetooth. |
 | Update checks (GitHub version only) | Finding new versions | GitHub (`api.github.com`) |
 
 No data is sold or shared for advertising. Nothing is backed up to the cloud by the app (Android backup is turned off).
 
 ## Deleting your data
 
-Sign out in Settings → Sign out, or uninstall the app. That removes everything LionFlow stored on your phone.
+LionFlow has no servers, so there is nothing stored with the developer to delete. Everything LionFlow keeps is on your phone, and you delete it yourself:
+
+1. **Delete everything:** open LionFlow → Settings → **Sign out**, or uninstall LionFlow (Android settings → Apps → LionFlow → Uninstall). This removes all data LionFlow stored: sign-in tokens, remote-control setup, car status, trips, charging log, places and prices, recorded routes, service history, car photo and settings.
+2. **Delete parts of it:**
+   - Recorded routes: Settings → Route tracking → **Delete all recorded routes**, or open a trip and tap **Delete route**.
+   - A charging session: open it in Charging and tap **Delete session**.
+
+Nothing is kept after this, and there is no retention period. Your MyPeugeot account and the data Peugeot/Stellantis holds about your car are managed by Peugeot; to delete those, contact Peugeot or use the MyPeugeot app.
 
 ## Contact
 
