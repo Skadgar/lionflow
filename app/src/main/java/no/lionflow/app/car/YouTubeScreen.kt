@@ -99,6 +99,12 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     private fun ytIcon(res: Int) = carContext.icon(res)
 
+    /** Holds the picture back so it matches the car's late audio (see SYNC_JS). */
+    private fun injectSync(w: WebView) {
+        if (!CarHub.app(carContext).settings.value.carVideoSync) return
+        w.evaluateJavascript(SYNC_JS.replace("__DELAY__", "400"), null)
+    }
+
     // ---------------- controls on the left of the video ----------------
 
     private var controls: android.widget.LinearLayout? = null
@@ -107,14 +113,14 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     private fun buildControls(ctx: android.content.Context): android.widget.LinearLayout {
         fun dp(v: Float) = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, v, ctx.resources.displayMetrics).toInt()
         controlActions.clear()
-        val col = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(10f), 0, 0, 0) }
+        val col = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.HORIZONTAL; setPadding(dp(8f), dp(8f), 0, 0) }
         fun add(icon: Int, action: () -> Unit) {
             val b = android.widget.ImageView(ctx).apply {
                 setImageResource(icon); setColorFilter(Color.WHITE); scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
                 setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
                 background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.parseColor("#B3141619")) }
             }
-            col.addView(b, android.widget.LinearLayout.LayoutParams(dp(64f), dp(64f)).apply { topMargin = dp(10f) })
+            col.addView(b, android.widget.LinearLayout.LayoutParams(dp(60f), dp(60f)).apply { rightMargin = dp(10f) })
             controlActions += b to action
         }
         add(no.lionflow.app.R.drawable.ic_car_search) { screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) }) }
@@ -135,9 +141,9 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     }
 
     override fun onGetTemplate(): Template {
-        // The real controls are drawn on the left of the video (see buildControls); the host still needs one button here.
+        // The host insists on one action here. It's a blank, do-nothing button: the real controls are drawn on the video.
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build())
+            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_blank)).setOnClickListener { }.build())
             .build()
         return NavigationTemplate.Builder()
             .setActionStrip(strip)
@@ -152,12 +158,12 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     private var visible: Rect? = null
     override fun onVisibleAreaChanged(visibleArea: Rect) { visible = Rect(visibleArea); main.post { applyPadding() } }
 
-    /** Normal video stays inside the visible area; fullscreen covers the whole screen, behind the car's menus too. */
+    /** The page always fills the whole screen, behind the car's own buttons; only our controls stay in the visible area. */
     private fun applyPadding() {
-        val r = root ?: return
-        val v = visible
-        if (fullscreen != null || v == null) r.setPadding(0, 0, 0, 0)
-        else r.setPadding(v.left, v.top, (r.width - v.right).coerceAtLeast(0), (r.height - v.bottom).coerceAtLeast(0))
+        root?.setPadding(0, 0, 0, 0)
+        val c = controls ?: return
+        val v = visible ?: return
+        (c.layoutParams as? FrameLayout.LayoutParams)?.let { lp -> lp.leftMargin = v.left; lp.topMargin = v.top; c.layoutParams = lp }
     }
 
     // Scrolling is sent as a real finger drag. Shorts only change video on a quick swipe, so there a scroll becomes one flick.
@@ -224,11 +230,12 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             val target: View = fullscreen ?: w ?: return@post
             val loc = IntArray(2); target.getLocationInWindow(loc)
             val lx = x - loc[0]; val ly = y - loc[1]
-            if (fullscreen != null || w == null) { touch(target, lx, ly); return@post }
-            // A tap on the progress bar: seek with JavaScript (YouTube's bar ignores synthetic touches). Anything else is a normal tap.
+            if (w == null) { touch(target, lx, ly); return@post }
+            // A tap on the progress bar seeks with JavaScript (YouTube's bar ignores synthetic touches), fullscreen or not.
+            // Anything else is a normal tap.
             val d = w.resources.displayMetrics.density
             w.evaluateJavascript(SEEK_JS.replace("__X__", (lx / d).toString()).replace("__Y__", (ly / d).toString())) { r ->
-                if (r?.contains("seek") != true) touch(w, lx, ly)
+                if (r?.contains("seek") != true) touch(target, lx, ly)
             }
         }
     }
@@ -292,6 +299,8 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             cm.setAcceptCookie(true); cm.setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean = !allowed(req.url)
+                override fun onPageFinished(view: WebView, url: String?) { injectSync(view) }
+                override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) { injectSync(view) }
                 override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
                     if (req.isForMainFrame) CarToast.makeText(carContext, "YouTube: ${err.description}", CarToast.LENGTH_LONG).show()
                 }
@@ -313,7 +322,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         }
         r.addView(w, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         controls = buildControls(p.context)
-        r.addView(controls, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL))
+        r.addView(controls, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, android.view.Gravity.START or android.view.Gravity.TOP))
         p.setContentView(r)
         p.show()
         presentation = p; web = w; root = r
@@ -368,6 +377,47 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
               return 'seek';
             })(__X__, __Y__)
         """.trimIndent()
+        /**
+         * The car plays the phone's sound about 0.4 s late. The video can't be delayed on its own, so its frames are
+         * copied to a canvas and shown 0.4 s late instead, while the real video element stays invisible.
+         */
+        private val SYNC_JS = """
+            (function(delay) {
+              if (window.__lfSync || !window.createImageBitmap) return;
+              window.__lfSync = true;
+              var c = document.createElement('canvas');
+              c.style.cssText = 'position:absolute;pointer-events:none;display:none;object-fit:contain;background:#000';
+              var ctx = c.getContext('2d');
+              var q = [], vid = null, busy = false;
+              function clear() { while (q.length) q.shift().b.close(); }
+              function stop() { c.style.display = 'none'; if (vid) vid.style.opacity = ''; clear(); }
+              function frame(v) {
+                if (v !== vid) return;
+                if (v.paused || v.ended || !v.videoWidth) { stop(); }
+                else {
+                  var now = performance.now();
+                  if (!busy) { busy = true; createImageBitmap(v).then(function(b) { q.push({t: now, b: b}); busy = false; }, function() { busy = false; }); }
+                  if (c.parentNode !== v.parentNode) v.parentNode.insertBefore(c, v.nextSibling);
+                  if (c.width !== v.videoWidth) { c.width = v.videoWidth; c.height = v.videoHeight; }
+                  c.style.left = v.offsetLeft + 'px'; c.style.top = v.offsetTop + 'px';
+                  c.style.width = v.offsetWidth + 'px'; c.style.height = v.offsetHeight + 'px';
+                  while (q.length > 1 && q[1].t <= now - delay) q.shift().b.close();
+                  if (q.length && q[0].t <= now - delay) { ctx.drawImage(q[0].b, 0, 0, c.width, c.height); c.style.display = 'block'; v.style.opacity = '0'; }
+                }
+                if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(function() { frame(v); });
+                else requestAnimationFrame(function() { frame(v); });
+              }
+              function attach(v) {
+                if (vid === v) return;
+                if (vid) stop();
+                vid = v; v.addEventListener('seeking', clear); v.addEventListener('pause', stop);
+                v.addEventListener('playing', function() { frame(v); });
+                if (!v.paused) frame(v);
+              }
+              setInterval(function() { var v = document.querySelector('video'); if (v) attach(v); }, 1000);
+            })(__DELAY__);
+        """.trimIndent()
+
         private val HOSTS = listOf("youtube.com", "youtu.be", "google.com", "gstatic.com", "ytimg.com", "googlevideo.com")
 
         /** Only YouTube (and the Google pages it needs, like the cookie consent page) may open. */

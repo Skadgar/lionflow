@@ -76,7 +76,13 @@ private fun CarContext.listLimit(): Int = try {
  * The car's own "navigate" intent can end up back at LionFlow (it is a navigation-category app too),
  * so Google Maps is started directly through the phone, which Android Auto then shows on the car screen.
  */
-internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: String) {
+private var lastMapsOpen = 0L
+
+internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: String, fromCar: Boolean = false) {
+    // One request at a time: if the car hands our own request back to us, a second start would loop and make the screen flicker forever.
+    val now = System.currentTimeMillis()
+    if (now - lastMapsOpen < 6000) return
+    lastMapsOpen = now
     val nav = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$lat,$lon&mode=d"))
         .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     try {
@@ -87,6 +93,7 @@ internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: S
     } catch (e: Exception) {
         android.util.Log.w("LionFlowCar", "direct Google Maps start failed", e)
     }
+    if (fromCar) return   // the car routed this to us: asking the car again would just bring it back here
     try {
         ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon(${android.net.Uri.encode(name)})")))
     } catch (e: Exception) {
@@ -99,7 +106,7 @@ class MainSession : Session() {
     override fun onNewIntent(intent: Intent) {
         if (intent.action != CarContext.ACTION_NAVIGATE) return
         val m = Regex("(-?[0-9]+(?:\\.[0-9]+)?),(-?[0-9]+(?:\\.[0-9]+)?)").find(intent.data?.schemeSpecificPart ?: return) ?: return
-        openInGoogleMaps(carContext, m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), "")
+        openInGoogleMaps(carContext, m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), "", fromCar = true)
     }
 
     override fun onCreateScreen(intent: Intent): Screen {
@@ -178,6 +185,11 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
             .addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener {
                 CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…")
             }.build())
+        if (s.carVideo) strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_play, CarColor.RED)).setOnClickListener {
+            guard.update()
+            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
+            else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
+        }.build())
         val b = GridTemplate.Builder().setTitle(tr(CarHub.message.value ?: s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
         if (st == null) return b.setLoading(true).build()
 
@@ -206,16 +218,6 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val fuelOnly = st.energyType == "Fuel"
         tile(2, if (fuelOnly) "Fuel stations" else if (st.energyType == "Hybrid") "Chargers & fuel" else "Chargers", "Nearest first",
             if (fuelOnly) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext)) }
-        if (s.carVideo) {
-            guard.update()
-            val parked = guard.parked.value
-            tile(2, "YouTube", if (parked) "Tap to watch" else "Only while parked", R.drawable.ic_car_play, CarColor.RED) {
-                guard.update()
-                if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
-                else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
-            }
-        }
-
         val max = try {
             carContext.getCarService(androidx.car.app.constraints.ConstraintManager::class.java)
                 .getContentLimit(androidx.car.app.constraints.ConstraintManager.CONTENT_LIMIT_TYPE_GRID)
