@@ -71,7 +71,37 @@ private fun CarContext.listLimit(): Int = try {
         .getContentLimit(androidx.car.app.constraints.ConstraintManager.CONTENT_LIMIT_TYPE_LIST)
 } catch (_: Exception) { 6 }
 
+/**
+ * Starts navigation to a place in Google Maps and closes LionFlow on the car screen.
+ * The car's own "navigate" intent can end up back at LionFlow (it is a navigation-category app too),
+ * so Google Maps is started directly through the phone, which Android Auto then shows on the car screen.
+ */
+internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: String) {
+    val nav = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$lat,$lon&mode=d"))
+        .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        ctx.startActivity(nav)
+        CarToast.makeText(ctx, tr("Navigating to") + " " + name, CarToast.LENGTH_SHORT).show()
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ try { ctx.finishCarApp() } catch (_: Exception) { } }, 700)
+        return
+    } catch (e: Exception) {
+        android.util.Log.w("LionFlowCar", "direct Google Maps start failed", e)
+    }
+    try {
+        ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon(${android.net.Uri.encode(name)})")))
+    } catch (e: Exception) {
+        CarToast.makeText(ctx, tr("Couldn't open navigation"), CarToast.LENGTH_LONG).show()
+    }
+}
+
 class MainSession : Session() {
+    /** A "navigate" request that the car routed to LionFlow: pass it on to Google Maps. */
+    override fun onNewIntent(intent: Intent) {
+        if (intent.action != CarContext.ACTION_NAVIGATE) return
+        val m = Regex("(-?[0-9]+(?:\\.[0-9]+)?),(-?[0-9]+(?:\\.[0-9]+)?)").find(intent.data?.schemeSpecificPart ?: return) ?: return
+        openInGoogleMaps(carContext, m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), "")
+    }
+
     override fun onCreateScreen(intent: Intent): Screen {
         val guard = ParkGuard(carContext)
         lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
@@ -208,15 +238,8 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
         }
     }
 
-    /** Opens Google Maps (or the car's navigation app) with the place as the destination. */
-    private fun navigateTo(ch: no.lionflow.app.api.Charger) {
-        try {
-            val uri = android.net.Uri.parse("geo:${ch.lat},${ch.lon}?q=${ch.lat},${ch.lon}(${android.net.Uri.encode(ch.name)})")
-            carContext.startCarApp(Intent(CarContext.ACTION_NAVIGATE, uri))
-        } catch (e: Exception) {
-            CarToast.makeText(carContext, tr("Couldn't open navigation"), CarToast.LENGTH_LONG).show()
-        }
-    }
+    /** Opens Google Maps with the place as the destination. */
+    private fun navigateTo(ch: no.lionflow.app.api.Charger) = openInGoogleMaps(carContext, ch.lat, ch.lon, ch.name)
 
     override fun build(): Template {
         val s = CarHub.app(carContext).settings.value
