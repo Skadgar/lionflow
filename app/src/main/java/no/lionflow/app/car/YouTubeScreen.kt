@@ -119,8 +119,15 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     override fun onSurfaceAvailable(c: SurfaceContainer) { main.post { setUp(c) } }
     override fun onSurfaceDestroyed(c: SurfaceContainer) { main.post { tearDown() } }
-    override fun onVisibleAreaChanged(visibleArea: Rect) {
-        main.post { root?.setPadding(visibleArea.left, visibleArea.top, (root!!.width - visibleArea.right).coerceAtLeast(0), (root!!.height - visibleArea.bottom).coerceAtLeast(0)) }
+    private var visible: Rect? = null
+    override fun onVisibleAreaChanged(visibleArea: Rect) { visible = Rect(visibleArea); main.post { applyPadding() } }
+
+    /** Normal video stays inside the visible area; fullscreen covers the whole screen, behind the car's menus too. */
+    private fun applyPadding() {
+        val r = root ?: return
+        val v = visible
+        if (fullscreen != null || v == null) r.setPadding(0, 0, 0, 0)
+        else r.setPadding(v.left, v.top, (r.width - v.right).coerceAtLeast(0), (r.height - v.bottom).coerceAtLeast(0))
     }
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
@@ -132,11 +139,18 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             val target: View = fullscreen ?: web ?: return@post
             val loc = IntArray(2); target.getLocationInWindow(loc)
             val lx = x - loc[0]; val ly = y - loc[1]
+            // A real finger moves a little between down and up; YouTube's seek bar ignores a perfectly still tap.
             val t = SystemClock.uptimeMillis()
-            val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, lx, ly, 0)
-            val up = MotionEvent.obtain(t, t + 60, MotionEvent.ACTION_UP, lx, ly, 0)
-            target.dispatchTouchEvent(down); target.dispatchTouchEvent(up)
-            down.recycle(); up.recycle()
+            fun send(action: Int, dt: Long, dx: Float) {
+                main.postDelayed({
+                    val e = MotionEvent.obtain(t, t + dt, action, lx + dx, ly, 0)
+                    try { target.dispatchTouchEvent(e) } finally { e.recycle() }
+                }, dt)
+            }
+            send(MotionEvent.ACTION_DOWN, 0, 0f)
+            send(MotionEvent.ACTION_MOVE, 40, 1f)
+            send(MotionEvent.ACTION_MOVE, 80, 2f)
+            send(MotionEvent.ACTION_UP, 120, 2f)
         }
     }
 
@@ -187,11 +201,13 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             webChromeClient = object : WebChromeClient() {
                 override fun onShowCustomView(view: View, callback: CustomViewCallback) {
                     fullscreen = view
+                    applyPadding()
                     r.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                 }
                 override fun onHideCustomView() {
                     fullscreen?.let { r.removeView(it) }
                     fullscreen = null
+                    applyPadding()
                 }
             }
         }
@@ -200,6 +216,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         p.show()
         presentation = p; web = w; root = r
         takeAudio()
+        r.post { applyPadding() }
         w.loadUrl(pendingUrl)
     }
 
