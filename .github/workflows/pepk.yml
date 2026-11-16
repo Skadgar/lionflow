@@ -18,10 +18,16 @@ jobs:
         run: |
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
           curl -sSfL -o "$RUNNER_TEMP/pepk.jar" https://www.gstatic.com/play-apps-publisher-rapid/signing-tool/prod/pepk.jar
-          java -jar "$RUNNER_TEMP/pepk.jar" --keystore="$RUNNER_TEMP/release.jks" --alias="$KEY_ALIAS" \
-            --output=lionflow-play-key.zip --include-cert --rsa-aes-encryption \
-            --encryption-key-path=.github/play/encryption_public_key.pem \
-            --keystore-pass="pass:$STORE_PASS" --key-pass="pass:$KEY_PASS"
+          run_pepk() {
+            java -jar "$RUNNER_TEMP/pepk.jar" --keystore="$RUNNER_TEMP/release.jks" --alias="$KEY_ALIAS" \
+              --output=lionflow-play-key.zip --include-cert --rsa-aes-encryption \
+              --encryption-key-path=.github/play/encryption_public_key.pem \
+              --keystore-pass="$1" --key-pass="$2"
+          }
+          # Different pepk versions read the password flag differently; try plain first.
+          run_pepk "$STORE_PASS" "$KEY_PASS" || run_pepk "pass:$STORE_PASS" "pass:$KEY_PASS" || \
+            printf '%s\n%s\n' "$STORE_PASS" "$KEY_PASS" | java -jar "$RUNNER_TEMP/pepk.jar" --keystore="$RUNNER_TEMP/release.jks" --alias="$KEY_ALIAS" \
+              --output=lionflow-play-key.zip --include-cert --rsa-aes-encryption --encryption-key-path=.github/play/encryption_public_key.pem
           rm -f "$RUNNER_TEMP/release.jks"
           ls -l lionflow-play-key.zip
       - uses: actions/upload-artifact@v4
