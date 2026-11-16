@@ -130,10 +130,11 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         else r.setPadding(v.left, v.top, (r.width - v.right).coerceAtLeast(0), (r.height - v.bottom).coerceAtLeast(0))
     }
 
-    // Scrolling is sent as a real finger drag, so Shorts (which swipes inside the page, not the window) works too.
+    // Scrolling is sent as a real finger drag. Shorts only change video on a quick swipe, so there a scroll becomes one flick.
     private var dragDown = 0L
     private var dragX = 0f
     private var dragY = 0f
+    private var shortsDy = 0f
     private val endDrag = Runnable {
         val w = web ?: return@Runnable
         if (dragDown != 0L) {
@@ -142,10 +143,34 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             dragDown = 0L
         }
     }
+    private val endShorts = Runnable {
+        val w = web ?: return@Runnable
+        val dy = shortsDy; shortsDy = 0f
+        if (Math.abs(dy) < 25f || w.height <= 0) return@Runnable
+        val x = w.width / 2f
+        val from = if (dy > 0) w.height * 0.75f else w.height * 0.25f      // dy > 0: the car wants content to move up = next short
+        val to = if (dy > 0) w.height * 0.25f else w.height * 0.75f
+        val t = SystemClock.uptimeMillis()
+        val steps = 8
+        for (i in 0..steps + 1) {
+            val action = when (i) { 0 -> MotionEvent.ACTION_DOWN; steps + 1 -> MotionEvent.ACTION_UP; else -> MotionEvent.ACTION_MOVE }
+            val yy = from + (to - from) * (i.coerceAtMost(steps) / steps.toFloat())
+            main.postDelayed({
+                val e = MotionEvent.obtain(t, t + i * 16L, action, x, yy, 0)
+                try { w.dispatchTouchEvent(e) } finally { e.recycle() }
+            }, i * 16L)
+        }
+    }
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
         main.post {
             val w = web ?: return@post
+            if (w.url?.contains("/shorts") == true) {
+                shortsDy += distanceY
+                main.removeCallbacks(endShorts)
+                main.postDelayed(endShorts, 150)
+                return@post
+            }
             val now = SystemClock.uptimeMillis()
             main.removeCallbacks(endDrag)
             if (dragDown == 0L) {
@@ -164,22 +189,32 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     override fun onClick(x: Float, y: Float) {
         main.post {
-            val target: View = fullscreen ?: web ?: return@post
+            val w = web
+            val target: View = fullscreen ?: w ?: return@post
             val loc = IntArray(2); target.getLocationInWindow(loc)
             val lx = x - loc[0]; val ly = y - loc[1]
-            // A real finger moves a little between down and up; YouTube's seek bar ignores a perfectly still tap.
-            val t = SystemClock.uptimeMillis()
-            fun send(action: Int, dt: Long, dx: Float) {
-                main.postDelayed({
-                    val e = MotionEvent.obtain(t, t + dt, action, lx + dx, ly, 0)
-                    try { target.dispatchTouchEvent(e) } finally { e.recycle() }
-                }, dt)
+            if (fullscreen != null || w == null) { touch(target, lx, ly); return@post }
+            // A tap on the progress bar: seek with JavaScript (YouTube's bar ignores synthetic touches). Anything else is a normal tap.
+            val d = w.resources.displayMetrics.density
+            w.evaluateJavascript(SEEK_JS.replace("__X__", (lx / d).toString()).replace("__Y__", (ly / d).toString())) { r ->
+                if (r?.contains("seek") != true) touch(w, lx, ly)
             }
-            send(MotionEvent.ACTION_DOWN, 0, 0f)
-            send(MotionEvent.ACTION_MOVE, 40, 1f)
-            send(MotionEvent.ACTION_MOVE, 80, 2f)
-            send(MotionEvent.ACTION_UP, 120, 2f)
         }
+    }
+
+    /** A tap as a real finger sends it: down, a little movement, up. */
+    private fun touch(target: View, lx: Float, ly: Float) {
+        val t = SystemClock.uptimeMillis()
+        fun send(action: Int, dt: Long, dx: Float) {
+            main.postDelayed({
+                val e = MotionEvent.obtain(t, t + dt, action, lx + dx, ly, 0)
+                try { target.dispatchTouchEvent(e) } finally { e.recycle() }
+            }, dt)
+        }
+        send(MotionEvent.ACTION_DOWN, 0, 0f)
+        send(MotionEvent.ACTION_MOVE, 40, 1f)
+        send(MotionEvent.ACTION_MOVE, 80, 2f)
+        send(MotionEvent.ACTION_UP, 120, 2f)
     }
 
     private var focus: android.media.AudioFocusRequest? = null
@@ -262,6 +297,30 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     companion object {
         const val HOME = "https://m.youtube.com/"
+
+        /** Finds YouTube's progress bar under the tap and seeks the video to that point. Prints "seek" if it did. */
+        private val SEEK_JS = """
+            (function(x, y) {
+              var v = document.querySelector('video');
+              if (!v || !(v.duration > 0)) return 'none';
+              function shown(e) { for (var i = 0; e && i < 5; i++, e = e.parentElement) { if (parseFloat(getComputedStyle(e).opacity) < 0.1) return false; } return true; }
+              var best = null;
+              var els = document.querySelectorAll('[role="slider"], [class*="rogress"]');
+              for (var i = 0; i < els.length; i++) {
+                var r = els[i].getBoundingClientRect();
+                if (r.width < 150 || r.width < window.innerWidth * 0.3) continue;
+                if (x < r.left || x > r.right) continue;
+                var cy = r.top + r.height / 2;
+                if (Math.abs(y - cy) > Math.max(28, r.height)) continue;
+                if (!shown(els[i])) continue;
+                if (!best || r.width > best.width) best = r;
+              }
+              if (!best) return 'none';
+              var f = Math.min(1, Math.max(0, (x - best.left) / best.width));
+              v.currentTime = f * v.duration;
+              return 'seek';
+            })(__X__, __Y__)
+        """.trimIndent()
         private val HOSTS = listOf("youtube.com", "youtu.be", "google.com", "gstatic.com", "ytimg.com", "googlevideo.com")
 
         /** Only YouTube (and the Google pages it needs, like the cookie consent page) may open. */
