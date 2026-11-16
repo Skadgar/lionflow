@@ -83,20 +83,23 @@ internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: S
     val now = System.currentTimeMillis()
     if (now - lastMapsOpen < 6000) return
     lastMapsOpen = now
-    val nav = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$lat,$lon&mode=d"))
-        .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val geo = android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon(${android.net.Uri.encode(name)})")
+    CarToast.makeText(ctx, tr("Navigating to") + " " + name, CarToast.LENGTH_SHORT).show()
+    // 1) Ask the car to open the navigation in Google Maps itself (the car host may start apps the phone side cannot).
+    if (!fromCar) {
+        try {
+            ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, geo).setPackage("com.google.android.apps.maps"))
+            return
+        } catch (e: Exception) {
+            android.util.Log.w("LionFlowCar", "startCarApp(maps) failed", e)
+        }
+    }
+    // 2) Start Google Maps through the phone.
     try {
-        ctx.startActivity(nav)
-        CarToast.makeText(ctx, tr("Navigating to") + " " + name, CarToast.LENGTH_SHORT).show()
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ try { ctx.finishCarApp() } catch (_: Exception) { } }, 700)
-        return
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$lat,$lon&mode=d"))
+            .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: Exception) {
         android.util.Log.w("LionFlowCar", "direct Google Maps start failed", e)
-    }
-    if (fromCar) return   // the car routed this to us: asking the car again would just bring it back here
-    try {
-        ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon(${android.net.Uri.encode(name)})")))
-    } catch (e: Exception) {
         CarToast.makeText(ctx, tr("Couldn't open navigation"), CarToast.LENGTH_LONG).show()
     }
 }

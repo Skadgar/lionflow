@@ -113,20 +113,18 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     private fun buildControls(ctx: android.content.Context): android.widget.LinearLayout {
         fun dp(v: Float) = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, v, ctx.resources.displayMetrics).toInt()
         controlActions.clear()
-        val col = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.HORIZONTAL; setPadding(dp(8f), dp(8f), 0, 0) }
+        val col = android.widget.LinearLayout(ctx).apply { gravity = android.view.Gravity.CENTER_VERTICAL; orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8f), 0, 0, 0) }
         fun add(icon: Int, action: () -> Unit) {
             val b = android.widget.ImageView(ctx).apply {
                 setImageResource(icon); setColorFilter(Color.WHITE); scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
                 setPadding(dp(14f), dp(14f), dp(14f), dp(14f))
                 background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Color.parseColor("#B3141619")) }
             }
-            col.addView(b, android.widget.LinearLayout.LayoutParams(dp(60f), dp(60f)).apply { rightMargin = dp(10f) })
+            col.addView(b, android.widget.LinearLayout.LayoutParams(dp(60f), dp(60f)).apply { topMargin = dp(5f); bottomMargin = dp(5f) })
             controlActions += b to action
         }
         add(no.lionflow.app.R.drawable.ic_car_search) { screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) }) }
         add(no.lionflow.app.R.drawable.ic_car_back) { web?.let { if (it.canGoBack()) it.goBack() } }
-        add(no.lionflow.app.R.drawable.ic_car_forward) { web?.let { if (it.canGoForward()) it.goForward() } }
-        add(no.lionflow.app.R.drawable.ic_car_close) { close("YouTube closed") }
         return col
     }
 
@@ -141,9 +139,9 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     }
 
     override fun onGetTemplate(): Template {
-        // The host insists on one action here. It's a blank, do-nothing button: the real controls are drawn on the video.
+        // Close X, top right.
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_blank)).setOnClickListener { }.build())
+            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build())
             .build()
         return NavigationTemplate.Builder()
             .setActionStrip(strip)
@@ -163,7 +161,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         root?.setPadding(0, 0, 0, 0)
         val c = controls ?: return
         val v = visible ?: return
-        (c.layoutParams as? FrameLayout.LayoutParams)?.let { lp -> lp.leftMargin = v.left; lp.topMargin = v.top; c.layoutParams = lp }
+        (c.layoutParams as? FrameLayout.LayoutParams)?.let { lp -> lp.leftMargin = v.left; lp.topMargin = v.top; lp.height = v.height(); c.layoutParams = lp }
     }
 
     // Scrolling is sent as a real finger drag. Shorts only change video on a quick swipe, so there a scroll becomes one flick.
@@ -322,7 +320,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         }
         r.addView(w, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         controls = buildControls(p.context)
-        r.addView(controls, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, android.view.Gravity.START or android.view.Gravity.TOP))
+        r.addView(controls, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.MATCH_PARENT, android.view.Gravity.START or android.view.Gravity.TOP))
         p.setContentView(r)
         p.show()
         presentation = p; web = w; root = r
