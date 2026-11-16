@@ -101,7 +101,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
 
     override fun onGetTemplate(): Template {
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setTitle(tr("Search")).setOnClickListener {
+            .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_search)).setOnClickListener {
                 screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) })
             }.build())
             .addAction(Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_back)).setOnClickListener {
@@ -307,6 +307,13 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             (function(x, y) {
               var v = document.querySelector('video');
               if (!v || !(v.duration > 0)) return 'none';
+              // A tap on a control button (fullscreen, play/pause, next ...) is never a seek, even if it sits next to the bar.
+              var hit = document.elementFromPoint(x, y);
+              for (var k = 0, h = hit; h && k < 6; k++, h = h.parentElement) {
+                var al = ((h.getAttribute && h.getAttribute('aria-label')) || '').toLowerCase();
+                var cl = (typeof h.className === 'string' ? h.className : '').toLowerCase();
+                if (h.tagName === 'BUTTON' || (h.getAttribute && h.getAttribute('role') === 'button') || /full|pause|play|next|prev|caption|setting|mute|volume|autoplay/.test(al + ' ' + cl.replace(/progress/g, ''))) return 'none';
+              }
               function shown(e) { for (var i = 0; e && i < 5; i++, e = e.parentElement) { if (parseFloat(getComputedStyle(e).opacity) < 0.1) return false; } return true; }
               var best = null;
               var els = document.querySelectorAll('[role="slider"], [class*="rogress"]');
@@ -315,7 +322,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
                 if (r.width < 150 || r.width < window.innerWidth * 0.3) continue;
                 if (x < r.left || x > r.right) continue;
                 var cy = r.top + r.height / 2;
-                if (Math.abs(y - cy) > Math.max(28, r.height)) continue;
+                if (Math.abs(y - cy) > Math.max(20, r.height)) continue;
                 if (!shown(els[i])) continue;
                 if (!best || r.width > best.width) best = r;
               }
