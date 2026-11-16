@@ -312,7 +312,8 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
               for (var k = 0, h = hit; h && k < 6; k++, h = h.parentElement) {
                 var al = ((h.getAttribute && h.getAttribute('aria-label')) || '').toLowerCase();
                 var cl = (typeof h.className === 'string' ? h.className : '').toLowerCase();
-                if (h.tagName === 'BUTTON' || (h.getAttribute && h.getAttribute('role') === 'button') || /full|pause|play|next|prev|caption|setting|mute|volume|autoplay/.test(al + ' ' + cl.replace(/progress/g, ''))) return 'none';
+                if (h.tagName === 'BUTTON' || (h.getAttribute && h.getAttribute('role') === 'button')) return 'none';
+                if (/\b(play|pause|full ?screen|exit full|next|previous|captions?|settings|mute|unmute|volume|autoplay)\b/.test(al) || /fullscreen-button|fullscreen_button/.test(cl)) return 'none';
               }
               function shown(e) { for (var i = 0; e && i < 5; i++, e = e.parentElement) { if (parseFloat(getComputedStyle(e).opacity) < 0.1) return false; } return true; }
               var best = null;

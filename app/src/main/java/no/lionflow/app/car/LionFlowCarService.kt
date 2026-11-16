@@ -119,6 +119,18 @@ class MainSession : Session() {
     }
 }
 
+/** Starts Google Maps navigation to a place; with Android Auto connected, Maps then takes over the car screen. */
+internal fun openMapsOnPhone(ctx: CarContext, geo: android.net.Uri?): Boolean {
+    val g = geo ?: return false
+    val q = g.getQueryParameter("q")?.substringBefore("(")?.takeIf { it.isNotBlank() } ?: g.schemeSpecificPart.substringBefore("?")
+    return try {
+        val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$q&mode=d"))
+            .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        CarHub.app(ctx).startActivity(i)
+        true
+    } catch (e: Exception) { false }
+}
+
 /** Base screen that redraws whenever the shared car state changes. */
 abstract class LiveScreen(ctx: CarContext) : Screen(ctx) {
     abstract fun build(): Template
