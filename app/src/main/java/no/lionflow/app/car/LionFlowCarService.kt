@@ -74,6 +74,16 @@ class MainSession : Session() {
 
 /** Base screen that redraws whenever the shared car state changes. */
 abstract class LiveScreen(ctx: CarContext) : Screen(ctx) {
+    abstract fun build(): Template
+
+    /** Never let a bad template take the whole app down: show what went wrong instead. */
+    final override fun onGetTemplate(): Template = try { build() } catch (e: Exception) {
+        android.util.Log.e("LionFlowCar", "template failed", e)
+        try { CarHub.app(carContext).remote.addLog("Android Auto: ${e.javaClass.simpleName}: ${e.message}") } catch (_: Exception) {}
+        MessageTemplate.Builder(tr("Something went wrong showing this screen.") + "\n" + (e.message ?: e.javaClass.simpleName).take(200))
+            .setTitle(tr("LionFlow")).setHeaderAction(Action.APP_ICON).build()
+    }
+
     init {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -96,7 +106,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         }
     }
 
-    override fun onGetTemplate(): Template {
+    override fun build(): Template {
         val app = CarHub.app(carContext)
         if (!app.api.isSignedIn) {
             return MessageTemplate.Builder(tr("Open LionFlow on your phone and sign in with your Peugeot account."))
@@ -161,10 +171,18 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
 
         CarHub.message.value?.let { m -> car.addItem(Row.Builder().setTitle(tr(m)).build()) }
 
+        // Cars only allow a few rows per screen (often 6); keep the most useful ones within the limit.
+        var left = carContext.listLimit().coerceAtLeast(4) - (if (s.carVideo) 1 else 0)
+        fun fit(list: ItemList): ItemList? {
+            if (left <= 0) return null
+            val items = list.items.take(left)
+            left -= items.size
+            return ItemList.Builder().apply { items.forEach { addItem(it) } }.build()
+        }
+        val sections = listOf(charge.build() to "Battery", driving.build() to "Driving", car.build() to "Car")
+            .mapNotNull { (l, t) -> fit(l)?.let { it to t } }
         return b
-            .addSectionedList(SectionedItemList.create(charge.build(), tr("Battery")))
-            .addSectionedList(SectionedItemList.create(car.build(), tr("Car")))
-            .addSectionedList(SectionedItemList.create(driving.build(), tr("Driving")))
+            .apply { sections.forEach { (l, t) -> addSectionedList(SectionedItemList.create(l, tr(t))) } }
             .apply {
                 if (s.carVideo) {
                     guard.update()
@@ -199,7 +217,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
 // ---------------------------------------------------------------- remote actions
 
 class ActionsScreen(ctx: CarContext) : LiveScreen(ctx) {
-    override fun onGetTemplate(): Template {
+    override fun build(): Template {
         val st = CarHub.status.value
         val busy = CarHub.busy.value
         val list = ItemList.Builder()
@@ -231,7 +249,7 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
         CarHub.status.value?.let { st -> st.lat?.let { la -> st.lon?.let { lo -> CarHub.loadChargers(ctx, la, lo) } } }
     }
 
-    override fun onGetTemplate(): Template {
+    override fun build(): Template {
         val s = CarHub.app(carContext).settings.value
         val all = CarHub.chargers.value
         val b = ListTemplate.Builder().setTitle(tr("Chargers near the car")).setHeaderAction(Action.BACK)

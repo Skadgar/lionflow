@@ -182,6 +182,7 @@ object ChargeLog {
                 if (a.isNull("lat") && st.lat != null) a.put("lat", st.lat).put("lon", st.lon)
                 if (kw != null && (a.isNull("peak") || kw > a.optDouble("peak"))) a.put("peak", kw)
                 if (st.chargingMode == "Quick") a.put("mode", "Quick")
+                a.put("usable", ChargePower.usableKwh(st)) // corrected battery size applies to a session already running
             }
             if (t >= a.optLong("lastT", 0L)) a.put("lastT", t).put("lastPct", pct).put("lastKwh", st.residualKwh ?: JSONObject.NULL)
             p.edit().putString(k("active"), a.toString()).apply()

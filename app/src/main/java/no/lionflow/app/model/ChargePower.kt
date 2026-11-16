@@ -30,9 +30,15 @@ object ChargePower {
 
     fun setVin(v: String) { vin = v }
 
-    /** Usable battery size: what the car reports, else the user's setting, else E-5008's 73 kWh. */
+    /**
+     * Usable battery size: the user's setting, else what the car reports (or works out from energy left and %),
+     * else a default for the car type (plug-in hybrids ~11.5 kWh, electric E-5008 73 kWh).
+     */
     fun usableKwh(st: VehicleStatus): Double =
-        st.capacityKwh ?: settings?.value?.batteryKwh?.takeIf { it > 0 } ?: 73.0
+        settings?.value?.batteryKwh?.takeIf { it > 0 }
+            ?: st.capacityKwh?.takeIf { it > 1 }
+            ?: st.residualKwh?.let { r -> st.batteryPct?.takeIf { it >= 10 }?.let { r / (it / 100.0) } }?.takeIf { it in 5.0..150.0 }
+            ?: if (st.energyType == "Hybrid") 11.5 else 73.0
 
     private fun energyIn(st: VehicleStatus): Double? =
         st.residualKwh ?: st.batteryPct?.let { it / 100.0 * usableKwh(st) }

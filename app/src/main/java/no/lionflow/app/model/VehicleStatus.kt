@@ -187,7 +187,9 @@ data class Trip(
                 durationSec = t.num("duration"),
                 kwh = electric?.num("consumption")?.let { it / 1000.0 },
                 avgKwhPer100 = electric?.num("avgConsumption")?.let { it / 1000.0 },
-                avgSpeedKmh = t.optJSONObject("kinetic")?.num("avgSpeed")?.let { it * 3.6 },
+                // Work it out from distance and time: the car's own "avgSpeed" is in m/s on some models and km/h on others.
+                avgSpeedKmh = t.num("duration")?.takeIf { it >= 60 && km > 0 }?.let { km / (it / 3600.0) }
+                    ?: t.optJSONObject("kinetic")?.num("avgSpeed")?.let { v -> if (km > 0) v else null },
                 liters = liters,
                 avgLPer100 = per100Of(fuel?.num("avgConsumption")) ?: liters?.let { it / km * 100 },
             )

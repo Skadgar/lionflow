@@ -119,7 +119,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 no.lionflow.app.ui.l10n.TimeFmt.setPreference(ctx, v)
             }
             Divider()
-            LinkRow("Battery size", if (s.batteryKwh > 0) "${s.batteryKwh.toInt()} kWh usable · used to work out charging kW" else "Automatic (from the car, else 73 kWh) · used to work out charging kW", LfIcons.Bolt, last = true) { editBattery = true }
+            LinkRow("Battery size", if (s.batteryKwh > 0) "${s.batteryKwh.toInt()} kWh usable · used to work out charging kW" else "Automatic (from the car) · used to work out charging kW and energy", LfIcons.Bolt, last = true) { editBattery = true }
         }
 
         SectionTitle("Notifications")
@@ -286,7 +286,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             title = { Text("Battery size", color = c.text) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Usable capacity in kWh. Leave empty to use what the car reports (E-5008: 73 kWh standard range).", style = Type.small, color = c.muted)
+                    Text("Usable capacity in kWh. Leave empty to use what the car reports. Examples: E-5008 73 kWh, e-208/e-2008 46–51 kWh, plug-in hybrids about 10–12 kWh.", style = Type.small, color = c.muted)
                     OutlinedTextField(txt, { txt = it.filter { ch -> ch.isDigit() || ch == '.' }.take(5) }, singleLine = true, label = { Text("kWh") }, colors = fieldColors,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                 }
