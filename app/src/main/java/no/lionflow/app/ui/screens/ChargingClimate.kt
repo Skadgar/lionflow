@@ -144,7 +144,7 @@ fun ClimateScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
                     val on = st?.preconditioningOn != true
                     confirm(if (on) "Start pre-heating" else "Stop pre-heating") { vm.preconditioning(on) }
                 }
-                Text("Heats or cools the cabin for up to about 30 minutes. Uses grid power when plugged in.", style = Type.tiny, color = c.muted)
+                Text("Heats or cools the cabin for a limited time (about 10–30 minutes, depending on the car). Uses grid power when plugged in.", style = Type.tiny, color = c.muted)
             }
         }
 

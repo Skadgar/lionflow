@@ -208,7 +208,7 @@ Pre-heating is on	Le préchauffage est activé	Vorklimatisierung ist an	El preac
 Pre-heating is off	Le préchauffage est désactivé	Vorklimatisierung ist aus	El preacondicionamiento está desactivado	Forvarming er av
 Start pre-heating now	Lancer le préchauffage maintenant	Vorklimatisierung jetzt starten	Iniciar el preacondicionamiento ahora	Start forvarming nå
 Start pre-heating	Lancer le préchauffage	Vorklimatisierung starten	Iniciar el preacondicionamiento	Start forvarming
-Heats or cools the cabin for up to about 30 minutes. Uses grid power when plugged in.	Chauffe ou refroidit l'habitacle pendant environ 30 minutes au maximum. Utilise le réseau électrique quand la voiture est branchée.	Heizt oder kühlt den Innenraum bis zu etwa 30 Minuten. Nutzt Netzstrom, wenn das Auto angesteckt ist.	Calienta o enfría el habitáculo durante unos 30 minutos como máximo. Usa la red eléctrica cuando está enchufado.	Varmer eller kjøler kupeen i opptil ca. 30 minutter. Bruker strøm fra nettet når bilen er tilkoblet.
+Heats or cools the cabin for a limited time (about 10–30 minutes, depending on the car). Uses grid power when plugged in.	Chauffe ou refroidit l'habitacle pendant une durée limitée (environ 10 à 30 minutes selon la voiture). Utilise le réseau électrique quand la voiture est branchée.	Heizt oder kühlt den Innenraum für begrenzte Zeit (etwa 10–30 Minuten, je nach Auto). Nutzt Netzstrom, wenn das Auto angesteckt ist.	Calienta o enfría el habitáculo durante un tiempo limitado (unos 10–30 minutos, según el coche). Usa la red eléctrica si está enchufado.	Varmer eller kjøler kupeen i begrenset tid (omtrent 10–30 minutter, avhengig av bilen). Bruker strøm fra nettet når bilen er plugget i.
 Weather here	Météo ici	Wetter hier	El tiempo aquí	Været her
 Allow location to see the weather and forecast where you are.	Autorisez la localisation pour voir la météo et les prévisions là où vous êtes.	Erlauben Sie den Standort, um Wetter und Vorhersage für Ihren Ort zu sehen.	Permite la ubicación para ver el tiempo y la previsión donde estás.	Tillat posisjon for å se været og varselet der du er.
 Allow location	Autoriser la localisation	Standort erlauben	Permitir ubicación	Tillat posisjon
@@ -290,9 +290,9 @@ Monday to Friday	Du lundi au vendredi	Montag bis Freitag	De lunes a viernes	Mand
 No days	Aucun jour	Keine Tage	Ningún día	Ingen dager
 Pre-heating schedules	Programmes de préchauffage	Zeitpläne für die Vorklimatisierung	Programaciones de preacondicionamiento	Tidsplaner for forvarming
 Sent to the car. Peugeot's status can take a while to show the change.	Envoyé à la voiture. Le statut Peugeot peut mettre un moment à afficher le changement.	An das Auto gesendet. Peugeots Status kann eine Weile brauchen, bis er die Änderung zeigt.	Enviado al coche. El estado de Peugeot puede tardar un poco en mostrar el cambio.	Sendt til bilen. Det kan ta litt tid før Peugeots status viser endringen.
-The car makes the cabin warm (or cool) by the time you set.	La voiture rend l'habitacle chaud (ou frais) pour l'heure choisie.	Das Auto hat den Innenraum zur gewählten Zeit warm (oder kühl).	El coche tendrá el habitáculo caliente (o fresco) a la hora que elijas.	Bilen gjør kupeen varm (eller kjølig) til tiden du velger.
+The car starts heating or cooling the cabin at the time you set.	La voiture commence à chauffer ou refroidir l'habitacle à l'heure choisie.	Das Auto beginnt zur gewählten Zeit, den Innenraum zu heizen oder zu kühlen.	El coche empieza a calentar o enfriar el habitáculo a la hora elegida.	Bilen begynner å varme eller kjøle kupeen til tiden du velger.
 No schedules yet.	Pas encore de programme.	Noch keine Zeitpläne.	Aún no hay programaciones.	Ingen tidsplaner ennå.
-Ready at 	Prête à 	Bereit um 	Listo a las 	Klar kl. 
+Starts at 	Démarre à 	Startet um 	Empieza a las 	Starter kl. 
 Schedule on	Programme activé	Zeitplan an	Programación activada	Tidsplan på
 Turn schedule on	Activer le programme	Zeitplan einschalten	Activar la programación	Slå på tidsplan
 Turn schedule off	Désactiver le programme	Zeitplan ausschalten	Desactivar la programación	Slå av tidsplan
@@ -303,7 +303,7 @@ Save schedule	Enregistrer le programme	Zeitplan speichern	Guardar programación	
 Delete schedule	Supprimer le programme	Zeitplan löschen	Eliminar programación	Slett tidsplan
 New schedule	Nouveau programme	Neuer Zeitplan	Nueva programación	Ny tidsplan
 Edit schedule	Modifier le programme	Zeitplan bearbeiten	Editar programación	Rediger tidsplan
-Ready at	Prête à	Bereit um	Listo a las	Klar kl.
+Starts at	Démarre à	Startet um	Empieza a las	Starter kl.
 Days	Jours	Tage	Días	Dager
 The car decides when to start so the cabin is ready at this time. Peugeot doesn't let apps choose how long it runs.	La voiture décide quand démarrer pour que l'habitacle soit prêt à cette heure. Peugeot ne permet pas aux apps de choisir la durée.	Das Auto entscheidet, wann es startet, damit der Innenraum zu dieser Zeit bereit ist. Peugeot lässt Apps die Dauer nicht festlegen.	El coche decide cuándo empezar para que el habitáculo esté listo a esa hora. Peugeot no permite a las apps elegir la duración.	Bilen bestemmer når den starter, slik at kupeen er klar til denne tiden. Peugeot lar ikke apper velge hvor lenge den går.
 Profile	Profil	Profil	Perfil	Profil
@@ -443,7 +443,7 @@ Next service unknown	Prochain entretien inconnu	Nächster Service unbekannt	Pró
 Next 	Prochain 	Nächster 	Próximo 	Neste 
 Doors are locked	Les portes sont verrouillées	Die Türen sind verriegelt	Las puertas están bloqueadas	Dørene er låst
 Doors are unlocked	Les portes sont déverrouillées	Die Türen sind entriegelt	Las puertas están desbloqueadas	Dørene er ulåst
-Heats or cools the cabin for about 30 minutes	Chauffe ou refroidit l'habitacle pendant environ 30 minutes	Heizt oder kühlt den Innenraum etwa 30 Minuten lang	Calienta o enfría el habitáculo unos 30 minutos	Varmer eller kjøler kupeen i ca. 30 minutter
+Heats or cools the cabin for a limited time	Chauffe ou refroidit l'habitacle pendant une durée limitée	Heizt oder kühlt den Innenraum für begrenzte Zeit	Calienta o enfría el habitáculo durante un tiempo limitado	Varmer eller kjøler kupeen i begrenset tid
 Find the car in a car park	Retrouver la voiture sur un parking	Das Auto auf einem Parkplatz finden	Encontrar el coche en un aparcamiento	Finn bilen på en parkeringsplass
 Sounds the horn twice	Klaxonne deux fois	Hupt zweimal	Toca el claxon dos veces	Tuter to ganger
 Remote actions	Actions à distance	Fernaktionen	Acciones remotas	Fjernhandlinger

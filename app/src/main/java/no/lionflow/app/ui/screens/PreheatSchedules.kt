@@ -68,7 +68,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
         Text("Pre-heating schedules", style = Type.label, color = c.text, modifier = Modifier.padding(start = 18.dp, top = 16.dp, end = 18.dp))
         Text(
             if (vm.programsPending() && ui.commandInProgress == null) "Sent to the car. Peugeot's status can take a while to show the change."
-            else "The car makes the cabin warm (or cool) by the time you set.",
+            else "The car starts heating or cooling the cabin at the time you set.",
             style = Type.tiny, color = c.muted, modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 6.dp))
         if (programs.isEmpty()) {
             Text("No schedules yet.", style = Type.small, color = c.muted, modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
@@ -80,7 +80,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Ready at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
+                    Text("Starts at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
                     Text(daysText(p.days), style = Type.small, color = c.muted)
                     if (p.slot in skipped) Text("Skipped by Smart schedule", style = Type.tiny, color = c.orangeInk)
                 }
@@ -126,7 +126,7 @@ private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit
         title = { Text(if (isNew) "New schedule" else "Edit schedule", color = c.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Ready at", style = Type.small, color = c.muted)
+                Text("Starts at", style = Type.small, color = c.muted)
                 TimeInput(state = time, colors = TimePickerDefaults.colors(
                     timeSelectorSelectedContainerColor = c.raised, timeSelectorUnselectedContainerColor = c.raised,
                     timeSelectorSelectedContentColor = c.text, timeSelectorUnselectedContentColor = c.text,
