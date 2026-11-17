@@ -276,7 +276,7 @@ object CarHub {
     }
 
     fun chargingLine(st: VehicleStatus): String = when {
-        st.isCharging -> "Charging" + (no.lionflow.app.model.ChargePower.label(st)?.let { " at $it" } ?: "") + (st.remainingMinutes?.let { m -> " · ${m / 60} h ${m % 60} min left" } ?: "")
+        st.isCharging -> "Charging" + (no.lionflow.app.model.ChargePower.label(st)?.let { " at $it" } ?: "") + (no.lionflow.app.model.ChargePower.leftText(st) ?: "")
         st.chargingStatus == "Finished" -> "Charging complete"
         st.plugged -> "Plugged in, not charging"
         else -> "Not plugged in"

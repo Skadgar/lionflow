@@ -630,7 +630,7 @@ fun chargingLine(st: no.lionflow.app.model.VehicleStatus?): String {
     if (st == null) return "Waiting for data…"
     val next = if (st.nextDelayedHour != null) no.lionflow.app.ui.l10n.TimeFmt.hm(st.nextDelayedHour, st.nextDelayedMinute ?: 0) else null
     return when {
-        st.isCharging -> "Charging" + (no.lionflow.app.model.ChargePower.label(st)?.let { " at $it" } ?: "") + (st.remainingMinutes?.let { " · ${it / 60} h ${it % 60} min left" } ?: "")
+        st.isCharging -> "Charging" + (no.lionflow.app.model.ChargePower.label(st)?.let { " at $it" } ?: "") + (no.lionflow.app.model.ChargePower.leftText(st) ?: "")
         st.plugged && next != null -> "Plugged in · charging from $next"
         st.plugged -> "Plugged in · " + when (st.chargingStatus) { "Finished" -> "full"; "Stopped" -> "paused"; else -> "not charging" }
         else -> "Not plugged in"

@@ -40,7 +40,8 @@ object WidgetData {
             .put("range", st.rangeKm ?: -1.0)
             .put("charging", st.isCharging)
             .put("plugged", st.plugged)
-            .put("remaining", st.remainingMinutes ?: -1)
+            .put("remaining", no.lionflow.app.model.ChargePower.timeLeft(st)?.first ?: -1)
+            .put("remainingTo", no.lionflow.app.model.ChargePower.timeLeft(st)?.second ?: -1)
             .put("fuel", st.energyType == "Fuel")
             .put("kw", no.lionflow.app.model.ChargePower.label(st) ?: "")
             .put("outside", st.outsideTempC ?: -999.0)
@@ -192,7 +193,7 @@ class CarWidget : AppWidgetProvider() {
                 v.setViewVisibility(R.id.w_bolt, if (charging) View.VISIBLE else View.GONE)
                 v.setViewVisibility(R.id.w_plug, if (charging) View.GONE else View.VISIBLE)
                 v.setTextViewText(R.id.w_charging, tr(when {
-                    charging && remaining > 0 -> "Charging${snap.optString("kw").takeIf { it.isNotBlank() }?.let { " $it" } ?: ""} · ${remaining / 60} h ${remaining % 60} min left"
+                    charging && remaining > 0 -> "Charging${snap.optString("kw").takeIf { it.isNotBlank() }?.let { " $it" } ?: ""} · ${remaining / 60} h ${remaining % 60} min left${snap.optInt("remainingTo", -1).takeIf { it > 0 }?.let { " to $it %" } ?: ""}"
                     charging -> "Charging${snap.optString("kw").takeIf { it.isNotBlank() }?.let { " $it" } ?: ""}"
                     plugged -> "Plugged in · not charging"
                     else -> "Not charging"

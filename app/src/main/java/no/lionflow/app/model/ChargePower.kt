@@ -12,6 +12,19 @@ import java.util.Locale
  *  - estimated (until there are two reports): energy still needed ÷ time left reported by the car
  */
 object ChargePower {
+    /** Minutes left and the % they lead to: to LionFlow's limit when one is set and still ahead, otherwise the car's own time to full. */
+    fun timeLeft(st: VehicleStatus): Pair<Int, Int?>? {
+        val rem = st.remainingMinutes ?: return null
+        val s = settings?.value
+        val soc = st.batteryPct
+        if (s != null && s.chargeLimitOn && soc != null && soc < s.chargeLimitPct && soc < 100)
+            return Pair((rem * (s.chargeLimitPct - soc) / (100 - soc)).toInt().coerceAtLeast(1), s.chargeLimitPct)
+        return Pair(rem, null)
+    }
+    fun leftText(st: VehicleStatus): String? = timeLeft(st)?.let { (m, pct) ->
+        " · ${m / 60} h ${m % 60} min left" + (pct?.let { " to $it %" } ?: "")
+    }
+
     data class Reading(val kw: Double, val measured: Boolean)
 
     private var prefs: SharedPreferences? = null
