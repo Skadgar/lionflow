@@ -266,10 +266,19 @@ class WidgetRefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
                 WidgetData.setRefresh(ctx, true, "Almost there — Peugeot sometimes needs up to 30 seconds")
             }
             try {
-                if (inputData.getBoolean("wake", false)) { no.lionflow.app.work.Waker.wake(app); app.remote.disconnect() }
-                val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(vehicle), null))
+                // Show what the servers already know straight away; only wake the car if that data is old.
+                var st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(vehicle), null))
                 explainer.cancel()
                 WidgetData.save(ctx, st)
+                val old = st.updatedAtMillis?.let { System.currentTimeMillis() - it > 5 * 60_000 } ?: true
+                if (inputData.getBoolean("wake", false) && old && st.moving != true) {
+                    WidgetData.setRefresh(ctx, true, "Waking the car…")
+                    try { no.lionflow.app.work.Waker.wake(app) } catch (_: Exception) { }
+                    try {
+                        st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(vehicle), null))
+                    } catch (_: Exception) { }
+                    WidgetData.save(ctx, st)
+                }
             } catch (e: AuthExpiredException) {
                 explainer.cancel()
                 WidgetData.setRefresh(ctx, false, "Signed out by Peugeot — open LionFlow to sign in again")
