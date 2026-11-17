@@ -39,6 +39,8 @@ data class AppSettings(
     val carVideoSync: Boolean = true,   // hold the picture back ~0.4 s so it lines up with the car's delayed audio
     val chargeLimitOn: Boolean = false, // LionFlow stops charging at chargeLimitPct
     val chargeLimitPct: Int = 80,
+    /** Car is set to charge to 100 % while LionFlow stops it at chargeLimitPct (lets it go past the car's own daily limit). */
+    val chargeForce: Boolean = false,
     val oilChangeMillis: Long = 0L,     // when the engine oil was last changed (plug-in hybrids): counts engine km since
     val serviceKm: Int = 0,             // service interval in km; 0 = default for the car type
     val serviceMonths: Int = 0,         // service interval in months; 0 = default
@@ -88,6 +90,7 @@ class SettingsStore(context: Context) {
         batteryKwh = p.getFloat("batteryKwh", 0f).toDouble(),
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
         chargeLimitPct = p.getInt("chargeLimitPct", 80),
+        chargeForce = p.getBoolean("chargeForce", false),
         routeTracking = p.getBoolean("routeTracking", false),
         oilChangeMillis = p.getLong("oilChangeMillis", 0L),
         serviceKm = p.getInt("serviceKm", 0),
@@ -131,6 +134,7 @@ class SettingsStore(context: Context) {
             .putFloat("batteryKwh", s.batteryKwh.toFloat())
             .putBoolean("chargeLimitOn", s.chargeLimitOn)
             .putInt("chargeLimitPct", s.chargeLimitPct)
+            .putBoolean("chargeForce", s.chargeForce)
             .putBoolean("routeTracking", s.routeTracking)
             .putLong("oilChangeMillis", s.oilChangeMillis)
             .putInt("serviceKm", s.serviceKm)

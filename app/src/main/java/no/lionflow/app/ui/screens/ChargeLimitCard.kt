@@ -10,6 +10,7 @@ import no.lionflow.app.ui.l10n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,7 +62,11 @@ fun ChargeLimitCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 Text("Stop at ${pct.toInt()} %", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = if (s.chargeLimitOn) c.text else c.muted)
                 Text("LionFlow stops charging for you", style = Type.tiny, color = c.muted)
             }
-            Toggle(s.chargeLimitOn, "LionFlow charge limit") { on -> vm.settings.update { it.copy(chargeLimitOn = on) } }
+            Toggle(s.chargeLimitOn, "LionFlow charge limit") { on ->
+                vm.settings.update { it.copy(chargeLimitOn = on, chargeForce = if (on) it.chargeForce else false) }
+                // Without our limit, "charge past the car's limit" would just mean 100 %: put the car back on its own limit.
+                if (!on && s.chargeForce && st != null && st.chargeType == "Full") vm.setCarChargeLimit(true)
+            }
         }
         Slider(
             value = pct, onValueChange = { pct = (Math.round(it / 5f) * 5).toFloat() },
@@ -73,5 +78,31 @@ fun ChargeLimitCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
             "Works with any charger, also ones that ignore the car's limit. LionFlow checks every few minutes while charging (more often near the limit), so it can end 1–2 % over. The phone needs internet, and remote control must be set up.",
             style = Type.tiny, color = c.muted,
         )
+        Text(
+            "Note: this can only stop charging earlier than the car's own daily limit, never later. To stop at a higher number than the car's limit, use the option below.",
+            style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = c.muted,
+        )
+        if (s.chargeLimitOn) {
+            Divider()
+            var warn by remember { mutableStateOf(false) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Charge past the car's limit", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+                    Text("Car charges to 100 %, LionFlow stops it at ${pct.toInt()} %", style = Type.tiny, color = c.muted)
+                }
+                Toggle(s.chargeForce, "Charge past the car's limit") { on ->
+                    if (on) { warn = true }
+                    else { vm.settings.update { it.copy(chargeForce = false) }; if (st?.chargeType == "Full") vm.setCarChargeLimit(true) }
+                }
+            }
+            if (s.chargeForce) Text("Active: the car is set to charge to 100 %. If your phone is offline or LionFlow can't run in the background, it will not stop at ${s.chargeLimitPct} %.", style = Type.tiny, color = c.orangeInk)
+            if (warn) androidx.compose.material3.AlertDialog(
+                onDismissRequest = { warn = false },
+                title = { Text("Charge past the car's limit?") },
+                text = { Text("The car will be told to charge to 100 %, and LionFlow will then stop it at ${pct.toInt()} %.\n\nThis only works if your phone has internet, LionFlow is allowed to run in the background and the car answers. If any of these fail, the car keeps charging to 100 %. Doing that often is not good for the battery in the long run.\n\nIt can end 1–2 % over your limit. LionFlow is an unofficial app and comes without any warranty. You use this at your own risk.") },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { warn = false; vm.settings.update { it.copy(chargeForce = true) }; if (st != null) vm.setCarChargeLimit(false) }) { Text("I understand, turn on") } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { warn = false }) { Text("Cancel") } },
+            )
+        }
     }
 }

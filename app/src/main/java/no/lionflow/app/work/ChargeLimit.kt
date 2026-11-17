@@ -89,6 +89,11 @@ object ChargeLimit {
             val ok = r !is CommandResult.Failed
             save(app, s.copy(tries = s.tries + 1, lastTry = System.currentTimeMillis()))
             app.remote.addLog("charge limit $limit % → try ${s.tries + 1}: ${if (ok) "sent (delay to %02d:%02d)".format(h, m) else (r as CommandResult.Failed).reason}")
+            // Forced mode: the car was set to charge to 100 %, so put it back on its daily limit now that we've stopped it.
+            if (ok && app.settings.value.chargeForce) {
+                val back = app.remote.chargeLimit(true)
+                app.remote.addLog("charge limit: back to the car's daily limit → ${if (back is CommandResult.Failed) back.reason else "sent"}")
+            }
             return if (s.tries == 0) "Asking the car to stop charging at $pct % (your limit is $limit %)" else null
         } finally {
             sending = false
