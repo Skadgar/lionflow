@@ -92,6 +92,14 @@ object CarHub {
 
     fun app(ctx: Context) = ctx.applicationContext as LionFlowApp
 
+    /** Another car was chosen: forget everything about the old one and load the new one. */
+    fun switchCar(ctx: Context, e: no.lionflow.app.model.Garage.Entry) {
+        no.lionflow.app.model.Garage.activate(app(ctx), e)
+        _status.value = null; _chargers.value = emptyList(); _fuel.value = emptyList(); _trips.value = null
+        fuelAt = 0L; lastRefresh = 0L; tripsLoadedAt = 0L
+        refresh(ctx, force = true); loadTrips(ctx, force = true)
+    }
+
     fun refresh(ctx: Context, force: Boolean = false) {
         val app = app(ctx)
         if (!app.api.isSignedIn || refreshing) return

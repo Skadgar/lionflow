@@ -23,4 +23,5 @@
     <string name="sending">Sending to the car…</string>
     <string name="updated" formatted="false">Updated %s</string>
     <color name="launcher_bg">#121417</color>
+    <string name="switch_car">Switch car</string>
 </resources>

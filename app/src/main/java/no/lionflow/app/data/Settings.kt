@@ -145,9 +145,15 @@ class SettingsStore(context: Context) {
         get() = p.getLong("lastUpdateCheck", 0L)
         set(v) { p.edit().putLong("lastUpdateCheck", v).apply() }
 
-    var photoPath: String?
-        get() = p.getString("photo", null)
-        set(v) { p.edit().putString("photo", v).apply() }
+    /** One photo per car. The photo from before this existed goes to the first car that asks for it. */
+    fun photoFor(vin: String): String? {
+        p.getString("photo_$vin", null)?.let { return it }
+        val legacy = p.getString("photo", null) ?: return null
+        val owner = p.getString("photoOwner", null)
+        if (owner == null) { p.edit().putString("photoOwner", vin).putString("photo_$vin", legacy).apply(); return legacy }
+        return if (owner == vin) legacy else null
+    }
+    fun setPhotoFor(vin: String, path: String) = p.edit().putString("photo_$vin", path).apply()
 
     /** Locally kept service history (the API only knows the next service). */
     var serviceHistoryJson: String

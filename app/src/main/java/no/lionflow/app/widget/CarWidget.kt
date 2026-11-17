@@ -109,10 +109,15 @@ class CarWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_REFRESH) refresh(context)
+        if (intent.action == ACTION_NEXT_CAR) {
+            val app = context.applicationContext as LionFlowApp
+            no.lionflow.app.model.Garage.next(app)?.let { no.lionflow.app.model.Garage.activate(app, it); refresh(context) }
+        }
     }
 
     companion object {
         const val ACTION_REFRESH = "no.lionflow.app.WIDGET_REFRESH"
+        const val ACTION_NEXT_CAR = "no.lionflow.app.WIDGET_NEXT_CAR"
 
         /** Shows the spinner immediately, then fetches in the background. */
         fun refresh(ctx: Context) {
@@ -143,7 +148,11 @@ class CarWidget : AppWidgetProvider() {
             val refreshing = WidgetData.isRefreshing(ctx)
             val v = RemoteViews(ctx.packageName, R.layout.widget_car)
 
-            v.setTextViewText(R.id.w_name, tr(s.carName))
+            val several = no.lionflow.app.model.Garage.hasSeveral(app)
+            v.setTextViewText(R.id.w_name, tr(s.carName) + if (several) "  ⇄" else "")
+            // Tap the name to switch car, only when more than one car is registered.
+            if (several) v.setOnClickPendingIntent(R.id.w_name, PendingIntent.getBroadcast(
+                ctx, 3, Intent(ctx, CarWidget::class.java).setAction(ACTION_NEXT_CAR), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             v.setViewVisibility(R.id.w_refresh_icon, if (refreshing) View.GONE else View.VISIBLE)
             v.setViewVisibility(R.id.w_spinner, if (refreshing) View.VISIBLE else View.GONE)
             v.setTextViewText(R.id.w_range_unit, tr(if (s.distanceUnit == "mi") "mi" else "km"))

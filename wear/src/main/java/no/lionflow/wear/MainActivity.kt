@@ -52,7 +52,7 @@ import org.json.JSONObject
 /** What the phone sends back. Texts arrive already formatted in your language and units. */
 data class CarState(
     val name: String, val battery: String, val range: String, val fuel: Boolean, val locked: Boolean?,
-    val place: String, val today: String, val yesterday: String, val updated: String, val status: String,
+    val place: String, val today: String, val yesterday: String, val updated: String, val status: String, val cars: Int = 1,
 )
 
 /**
@@ -88,6 +88,13 @@ class WearVm(app: Application) : AndroidViewModel(app), MessageClient.OnMessageR
         delay(30_000); if (busy.value && state.value == null) { busy.value = false; noPhone.value = true }
     }
 
+    /** Only offered when more than one car is registered on the phone. */
+    fun nextCar() = viewModelScope.launch {
+        busy.value = true
+        message.value = null
+        if (!send("/lionflow/cmd", "nextcar")) busy.value = false
+    }
+
     fun command(cmd: String) = viewModelScope.launch {
         busy.value = true
         message.value = null
@@ -103,7 +110,7 @@ class WearVm(app: Application) : AndroidViewModel(app), MessageClient.OnMessageR
                 state.value = CarState(
                     j.optString("name"), j.optString("battery"), j.optString("range"), j.optBoolean("fuel"),
                     if (j.isNull("locked")) null else j.optBoolean("locked"),
-                    j.optString("place"), j.optString("today"), j.optString("yesterday"), j.optString("updated"), j.optString("status"),
+                    j.optString("place"), j.optString("today"), j.optString("yesterday"), j.optString("updated"), j.optString("status"), j.optInt("cars", 1),
                 )
             }
             "/lionflow/cmd/reply" -> {
@@ -136,6 +143,7 @@ fun WearApp(vm: WearVm = viewModel()) {
     Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = list) }) {
         ScalingLazyColumn(Modifier.fillMaxWidth(), state = list, horizontalAlignment = Alignment.CenterHorizontally) {
             item { Text(st?.name ?: stringResource(R.string.app_name), color = Lime, fontWeight = FontWeight.Bold) }
+            if ((st?.cars ?: 1) > 1) item { Chip(label = { Text("⇄ " + stringResource(R.string.switch_car)) }, onClick = { vm.nextCar() }, enabled = !busy, colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
             val s = st
             if (s == null) {
                 item {

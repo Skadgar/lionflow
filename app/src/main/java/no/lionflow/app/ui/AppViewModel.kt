@@ -97,7 +97,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val hasPin: Boolean get() = remote.hasPin
 
     init {
-        _ui.update { it.copy(lastRefresh = settings.lastRefresh, photoPath = settings.photoPath, serviceHistory = loadHistory()) }
+        _ui.update { it.copy(lastRefresh = settings.lastRefresh, photoPath = curPhoto(), serviceHistory = loadHistory()) }
         decideStartPhase()
         checkForUpdate(force = false)
     }
@@ -128,7 +128,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         no.lionflow.app.model.ChargeLog.setVin(v.vin)
         no.lionflow.app.model.ChargePower.setVin(v.vin)
         no.lionflow.app.widget.WidgetData.clear(getApplication())
-        _ui.update { it.copy(vehicle = v, status = null) }
+        _ui.update { it.copy(vehicle = v, status = null, photoPath = settings.photoFor(v.vin)) }
         refresh()
     }
 
@@ -153,31 +153,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Open the car [vin] on account [id] (switching account if needed). */
     fun switchTo(id: String, vin: String?) {
         if (isDemo) return
-        if (id == settings.activeAccount) {
-            _ui.value.vehicles.firstOrNull { it.vin == vin }?.let { selectVehicle(it) }
-            return
-        }
-        // Save the current car's name, stop everything that belongs to the old account.
-        _ui.value.vehicle?.let { settings.setNameFor(it.vin, settings.value.carName) }
-        remote.disconnect()
-        ticker?.cancel()
+        if (id == settings.activeAccount && (vin == null || vin == _ui.value.vehicle?.vin)) return
+        val app = getApplication<Application>() as no.lionflow.app.LionFlowApp
         val target = settings.accounts().firstOrNull { it.id == id } ?: return
+        if (id == settings.activeAccount) { _ui.value.vehicles.firstOrNull { it.vin == vin }?.let { selectVehicle(it) }; return }
+        ticker?.cancel()
         // An account that was started but never signed in is dropped when leaving it.
         if (!api.isSignedIn) settings.saveAccounts(settings.accounts().filter { it.id != settings.activeAccount })
-        api.switchProfile(id)
-        settings.activeAccount = id
-        settings.update { it.copy(brand = target.brand, country = target.country) }
-        if (vin != null) api.selectedVin = vin
-        settings.pendingPrograms = ""
-        no.lionflow.app.widget.WidgetData.clear(getApplication<Application>())
-        _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
-        val v = api.cachedVehicle()
-        if (v != null) {
-            settings.update { it.copy(carName = settings.nameFor(v.vin) ?: ("My " + target.let { t -> no.lionflow.app.model.Brand.of(t.brand).display })) }
-            no.lionflow.app.model.ChargeLog.setVin(v.vin); no.lionflow.app.model.ChargePower.setVin(v.vin)
-        }
+        val entry = no.lionflow.app.model.Garage.entries(app).firstOrNull { it.accountId == id && (vin == null || it.vehicle.vin == vin) }
+        if (entry != null) no.lionflow.app.model.Garage.activate(app, entry)
+        else { api.switchProfile(id); settings.activeAccount = id; settings.update { it.copy(brand = target.brand, country = target.country) } }
+        resyncFromStore()
+    }
+
+    /** Re-read the active car from storage (after the widget, watch or car screen switched it). */
+    private fun resyncFromStore() {
+        ticker?.cancel()
+        _ui.value = UiState(photoPath = curPhoto(), serviceHistory = loadHistory())
         decideStartPhase()
     }
+
+    /** Called when the app comes forward: another surface may have changed the car. */
+    private fun syncIfSwitchedElsewhere() {
+        if (isDemo || _ui.value.phase == Phase.SignedOut) return
+        val v = api.cachedVehicle() ?: return
+        if (v.vin != _ui.value.vehicle?.vin) resyncFromStore()
+    }
+
+    private fun curPhoto(): String? = api.cachedVehicle()?.vin?.let { settings.photoFor(it) }
 
     /** Start signing in to another account (maybe another brand). The current one stays signed in. */
     fun addAccount() {
@@ -190,7 +193,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         api.switchProfile(id)
         settings.activeAccount = id
         no.lionflow.app.widget.WidgetData.clear(getApplication<Application>())
-        _ui.value = UiState(phase = Phase.SignedOut, photoPath = settings.photoPath, serviceHistory = loadHistory())
+        _ui.value = UiState(phase = Phase.SignedOut, photoPath = curPhoto(), serviceHistory = loadHistory())
     }
 
     /** True while adding another account: lets the sign-in screen offer "back to my cars". */
@@ -239,7 +242,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 settings.saveAccounts(if (accs.any { it.id == cur }) accs.map { if (it.id == cur) it.copy(brand = settings.value.brand, country = settings.value.country) else it }
                     else accs + no.lionflow.app.data.SettingsStore.Account(cur, settings.value.brand, settings.value.country))
                 v?.let { no.lionflow.app.model.ChargeLog.setVin(it.vin); no.lionflow.app.model.ChargePower.setVin(it.vin) }
-                _ui.update { it.copy(vehicle = v, vehicles = all, signingIn = false, phase = Phase.SetupRemote) }
+                _ui.update { it.copy(vehicle = v, vehicles = all, signingIn = false, phase = Phase.SetupRemote, photoPath = v?.vin?.let { vin -> settings.photoFor(vin) }) }
                 if (v == null) toast("No car found on this account — add it in the MyPeugeot app first")
             } catch (e: Exception) {
                 _ui.update { it.copy(signingIn = false) }
@@ -315,7 +318,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         no.lionflow.app.model.ChargeLog.exitDemo()
         settings.update { it.copy(carName = settings.demoPrevName.ifBlank { "My " + no.lionflow.app.model.Brands.current.display }) }
         ticker?.cancel()
-        _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
+        _ui.value = UiState(photoPath = curPhoto(), serviceHistory = loadHistory())
         decideStartPhase()
     }
 
@@ -336,14 +339,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val next = rest.firstOrNull { api.isSignedInTo(it.id) } ?: rest.first()
             api.switchProfile(next.id); settings.activeAccount = next.id
             settings.update { it.copy(brand = next.brand, country = next.country) }
-            _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
+            _ui.value = UiState(photoPath = curPhoto(), serviceHistory = loadHistory())
             val v = api.cachedVehicle()
             if (v != null) { settings.update { it.copy(carName = settings.nameFor(v.vin) ?: ("My " + no.lionflow.app.model.Brand.of(next.brand).display)) }
                 no.lionflow.app.model.ChargeLog.setVin(v.vin); no.lionflow.app.model.ChargePower.setVin(v.vin) }
             decideStartPhase()
             return
         }
-        _ui.value = UiState(phase = Phase.SignedOut, photoPath = settings.photoPath, serviceHistory = loadHistory())
+        _ui.value = UiState(phase = Phase.SignedOut, photoPath = curPhoto(), serviceHistory = loadHistory())
     }
 
     // ---------------- lock ----------------
@@ -367,6 +370,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called when the app comes to the foreground. */
     fun onForeground() {
+        syncIfSwitchedElsewhere()
         checkForUpdate(force = false)
         if (_ui.value.needsInstallPermission && no.lionflow.app.update.Updater.canInstall(getApplication<Application>())) installUpdate()
         if (_ui.value.phase == Phase.Ready) {
@@ -844,9 +848,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val ctx = getApplication<Application>()
                 // Demo mode gets its own throw-away photo; the real one is never touched or shown.
-                val f = File(if (isDemo) ctx.cacheDir else ctx.filesDir, if (isDemo) "demo_photo.jpg" else "car_photo.jpg")
+                val vin = _ui.value.vehicle?.vin
+                val f = File(if (isDemo) ctx.cacheDir else ctx.filesDir, if (isDemo) "demo_photo.jpg" else "car_photo_${vin ?: "x"}.jpg")
                 ctx.contentResolver.openInputStream(uri)?.use { input -> f.outputStream().use { input.copyTo(it) } }
-                if (!isDemo) settings.photoPath = f.absolutePath
+                if (!isDemo && vin != null) settings.setPhotoFor(vin, f.absolutePath)
                 _ui.update { it.copy(photoPath = f.absolutePath + "?" + System.currentTimeMillis()) }
             } catch (e: Exception) {
                 toast("Couldn't save the photo")

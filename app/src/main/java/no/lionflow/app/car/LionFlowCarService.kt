@@ -213,6 +213,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
         tile(5, st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", "Total driven", R.drawable.ic_car_gauge)
         tile(6, "Service", serviceLine(st, s), R.drawable.ic_car_refresh)
+        if (no.lionflow.app.model.Garage.hasSeveral(app)) tile(3, "Switch car", s.carName, R.drawable.ic_car_switch) { screenManager.push(CarsScreen(carContext)) }
         val trips = CarHub.trips.value
         val week = trips?.filter { (it.startMillis ?: 0L) >= System.currentTimeMillis() - 7 * 86_400_000L }
         val km = week?.sumOf { it.distanceKm } ?: 0.0
@@ -286,6 +287,28 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
                 .setOnClickListener { navigateTo(ch) }.build())
         }
         return b.setSingleList(list.build()).build()
+    }
+}
+
+// ---------------------------------------------------------------- switch car
+
+/** All registered cars (any brand). Only reachable when there is more than one. */
+class CarsScreen(ctx: CarContext) : Screen(ctx) {
+    override fun onGetTemplate(): Template {
+        val app = CarHub.app(carContext)
+        val cur = no.lionflow.app.model.Garage.current(app)
+        val list = ItemList.Builder()
+        no.lionflow.app.model.Garage.entries(app).take(6).forEach { e ->
+            list.addItem(Row.Builder()
+                .setTitle(no.lionflow.app.model.Garage.name(app, e).ifBlank { e.brand.display })
+                .addText(e.brand.display + if (e == cur) " · " + tr("Selected") else "")
+                .setImage(carContext.icon(R.drawable.ic_car_switch))
+                .setOnClickListener {
+                    if (e != cur) CarHub.switchCar(carContext, e)
+                    screenManager.pop()
+                }.build())
+        }
+        return ListTemplate.Builder().setTitle(tr("Switch car")).setHeaderAction(Action.BACK).setSingleList(list.build()).build()
     }
 }
 

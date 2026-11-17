@@ -22,4 +22,5 @@
     <string name="no">Nein</string>
     <string name="sending">Wird an das Auto gesendet…</string>
     <string name="updated" formatted="false">Aktualisiert %s</string>
+    <string name="switch_car">Auto wechseln</string>
 </resources>

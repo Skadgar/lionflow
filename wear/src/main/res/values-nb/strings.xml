@@ -22,4 +22,5 @@
     <string name="no">Nei</string>
     <string name="sending">Sender til bilen…</string>
     <string name="updated" formatted="false">Oppdatert %s</string>
+    <string name="switch_car">Bytt bil</string>
 </resources>

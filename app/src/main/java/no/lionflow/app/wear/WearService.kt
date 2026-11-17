@@ -38,7 +38,13 @@ class WearService : WearableListenerService() {
         runBlocking {
             when (e.path) {
                 "/lionflow/status" -> reply(e.sourceNodeId, "/lionflow/status/reply", status())
-                "/lionflow/cmd" -> command(e.sourceNodeId, String(e.data))
+                "/lionflow/cmd" -> {
+                    val cmd = String(e.data)
+                    if (cmd == "nextcar") {
+                        no.lionflow.app.model.Garage.next(app)?.let { no.lionflow.app.model.Garage.activate(app, it) }
+                        reply(e.sourceNodeId, "/lionflow/status/reply", status())
+                    } else command(e.sourceNodeId, cmd)
+                }
             }
         }
     }
@@ -58,6 +64,7 @@ class WearService : WearableListenerService() {
             val (today, yesterday) = try { distances(v) } catch (_: Exception) { null to null }
             JSONObject()
                 .put("name", s.carName)
+                .put("cars", no.lionflow.app.model.Garage.entries(app).size)
                 .put("battery", st.batteryPct?.let { "${it.toInt()} %" } ?: "—")
                 .put("range", "≈ " + fmtDistance(st.rangeKm, s) + if (st.rangeEstimated) " " + tr("(est.)").trim() else "")
                 .put("fuel", st.energyType == "Fuel")
