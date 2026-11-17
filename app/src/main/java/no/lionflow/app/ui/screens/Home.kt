@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -83,8 +84,7 @@ fun HomeScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean, exp
                     Spacer(Modifier.height(4.dp))
                     // Things the left column doesn't already show
                     if (no.lionflow.app.ui.Caps.battery(ui.status)) ChargingSummary(vm, ui, s)
-                    if (no.lionflow.app.ui.Caps.climate(ui.status)) ClimateSummary(vm, ui, s)
-                    TripsCard(vm, ui, s)
+                    TripsClimateRow(vm, ui, s)
                     if (no.lionflow.app.ui.Caps.battery(ui.status)) MonthCostCard(vm)
                     ServiceCard(vm, ui, s)
                 }
@@ -332,8 +332,73 @@ private fun QuickActions(vm: AppViewModel, ui: UiState) {
 
 @Composable
 private fun NavCards(vm: AppViewModel, ui: UiState, s: AppSettings) {
-    TripsCard(vm, ui, s)
+    TripsClimateRow(vm, ui, s)
     ServiceCard(vm, ui, s)
+}
+
+/** Trips and Climate side by side, each half the width. Cars without climate get the full-width trips card. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TripsClimateRow(vm: AppViewModel, ui: UiState, s: AppSettings) {
+    if (!no.lionflow.app.ui.Caps.climate(ui.status)) { TripsCard(vm, ui, s); return }
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TripsTile(Modifier.weight(1f).fillMaxHeight(), vm, ui, s)
+        ClimateTile(Modifier.weight(1f).fillMaxHeight(), vm, ui, s)
+    }
+}
+
+@Composable
+private fun TripsTile(modifier: Modifier, vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val dayMs = 86_400_000L
+    val cal = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+    val days = (6 downTo 0).map { cal.timeInMillis - it * dayMs }
+    val week = ui.trips.filter { (it.startMillis ?: 0L) >= days.first() }
+    val perDay = days.map { d -> week.filter { (it.startMillis ?: 0L) in d until d + dayMs }.sumOf { it.distanceKm } }
+    val km = perDay.sum()
+    val kwh = week.mapNotNull { it.kwh }.sum()
+    val max = (perDay.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
+    LfCard(modifier, radius = 24.dp, padding = androidx.compose.foundation.layout.PaddingValues(16.dp), onClick = { vm.setTab(Tab.Trips); vm.loadTrips() }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LfIcon(LfIcons.Route, c.text, 22.dp)
+            Text("Trips", style = Type.stat.copy(fontSize = 18.sp), color = c.text, modifier = Modifier.weight(1f))
+            LfIcon(LfIcons.Chevron, c.muted, 18.dp)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(if (ui.trips.isEmpty() && ui.tripsLoading) "…" else fmtDistance(km, s), style = Type.display.copy(fontSize = 28.sp, fontWeight = FontWeight.Bold), color = c.text)
+            Text("Last 7 days · ${week.size} trips", style = Type.small, color = c.muted)
+            if (km > 1 && kwh > 0) Text(if (s.distanceUnit == "mi") String.format(java.util.Locale.US, "%.1f mi/kWh", km / kwh / 1.609344) else String.format(java.util.Locale.US, "%.1f kWh/100 km", kwh / km * 100), style = Type.tiny, color = c.muted)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            perDay.forEachIndexed { i, v ->
+                Box(Modifier.width(9.dp).height((4 + 26 * (v / max)).dp).clip(RoundedCornerShape(4.dp)).background(if (i == 6) c.accent else if (v > 0) c.bar else c.track))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClimateTile(modifier: Modifier, vm: AppViewModel, ui: UiState, s: AppSettings) {
+    val c = LocalLf.current
+    val st = ui.status
+    val confirm = LocalConfirm.current
+    val on = st?.preconditioningOn == true
+    LfCard(modifier, radius = 24.dp, padding = androidx.compose.foundation.layout.PaddingValues(16.dp), onClick = { vm.setTab(Tab.Climate) }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LfIcon(LfIcons.Thermo, if (on) c.orangeInk else c.text, 22.dp)
+            Text("Climate", style = Type.stat.copy(fontSize = 18.sp), color = c.text, modifier = Modifier.weight(1f))
+            LfIcon(LfIcons.Chevron, c.muted, 18.dp)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(if (on) "Pre-heating" else "Off", style = Type.display.copy(fontSize = 28.sp, fontWeight = FontWeight.Bold), color = c.text)
+            Text("Outside ${fmtTemp(st?.outsideTempC ?: ui.weather?.tempC, s)}", style = Type.small, color = c.muted)
+            nextSchedule(st)?.let { Text("Next: $it", style = Type.tiny, color = c.muted) }
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f, fill = false))
+        if (vm.remoteReady) no.lionflow.app.ui.components.PrimaryButton(if (on) "Stop" else "Pre-heat", Modifier.fillMaxWidth(), color = c.orange) {
+            confirm(if (!on) "Start pre-heating" else "Stop pre-heating") { vm.preconditioning(!on) }
+        }
+    }
 }
 
 /** Last 7 days: distance, trips and a small bar per day. */
