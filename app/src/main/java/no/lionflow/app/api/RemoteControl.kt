@@ -316,7 +316,7 @@ class RemoteControl(private val api: StellantisApi, private val secure: SecureSt
         } catch (e: Exception) {
             val msg = if (e is org.eclipse.paho.client.mqttv3.MqttException) when (e.reasonCode) {
                 // SUBACK 0x80: connected, but Peugeot won't let this account listen to the car.
-                128 -> "Peugeot refused remote control for this account (MQTT code 128). Usually remote services aren't active for this car: check in MyPeugeot that the remote service (e-Remote Control / Connect) is activated and that pre-heating works there. If someone else added the car, they may need to share remote access."
+                128 -> "Peugeot refused remote control for this account (MQTT code 128). Usually remote services aren't active for this car: check in MyPeugeot that the remote service is activated and that pre-heating works there. This needs a subscription from the car brand: " + no.lionflow.app.model.Brands.current.eRemotePack + " for charging and pre-heating, " + no.lionflow.app.model.Brands.current.doorsPack + " for lock, lights and horn. If someone else added the car, they may need to share remote access."
                 4, 5 -> "Peugeot's remote-control server didn't accept the login (MQTT code ${e.reasonCode}). Set up remote control again in Settings."
                 else -> "Couldn't connect to Peugeot's remote-control server: ${e.message} (MQTT code ${e.reasonCode})"
             } else Http.describe(e)

@@ -78,7 +78,7 @@ class MainActivity : FragmentActivity(), Platform {
             return
         }
         val data: Uri = intent?.data ?: return
-        if (data.scheme == "mymap") {
+        if (data.scheme in setOf("mymap", "mymacsdk", "mymdssdk", "mymopsdk", "mymvxsdk")) {
             intent.data = null // a sign-in code can only be used once
             vm.handleRedirect(data)
         }

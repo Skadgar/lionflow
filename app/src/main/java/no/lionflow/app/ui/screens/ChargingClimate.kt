@@ -218,6 +218,7 @@ fun RemoteSetupHint(vm: AppViewModel) {
     val c = LocalLf.current
     Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.accentInk,
         modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 4.dp))
+    NeedsPackHint(electric = true)
 }
 
 

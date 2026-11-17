@@ -123,7 +123,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (old?.vin == v.vin) return
         old?.let { settings.setNameFor(it.vin, settings.value.carName) }
         api.selectedVin = v.vin
-        settings.update { it.copy(carName = settings.nameFor(v.vin) ?: "My Peugeot") }
+        settings.update { it.copy(carName = settings.nameFor(v.vin) ?: ("My " + no.lionflow.app.model.Brands.current.display)) }
         settings.pendingPrograms = ""
         no.lionflow.app.model.ChargeLog.setVin(v.vin)
         no.lionflow.app.model.ChargePower.setVin(v.vin)
@@ -133,7 +133,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun vehicleName(v: no.lionflow.app.api.Vehicle): String =
-        if (v.vin == _ui.value.vehicle?.vin) settings.value.carName else settings.nameFor(v.vin) ?: "Peugeot …" + v.vin.takeLast(4)
+        if (v.vin == _ui.value.vehicle?.vin) settings.value.carName else settings.nameFor(v.vin) ?: (no.lionflow.app.model.Brands.current.display + " …" + v.vin.takeLast(4))
 
     fun vehicleKind(v: no.lionflow.app.api.Vehicle): String = when (v.motorization.lowercase()) {
         "electric" -> "Electric"; "hybrid" -> "Plug-in hybrid"; "thermal" -> "Petrol / diesel"; else -> v.motorization.ifBlank { "Car" }
@@ -221,7 +221,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         no.lionflow.app.demo.Demo.setOn(app, true)
         no.lionflow.app.demo.Demo.reset()
         settings.demoPrevName = settings.value.carName
-        settings.update { it.copy(carName = "Peugeot E-5008 (demo)") }
+        settings.update { it.copy(carName = "Demo car") }
         showDemo()
     }
 
@@ -239,7 +239,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         no.lionflow.app.demo.Demo.setOn(app, false)
         no.lionflow.app.model.ChargeLog.exitDemo()
-        settings.update { it.copy(carName = settings.demoPrevName.ifBlank { "My Peugeot" }) }
+        settings.update { it.copy(carName = settings.demoPrevName.ifBlank { "My " + no.lionflow.app.model.Brands.current.display }) }
         ticker?.cancel()
         _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
         decideStartPhase()
@@ -766,6 +766,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
-        const val NO_REMOTE = "Peugeot doesn't offer remote control for this car to LionFlow. Check that remote commands (like pre-heating) work in the MyPeugeot app and that remote services are activated there. You can still skip and use LionFlow for status, charging and trips."
+        const val NO_REMOTE = "Peugeot doesn't offer remote control for this car to LionFlow. Check that remote commands (like pre-heating) work in the MyPeugeot app and that remote services are activated there (they need a subscription from the car brand, see Settings). You can still skip and use LionFlow for status, charging and trips."
     }
 }

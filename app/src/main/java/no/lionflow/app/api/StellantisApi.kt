@@ -36,15 +36,16 @@ object StellantisConfig {
         return JSONObject(text).also { cache = it }
     }
 
-    fun countries(ctx: Context): List<String> {
-        val cfgs = root(ctx).getJSONObject("MyPeugeot").getJSONObject("configs")
+    fun countries(ctx: Context, brand: no.lionflow.app.model.Brand): List<String> {
+        val cfgs = root(ctx).getJSONObject(brand.jsonKey).getJSONObject("configs")
         return cfgs.keys().asSequence().toList().sorted()
     }
 
-    fun load(ctx: Context, country: String): BrandConfig {
-        val app = root(ctx).getJSONObject("MyPeugeot")
+    fun load(ctx: Context, brand: no.lionflow.app.model.Brand, country: String): BrandConfig {
+        val app = root(ctx).getJSONObject(brand.jsonKey)
         val cfgs = app.getJSONObject("configs")
-        val cc = if (cfgs.has(country)) country else "NO"
+        // Not every brand is available in every country: fall back to Norway, then to the first one listed.
+        val cc = listOf(country, "NO", "GB").firstOrNull { cfgs.has(it) } ?: cfgs.keys().next()
         val c = cfgs.getJSONObject(cc)
         return BrandConfig(
             oauthUrl = app.getString("oauth_url"),
@@ -90,7 +91,7 @@ class AuthExpiredException : Exception("Signed out — please sign in again")
 class StellantisApi(private val ctx: Context, private val secure: SecureStore, private val settings: SettingsStore) {
 
     private val tokenLock = Mutex()
-    val cfg: BrandConfig get() = StellantisConfig.load(ctx, settings.value.country)
+    val cfg: BrandConfig get() = StellantisConfig.load(ctx, no.lionflow.app.model.Brand.of(settings.value.brand), settings.value.country)
 
     val isSignedIn: Boolean get() = secure.get(K_REFRESH) != null
     val customerId: String? get() = secure.get(K_CUSTOMER)
@@ -185,7 +186,7 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
                 id = v.getString("id"),
                 vin = v.getString("vin"),
                 motorization = v.optString("motorization"),
-                brand = v.optString("brand", "Peugeot"),
+                brand = v.optString("brand", no.lionflow.app.model.Brands.current.display),
                 pictureUrl = v.optJSONArray("pictures")?.optString(0)?.ifEmpty { null },
                 maintenanceHref = v.obj("_links", "maintenance")?.str("href"),
             )

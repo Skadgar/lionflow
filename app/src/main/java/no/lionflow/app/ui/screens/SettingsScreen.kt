@@ -143,6 +143,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             }
             LinkRow("Command & error log", "Exact answers and errors from Peugeot", LfIcons.Route, last = true) { showLog = true }
         }
+        SubscriptionNotice()
 
         SectionTitle("Driving data")
         GroupCard {
@@ -243,7 +244,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         if (vm.isDemo) SecondaryButton("Exit demo", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { vm.exitDemo() }
         else SecondaryButton("Sign out", Modifier.fillMaxWidth().padding(top = 14.dp), textColor = c.danger) { confirmSignOut = true }
         Text(
-            "LionFlow ${BuildConfig.VERSION_NAME} · Not affiliated with Peugeot or Stellantis.\nMap and chargers © OpenStreetMap contributors, OpenFreeMap · Weather MET Norway · Chargers NOBIL (optional)",
+            "LionFlow ${BuildConfig.VERSION_NAME} · Unofficial: not affiliated with Stellantis, Peugeot, Citroën, DS Automobiles, Opel or Vauxhall.\nMap and chargers © OpenStreetMap contributors, OpenFreeMap · Weather MET Norway · Chargers NOBIL (optional)",
             style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -258,7 +259,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             onDismissRequest = { editName = false }, containerColor = c.card,
             title = { Text("Car name", color = c.text) },
             text = { OutlinedTextField(name, { name = it.take(24) }, singleLine = true, colors = fieldColors) },
-            confirmButton = { TextButton(onClick = { set { it.copy(carName = name.trim().ifEmpty { "My Peugeot" }) }; editName = false }) { Text("Save", color = c.accentInk) } },
+            confirmButton = { TextButton(onClick = { set { it.copy(carName = name.trim().ifEmpty { "My " + no.lionflow.app.model.Brands.current.display }) }; editName = false }) { Text("Save", color = c.accentInk) } },
             dismissButton = { TextButton(onClick = { editName = false }) { Text("Cancel", color = c.muted) } },
         )
     }

@@ -299,6 +299,7 @@ private fun QuickActions(vm: AppViewModel, ui: UiState) {
     if (!vm.remoteReady && vm.remotePossible) {
         Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
             modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 4.dp))
+        NeedsPackHint(electric = false)
     }
 }
 
@@ -517,6 +518,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolea
     if (!vm.remoteReady && vm.remotePossible) {
         Text("Remote control isn't set up — tap to enable", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
             modifier = Modifier.clickable { vm.openRemoteSetup() }.padding(vertical = 6.dp))
+        NeedsPackHint(electric = false)
     }
 }
 

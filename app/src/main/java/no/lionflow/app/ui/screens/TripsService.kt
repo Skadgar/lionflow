@@ -299,7 +299,7 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
         LaunchedEffect(Unit) { if (ui.trips.isEmpty() && !ui.tripsLoading) vm.loadTrips() }
         ServiceTimeline(vm, ui, s)
         SecondaryButton("Find a workshop", Modifier.fillMaxWidth()) {
-            platform.openUrl("https://www.google.com/maps/search/Peugeot+verksted")
+            platform.openUrl("https://www.google.com/maps/search/" + no.lionflow.app.model.Brands.current.workshopQuery)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             LfCard(Modifier.weight(1f), radius = 20.dp, padding = PaddingValues(14.dp)) {

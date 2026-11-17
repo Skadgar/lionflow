@@ -108,7 +108,9 @@ object L10n {
     }
 
     /** Translate a text that is about to be shown. */
-    fun tr(s: String): String {
+    fun tr(s: String): String = no.lionflow.app.model.Brands.apply(trRaw(s))
+
+    private fun trRaw(s: String): String {
         val l = lang
         if (l == "en" || s.isBlank()) return s
         synchronized(cache) { cache[s]?.let { return it } }

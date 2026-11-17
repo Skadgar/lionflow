@@ -99,7 +99,8 @@ fun SignInScreen(vm: AppViewModel, ui: UiState, settings: AppSettings) {
             Wordmark(34)
             Text("Sign in with your MyPeugeot account", style = Type.body, color = c.muted, textAlign = TextAlign.Center)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
+        BrandPicker(vm, settings)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Checkbox) { vm.settings.update { it.copy(rememberMe = !it.rememberMe) } },
             verticalAlignment = Alignment.CenterVertically,
@@ -127,8 +128,9 @@ fun SignInScreen(vm: AppViewModel, ui: UiState, settings: AppSettings) {
         }
         if (!ui.signingIn) SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
         Spacer(Modifier.height(8.dp))
+        SubscriptionNotice()
         SecurityNote("You type your email and password on Peugeot's own sign-in page, and the app opens again by itself. If Android asks which app to use, choose LionFlow. Your password never passes through LionFlow — it only keeps an encrypted token on this phone.")
-        Text("Not affiliated with Peugeot or Stellantis.", style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text("LionFlow is an independent, unofficial app. It is not affiliated with, endorsed or sponsored by Stellantis, Peugeot, Citroën, DS Automobiles, Opel or Vauxhall. The brand names belong to their owners and are only used to say which accounts and cars LionFlow works with.", style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -154,6 +156,7 @@ fun RemoteSetupScreen(vm: AppViewModel, ui: UiState) {
             "To lock, unlock, pre-heat and control charging from LionFlow, Peugeot needs to confirm this phone once: we send you an SMS code, and you enter it together with your 4-digit MyPeugeot security code.",
             style = Type.body.copy(lineHeight = 21.sp), color = c.text2,
         )
+        SubscriptionNotice()
         if (!ui.smsSent) {
             PrimaryButton(if (ui.busy) "Sending…" else "Send SMS code", Modifier.fillMaxWidth(), enabled = !ui.busy) { vm.requestSms() }
         } else {

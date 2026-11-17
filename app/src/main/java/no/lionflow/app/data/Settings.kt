@@ -15,6 +15,7 @@ data class AppSettings(
     val remoteBioOnly: Boolean = true,
     val rememberMe: Boolean = true,
     val country: String = "NO",
+    val brand: String = "peugeot",       // peugeot | citroen | ds | opel | vauxhall
     val nobilKey: String = "",
     val notifyChargeDone: Boolean = true,
     val notifyChargeStopped: Boolean = true,
@@ -45,7 +46,7 @@ data class AppSettings(
 /** Plain (non-secret) preferences, exposed as a StateFlow so the UI updates instantly. */
 class SettingsStore(context: Context) {
     private val p = context.getSharedPreferences("lf_settings", Context.MODE_PRIVATE)
-    private val _state = MutableStateFlow(load())
+    private val _state = MutableStateFlow(load().also { no.lionflow.app.model.Brands.current = no.lionflow.app.model.Brand.of(it.brand) })
     val state: StateFlow<AppSettings> = _state.asStateFlow()
     val value: AppSettings get() = _state.value
 
@@ -59,6 +60,7 @@ class SettingsStore(context: Context) {
         remoteBioOnly = p.getBoolean("remoteBio", true),
         rememberMe = p.getBoolean("remember", true),
         country = p.getString("country", "NO") ?: "NO",
+        brand = p.getString("brand", "peugeot") ?: "peugeot",
         nobilKey = p.getString("nobil", "") ?: "",
         notifyChargeDone = p.getBoolean("nDone", true),
         notifyChargeStopped = p.getBoolean("nStop", true),
@@ -98,6 +100,7 @@ class SettingsStore(context: Context) {
             .putBoolean("remoteBio", s.remoteBioOnly)
             .putBoolean("remember", s.rememberMe)
             .putString("country", s.country)
+            .putString("brand", s.brand)
             .putString("nobil", s.nobilKey)
             .putBoolean("nDone", s.notifyChargeDone)
             .putBoolean("nStop", s.notifyChargeStopped)
@@ -124,6 +127,7 @@ class SettingsStore(context: Context) {
             .putString("routeBtAddr", s.routeBtAddr)
             .putString("routeBtName", s.routeBtName)
             .apply()
+        no.lionflow.app.model.Brands.current = no.lionflow.app.model.Brand.of(s.brand)
         _state.value = s
     }
 

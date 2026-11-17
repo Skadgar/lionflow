@@ -6,7 +6,10 @@
 
 ## What is LionFlow?
 
-LionFlow is a free, open-source Android app for your own connected Peugeot. It's an unofficial alternative to the MyPeugeot app, built for the E-5008 but meant for any connected Peugeot EV. It signs in with your normal MyPeugeot account and talks to the same Peugeot servers, so it shows the same car data and sends the same remote commands. The difference is how it's built and what it does with that data.
+LionFlow is a free, open-source Android app for your own connected Peugeot, Citroën, DS, Opel or Vauxhall. It's an unofficial alternative to the MyPeugeot, MyCitroën, MyDS, myOpel and MyVauxhall apps, built for the Peugeot E-5008 but meant for any connected car from these brands. It signs in with your normal account for your car's brand and talks to the same Stellantis servers, so it shows the same car data and sends the same remote commands. The difference is how it's built and what it does with that data.
+
+**Subscriptions (decided by the carmaker, not by LionFlow)**
+Status, battery, range, trips and service data come with your brand account. Charging control and pre-heating on electric and plug-in hybrid cars need the brand's e-Remote Control service (included in the Connect ONE pack on many new cars, otherwise Connect PLUS or a separate subscription). Lock, unlock, lights and horn need the Remote Control service (Connect PLUS). What is included, and for how long, depends on model, country and order date. Activate it in the brand's own app first; LionFlow can't do that for you. The app shows this for your brand before sign-in and next to the functions that need it.
 
 **How it differs from MyPeugeot**
 
@@ -24,9 +27,9 @@ LionFlow is a free, open-source Android app for your own connected Peugeot. It's
 
 ### First sign-in (2 minutes)
 
-1. **Have MyPeugeot working first.** Your car must already be added in the official MyPeugeot app, and you need its 4-digit security code.
+1. **Have the brand's own app working first** (MyPeugeot, MyCitroën, MyDS, myOpel or MyVauxhall). Your car must already be added there, and you need its 4-digit security code.
 2. **Install:** open the APK link above on your phone → tap the file → allow *Install unknown apps* for your browser when asked.
-3. **Sign in:** open LionFlow → **Sign in with Peugeot** → log in on Peugeot's page with your MyPeugeot email and password.
+3. **Sign in:** open LionFlow → pick your **car brand** and country → **Sign in** → log in on the brand's own page with the same email and password as its app.
 4. **Back to the app:** if Android asks which app should open the link, choose **LionFlow** (not MyPeugeot). The app opens and loads your car.
 5. **Remote control (optional):** tap **Send SMS code** → enter the SMS code and your MyPeugeot security code → **Activate**. Do it once; you can skip it and do it later under Settings › Security.
 6. **Allow location and notifications** when asked — for the map, local weather and car alerts.
@@ -94,7 +97,7 @@ The watch app doesn't update itself. Install a new version the same way when you
 
 ## Disclaimer
 
-LionFlow is an independent app, not made, endorsed or supported by Peugeot or Stellantis. "Peugeot" and "MyPeugeot" are trademarks of their owners and are only used to say which cars the app works with. Remote commands act on a real car, so make sure it's safe to lock, unlock, heat or charge it.
+LionFlow is an independent app, not made, endorsed or supported by Stellantis, Peugeot, Citroën, DS Automobiles, Opel or Vauxhall. All brand and app names are trademarks of their owners and are only used to say which cars the app works with. Remote commands act on a real car, so make sure it's safe to lock, unlock, heat or charge it.
 
 ## Support LionFlow
 

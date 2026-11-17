@@ -43,12 +43,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Peugeot sign-in returns here: mymap://oauth2redirect/<country>?code=... -->
+            <!-- Sign-in returns here: mymap (Peugeot), mymacsdk (Citroen), mymdssdk (DS), mymopsdk (Opel), mymvxsdk (Vauxhall), then oauth2redirect/country?code=... -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mymap" android:host="oauth2redirect" />
+                <data android:scheme="mymacsdk" android:host="oauth2redirect" />
+                <data android:scheme="mymdssdk" android:host="oauth2redirect" />
+                <data android:scheme="mymopsdk" android:host="oauth2redirect" />
+                <data android:scheme="mymvxsdk" android:host="oauth2redirect" />
             </intent-filter>
         </activity>
 
