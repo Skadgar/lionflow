@@ -99,7 +99,11 @@ fun ChargeLimitCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
             if (warn) androidx.compose.material3.AlertDialog(
                 onDismissRequest = { warn = false },
                 title = { Text("Charge past the car's limit?") },
-                text = { Text("The car will be told to charge to 100 %, and LionFlow will then stop it at ${pct.toInt()} %.\n\nThis only works if your phone has internet, LionFlow is allowed to run in the background and the car answers. If any of these fail, the car keeps charging to 100 %. Doing that often is not good for the battery in the long run.\n\nIt can end 1–2 % over your limit. LionFlow is an unofficial app and comes without any warranty. You use this at your own risk.") },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("The car will be told to charge to 100 %, and LionFlow will then stop it at ${pct.toInt()} %.")
+                    Text("This only works if your phone has internet, LionFlow is allowed to run in the background and the car answers. If any of these fail, the car keeps charging to 100 %. Doing that often is not good for the battery in the long run.")
+                    Text("It can end 1–2 % over your limit. LionFlow is an unofficial app and comes without any warranty. You use this at your own risk.")
+                } },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = { warn = false; vm.settings.update { it.copy(chargeForce = true) }; if (st != null) vm.setCarChargeLimit(false) }) { Text("I understand, turn on") } },
                 dismissButton = { androidx.compose.material3.TextButton(onClick = { warn = false }) { Text("Cancel") } },
             )
