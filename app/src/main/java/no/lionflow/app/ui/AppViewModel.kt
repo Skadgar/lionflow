@@ -51,6 +51,8 @@ data class UiState(
     val signingIn: Boolean = false,
     val vehicle: Vehicle? = null,
     val status: VehicleStatus? = null,
+    /** The carmaker has no live status for this car (common on older petrol/diesel cars); trips etc. still work. */
+    val statusMissing: Boolean = false,
     val refreshing: Boolean = false,
     val lastRefresh: Long = 0L,
     val now: Long = System.currentTimeMillis(),
@@ -437,13 +439,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(refreshing = true) }
             try {
                 val v = _ui.value.vehicle ?: api.currentVehicle() ?: throw IllegalStateException("No car on this account")
-                val raw = api.status(v)
-                val maint = api.maintenance(v)
+                var missing = false
+                val raw = try { api.status(v) } catch (e: no.lionflow.app.api.ApiException) {
+                    if (e.code != 404 && !(e.message ?: "").contains("40400")) throw e
+                    missing = true
+                    // No live status for this car: carry on with just what we know (trips, service) so the app is still usable.
+                    org.json.JSONObject().put("energies", org.json.JSONArray().apply {
+                        val m = v.motorization.lowercase()
+                        if (m != "thermal" && m != "") put(org.json.JSONObject().put("type", "Electric"))
+                        if (m == "thermal" || m == "hybrid") put(org.json.JSONObject().put("type", "Fuel"))
+                    })
+                }
+                val maint = try { api.maintenance(v) } catch (e: no.lionflow.app.api.ApiException) { if (missing) null else throw e }
                 val st = applyHolds(no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(raw, maint)))
                 val now = System.currentTimeMillis()
                 settings.lastRefresh = now
                 no.lionflow.app.widget.WidgetData.save(getApplication<Application>(), st)
-                _ui.update { it.copy(vehicle = v, status = st, refreshing = false, lastRefresh = now, now = now) }
+                _ui.update { it.copy(vehicle = v, status = st, statusMissing = missing, refreshing = false, lastRefresh = now, now = now) }
                 if (_ui.value.trips.isEmpty() && !_ui.value.tripsLoading) loadTrips()
                 if (no.lionflow.app.work.ChargeLimit.due(getApplication(), st)) viewModelScope.launch {
                     no.lionflow.app.work.ChargeLimit.check(getApplication(), st)?.let { toast(it); kotlinx.coroutines.delay(4000); refresh() }

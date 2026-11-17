@@ -78,7 +78,7 @@ import no.lionflow.app.ui.theme.Type
 fun HomeScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean, expanded: Boolean) {
     if (wide) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-            Box(Modifier.weight(1f)) { ScreenColumn(wide = true, maxWidth = 460) { HomeMain(vm, ui, s, wide = true) } }
+            Box(Modifier.weight(1f)) { ScreenColumn(wide = true, maxWidth = 460) { NoStatusCard(ui); HomeMain(vm, ui, s, wide = true) } }
             Box(Modifier.weight(1f)) {
                 ScreenColumn(wide = true, maxWidth = 460) {
                     Spacer(Modifier.height(4.dp))
@@ -104,6 +104,7 @@ private fun HomePhone(vm: AppViewModel, ui: UiState, s: AppSettings) {
         if (vm.isDemo && !vm.hideDemoBanner) Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp)) { DemoBanner(vm) }
         Column(Modifier.padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             UpdateCard(vm, ui)
+            NoStatusCard(ui)
             BatteryCard(vm, ui, s)
             LockLine(ui)
             QuickActions(vm, ui)
@@ -234,6 +235,17 @@ private fun GlassButton(icon: ImageVector, label: String, onClick: () -> Unit) {
             .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) { LfIcon(icon, OnPhoto, 24.dp) }
+}
+
+/** Older petrol/diesel cars often have no live status from the carmaker; say so instead of failing. */
+@Composable
+private fun NoStatusCard(ui: UiState) {
+    if (!ui.statusMissing) return
+    val c = LocalLf.current
+    LfCard(radius = 20.dp, padding = androidx.compose.foundation.layout.PaddingValues(14.dp)) {
+        Text("No live status for this car", style = Type.label, color = c.text)
+        Text("The carmaker doesn't send live data (battery, doors, position) for this model. Trips, fuel economy and service info still work.", style = Type.tiny, color = c.muted)
+    }
 }
 
 @Composable
