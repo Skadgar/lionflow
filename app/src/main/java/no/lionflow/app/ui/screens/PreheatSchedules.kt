@@ -177,17 +177,19 @@ private fun SmartScheduleCard(vm: AppViewModel, ui: UiState) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Smart schedule", style = Type.label, color = c.text)
-                Text("About an hour before a schedule is due, LionFlow checks the forecast and switches that schedule on or off in the car.", style = Type.tiny, color = c.muted)
+                Text("Your pre-heat schedules only run when the temperature fits. About an hour before one is due, LionFlow checks the forecast and keeps it on, or switches it off for that time.", style = Type.tiny, color = c.muted)
             }
             Toggle(on, "Smart schedule") { v -> vm.setSmart(if (v) mode else "", s.smartTemp) }
         }
         if (on) {
-            no.lionflow.app.ui.components.Segmented(listOf("below" to "Only if colder than", "above" to "Only if warmer than"), mode, Modifier.fillMaxWidth()) { vm.setSmart(it, s.smartTemp) }
+            no.lionflow.app.ui.components.Segmented(listOf("below" to "Run if colder than", "above" to "Run if warmer than"), mode, Modifier.fillMaxWidth()) { vm.setSmart(it, s.smartTemp) }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Text("−", style = Type.stat, color = c.accentInk, modifier = Modifier.clickable { vm.setSmart(mode, (s.smartTemp - 1).coerceAtLeast(-30)) }.padding(horizontal = 24.dp, vertical = 8.dp))
                 Text(no.lionflow.app.ui.fmtTemp(s.smartTemp.toDouble(), s), style = Type.stat, color = c.text)
                 Text("+", style = Type.stat, color = c.accentInk, modifier = Modifier.clickable { vm.setSmart(mode, (s.smartTemp + 1).coerceAtMost(40)) }.padding(horizontal = 24.dp, vertical = 8.dp))
             }
+            val t = no.lionflow.app.ui.fmtTemp(s.smartTemp.toDouble(), s)
+            Text(if (mode == "below") "Schedules run when the forecast is colder than $t, and are skipped when it is $t or warmer." else "Schedules run when the forecast is warmer than $t, and are skipped when it is $t or colder.", style = Type.small, color = c.text2)
             Text("Needs remote control and a little 12 V battery: the car is woken for each change. It uses the forecast, so it can be a few degrees off.", style = Type.tiny, color = c.muted)
         }
     }
