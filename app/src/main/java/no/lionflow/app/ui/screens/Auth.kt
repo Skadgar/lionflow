@@ -104,8 +104,9 @@ fun SignInScreen(vm: AppViewModel, ui: UiState, settings: AppSettings) {
         if (step == 1) {
             Text("Choose your car brand", style = Type.title, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             BrandGrid { b -> vm.settings.update { it.copy(brand = b.id) }; step = 2 }
+            // Demo is only for people with no car yet; when adding another car there is a way back instead.
             if (vm.canCancelSignIn()) SecondaryButton("Back to my cars", Modifier.fillMaxWidth()) { vm.cancelSignIn() }
-            SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
+            else SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
             Text("LionFlow is an independent, unofficial app. It is not affiliated with, endorsed or sponsored by Stellantis, Peugeot, Citroën, DS Automobiles, Opel or Vauxhall. The brand names belong to their owners and are only used to say which accounts and cars LionFlow works with.", style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         } else {
             Text(no.lionflow.app.model.Brand.of(settings.brand).display, style = Type.title, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
