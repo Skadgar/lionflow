@@ -182,6 +182,23 @@ class SettingsStore(context: Context) {
         get() = p.getString("notifySnapshot", "{}") ?: "{}"
         set(v) { p.edit().putString("notifySnapshot", v).apply() }
 
+    /** Signed-in accounts (one per carmaker login). The first one has id "" so its stored keys keep working. */
+    data class Account(val id: String, val brand: String, val country: String)
+
+    fun accounts(): List<Account> {
+        val raw = p.getString("accounts", null)
+        if (raw == null) return listOf(Account("", _state.value.brand, _state.value.country))
+        val a = org.json.JSONArray(raw)
+        return (0 until a.length()).map { a.getJSONObject(it).let { o -> Account(o.getString("id"), o.getString("brand"), o.getString("country")) } }
+    }
+    fun saveAccounts(list: List<Account>) {
+        val a = org.json.JSONArray(); list.forEach { a.put(org.json.JSONObject().put("id", it.id).put("brand", it.brand).put("country", it.country)) }
+        p.edit().putString("accounts", a.toString()).apply()
+    }
+    var activeAccount: String
+        get() = p.getString("activeAccount", "") ?: ""
+        set(v) { p.edit().putString("activeAccount", v).apply() }
+
     fun clearPersonal() {
         p.edit().remove("lastRefresh").remove("notifySnapshot").apply()
     }

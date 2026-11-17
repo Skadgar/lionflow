@@ -19,6 +19,10 @@ class SecureStore(context: Context) {
     private val prefs = context.getSharedPreferences("lf_secure", Context.MODE_PRIVATE)
     private val alias = "lionflow_master_key"
 
+    /** Which account's keys are used. "" is the first account (keys kept as before); others are stored as "<id>@<name>". */
+    @Volatile var profile: String = ""
+    private fun k(name: String, prof: String = profile) = if (prof.isEmpty()) name else "$prof@$name"
+
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val existing = ks.getEntry(alias, null) as? KeyStore.SecretKeyEntry
@@ -37,7 +41,7 @@ class SecureStore(context: Context) {
     @Synchronized
     fun put(name: String, value: String?) {
         if (value == null) {
-            prefs.edit().remove(name).apply()
+            prefs.edit().remove(k(name)).apply()
             return
         }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -47,12 +51,12 @@ class SecureStore(context: Context) {
         val out = ByteArray(iv.size + enc.size)
         System.arraycopy(iv, 0, out, 0, iv.size)
         System.arraycopy(enc, 0, out, iv.size, enc.size)
-        prefs.edit().putString(name, Base64.encodeToString(out, Base64.NO_WRAP)).apply()
+        prefs.edit().putString(k(name), Base64.encodeToString(out, Base64.NO_WRAP)).apply()
     }
 
     @Synchronized
-    fun get(name: String): String? {
-        val raw = prefs.getString(name, null) ?: return null
+    fun get(name: String, prof: String = profile): String? {
+        val raw = prefs.getString(k(name, prof), null) ?: return null
         return try {
             val bytes = Base64.decode(raw, Base64.NO_WRAP)
             val iv = bytes.copyOfRange(0, 12)
@@ -67,6 +71,12 @@ class SecureStore(context: Context) {
 
     @Synchronized
     fun clear() {
-        prefs.edit().clear().apply()
+        // Only the active account's keys.
+        val e = prefs.edit()
+        prefs.all.keys.forEach { key ->
+            val mine = if (profile.isEmpty()) !key.contains("@") else key.startsWith("$profile@")
+            if (mine) e.remove(key)
+        }
+        e.apply()
     }
 }

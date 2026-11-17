@@ -25,6 +25,7 @@ class LionFlowApp : Application() {
         no.lionflow.app.ui.l10n.L10n.init(this, settings.value.language)
         no.lionflow.app.ui.l10n.TimeFmt.setPreference(this, settings.value.timeFormat)
         secure = SecureStore(this)
+        secure.profile = settings.activeAccount
         api = StellantisApi(this, secure, settings)
         remote = RemoteControl(api, secure)
         no.lionflow.app.model.ChargePower.init(this, settings, api.cachedVehicle()?.vin)

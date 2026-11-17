@@ -89,20 +89,28 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 }
                 Text("Edit", style = Type.label.copy(fontSize = 14.sp), color = c.accentInk, modifier = Modifier.clickable { editName = true }.padding(8.dp))
             }
-            if (ui.vehicles.size > 1) {
+            val garage = vm.garage()
+            if (garage.sumOf { it.cars.size } > 1 || garage.size > 1) {
                 Divider()
-                Text("Cars on this account", style = Type.small, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
-                ui.vehicles.forEach { v ->
-                    val sel = v.vin == ui.vehicle?.vin
-                    Row(Modifier.fillMaxWidth().clickable { vm.selectVehicle(v) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(vm.vehicleName(v), style = Type.body.copy(fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal), color = c.text)
-                            Text(vm.vehicleKind(v) + " · VIN …" + v.vin.takeLast(6), style = Type.tiny, color = c.muted)
+                Text("My cars", style = Type.small, color = c.muted, modifier = Modifier.padding(start = 16.dp, top = 10.dp))
+                garage.forEach { acc ->
+                    acc.cars.forEach { v ->
+                        val sel = acc.active && v.vin == ui.vehicle?.vin
+                        Row(Modifier.fillMaxWidth().clickable { vm.switchTo(acc.id, v.vin) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(vm.garageName(acc, v), style = Type.body.copy(fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal), color = c.text)
+                                Text(acc.brand.display + " · " + vm.vehicleKind(v) + " · VIN …" + v.vin.takeLast(6), style = Type.tiny, color = c.muted)
+                            }
+                            if (sel) Text("Selected", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk)
                         }
-                        if (sel) Text("Selected", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk)
                     }
                 }
             }
+            Divider()
+            Text("Add another car or account", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                modifier = Modifier.fillMaxWidth().clickable { vm.addAccount() }.padding(horizontal = 16.dp, vertical = 12.dp))
+            Text("Another brand (for example Citroën next to Peugeot) needs its own sign-in. Your other accounts stay signed in.", style = Type.tiny, color = c.muted,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp))
             Divider()
             Text("Reload cars from MyPeugeot", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
                 modifier = Modifier.fillMaxWidth().clickable { vm.reloadVehicles() }.padding(horizontal = 16.dp, vertical = 12.dp))

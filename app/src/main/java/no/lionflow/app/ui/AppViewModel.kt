@@ -132,6 +132,75 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
+    // ---------------- several accounts / brands ----------------
+
+    data class GarageAccount(val id: String, val brand: no.lionflow.app.model.Brand, val signedIn: Boolean, val cars: List<no.lionflow.app.api.Vehicle>, val selectedVin: String?, val active: Boolean)
+
+    /** Every signed-in account with its cars, for the car list. */
+    fun garage(): List<GarageAccount> {
+        val active = settings.activeAccount
+        return settings.accounts().map { a ->
+            GarageAccount(a.id, no.lionflow.app.model.Brand.of(a.brand), api.isSignedInTo(a.id), if (a.id == active) _ui.value.vehicles else api.cachedVehiclesOf(a.id), api.selectedVinOf(a.id), a.id == active)
+        }.filter { it.signedIn || it.active }
+    }
+
+    /** Name of a car on any account. */
+    fun garageName(acc: GarageAccount, v: no.lionflow.app.api.Vehicle): String =
+        if (acc.active && v.vin == _ui.value.vehicle?.vin) settings.value.carName else settings.nameFor(v.vin) ?: (acc.brand.display + " …" + v.vin.takeLast(4))
+
+    fun hasSeveralCars(): Boolean = garage().sumOf { it.cars.size } > 1
+
+    /** Open the car [vin] on account [id] (switching account if needed). */
+    fun switchTo(id: String, vin: String?) {
+        if (isDemo) return
+        if (id == settings.activeAccount) {
+            _ui.value.vehicles.firstOrNull { it.vin == vin }?.let { selectVehicle(it) }
+            return
+        }
+        // Save the current car's name, stop everything that belongs to the old account.
+        _ui.value.vehicle?.let { settings.setNameFor(it.vin, settings.value.carName) }
+        remote.disconnect()
+        ticker?.cancel()
+        val target = settings.accounts().firstOrNull { it.id == id } ?: return
+        // An account that was started but never signed in is dropped when leaving it.
+        if (!api.isSignedIn) settings.saveAccounts(settings.accounts().filter { it.id != settings.activeAccount })
+        api.switchProfile(id)
+        settings.activeAccount = id
+        settings.update { it.copy(brand = target.brand, country = target.country) }
+        if (vin != null) api.selectedVin = vin
+        settings.pendingPrograms = ""
+        no.lionflow.app.widget.WidgetData.clear(getApplication<Application>())
+        _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
+        val v = api.cachedVehicle()
+        if (v != null) {
+            settings.update { it.copy(carName = settings.nameFor(v.vin) ?: ("My " + target.let { t -> no.lionflow.app.model.Brand.of(t.brand).display })) }
+            no.lionflow.app.model.ChargeLog.setVin(v.vin); no.lionflow.app.model.ChargePower.setVin(v.vin)
+        }
+        decideStartPhase()
+    }
+
+    /** Start signing in to another account (maybe another brand). The current one stays signed in. */
+    fun addAccount() {
+        if (isDemo) return
+        val list = settings.accounts()
+        val id = "a" + (list.mapNotNull { it.id.removePrefix("a").toIntOrNull() }.maxOrNull() ?: 1).plus(1)
+        _ui.value.vehicle?.let { settings.setNameFor(it.vin, settings.value.carName) }
+        remote.disconnect(); ticker?.cancel()
+        settings.saveAccounts(list.map { if (it.id == settings.activeAccount) it.copy(brand = settings.value.brand, country = settings.value.country) else it } + no.lionflow.app.data.SettingsStore.Account(id, settings.value.brand, settings.value.country))
+        api.switchProfile(id)
+        settings.activeAccount = id
+        no.lionflow.app.widget.WidgetData.clear(getApplication<Application>())
+        _ui.value = UiState(phase = Phase.SignedOut, photoPath = settings.photoPath, serviceHistory = loadHistory())
+    }
+
+    /** True while adding another account: lets the sign-in screen offer "back to my cars". */
+    fun canCancelSignIn(): Boolean = settings.accounts().any { it.id != settings.activeAccount && api.isSignedInTo(it.id) }
+
+    fun cancelSignIn() {
+        val other = settings.accounts().firstOrNull { it.id != settings.activeAccount && api.isSignedInTo(it.id) } ?: return
+        switchTo(other.id, null)
+    }
+
     fun vehicleName(v: no.lionflow.app.api.Vehicle): String =
         if (v.vin == _ui.value.vehicle?.vin) settings.value.carName else settings.nameFor(v.vin) ?: (no.lionflow.app.model.Brands.current.display + " …" + v.vin.takeLast(4))
 
@@ -165,6 +234,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 try { api.loadUserInfo() } catch (e: AuthExpiredException) { throw e } catch (_: Exception) {}
                 val all = api.vehicles()
                 val v = api.pick(all)
+                val cur = settings.activeAccount
+                val accs = settings.accounts()
+                settings.saveAccounts(if (accs.any { it.id == cur }) accs.map { if (it.id == cur) it.copy(brand = settings.value.brand, country = settings.value.country) else it }
+                    else accs + no.lionflow.app.data.SettingsStore.Account(cur, settings.value.brand, settings.value.country))
+                v?.let { no.lionflow.app.model.ChargeLog.setVin(it.vin); no.lionflow.app.model.ChargePower.setVin(it.vin) }
                 _ui.update { it.copy(vehicle = v, vehicles = all, signingIn = false, phase = Phase.SetupRemote) }
                 if (v == null) toast("No car found on this account — add it in the MyPeugeot app first")
             } catch (e: Exception) {
@@ -254,6 +328,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         settings.clearPersonal()
         no.lionflow.app.widget.WidgetData.clear(getApplication<Application>())
         ticker?.cancel()
+        // Other accounts stay signed in: go to one of them, if there is one.
+        val gone = settings.activeAccount
+        val rest = settings.accounts().filter { it.id != gone }
+        if (rest.isNotEmpty()) {
+            settings.saveAccounts(rest)
+            val next = rest.firstOrNull { api.isSignedInTo(it.id) } ?: rest.first()
+            api.switchProfile(next.id); settings.activeAccount = next.id
+            settings.update { it.copy(brand = next.brand, country = next.country) }
+            _ui.value = UiState(photoPath = settings.photoPath, serviceHistory = loadHistory())
+            val v = api.cachedVehicle()
+            if (v != null) { settings.update { it.copy(carName = settings.nameFor(v.vin) ?: ("My " + no.lionflow.app.model.Brand.of(next.brand).display)) }
+                no.lionflow.app.model.ChargeLog.setVin(v.vin); no.lionflow.app.model.ChargePower.setVin(v.vin) }
+            decideStartPhase()
+            return
+        }
         _ui.value = UiState(phase = Phase.SignedOut, photoPath = settings.photoPath, serviceHistory = loadHistory())
     }
 

@@ -195,6 +195,14 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
         list
     }
 
+    /** Cars cached for another account (used by the car list in Settings). */
+    fun cachedVehiclesOf(profile: String): List<Vehicle> =
+        secure.get(K_VEHICLES, profile)?.let { s -> JSONArray(s).objects().map { Vehicle.fromJson(it) } }.orEmpty()
+    fun selectedVinOf(profile: String): String? = secure.get(K_SELECTED, profile)?.ifEmpty { null }
+    fun isSignedInTo(profile: String): Boolean = secure.get(K_REFRESH, profile) != null
+    fun switchProfile(profile: String) { secure.profile = profile }
+    val profile: String get() = secure.profile
+
     fun cachedVehicles(): List<Vehicle> =
         secure.get(K_VEHICLES)?.let { s -> JSONArray(s).objects().map { Vehicle.fromJson(it) } }.orEmpty()
 

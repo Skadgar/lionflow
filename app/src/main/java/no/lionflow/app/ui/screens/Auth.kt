@@ -126,6 +126,7 @@ fun SignInScreen(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                 platform.openSignIn(vm.authorizeUrl())
             }
         }
+        if (!ui.signingIn && vm.canCancelSignIn()) SecondaryButton("Back to my cars", Modifier.fillMaxWidth()) { vm.cancelSignIn() }
         if (!ui.signingIn) SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
         Spacer(Modifier.height(8.dp))
         SubscriptionNotice()

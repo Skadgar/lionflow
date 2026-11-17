@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -115,6 +116,32 @@ private val OnPhoto = androidx.compose.ui.graphics.Color(0xFFF4F5F7)
 private val PhotoShadow = androidx.compose.ui.graphics.Shadow(androidx.compose.ui.graphics.Color(0xB3000000), androidx.compose.ui.geometry.Offset(0f, 2f), 14f)
 private val OnPhotoMuted = androidx.compose.ui.graphics.Color(0xD9E6E8EC)
 
+/** Tap the car name to switch between cars (also across brands) when there is more than one. */
+@Composable
+private fun CarSwitcher(vm: AppViewModel, ui: UiState, name: @Composable () -> Unit) {
+    val c = LocalLf.current
+    var open by remember { mutableStateOf(false) }
+    val garage = if (open || vm.hasSeveralCars()) vm.garage() else emptyList()
+    val several = garage.sumOf { it.cars.size } > 1
+    Box {
+        Row(Modifier.then(if (several) Modifier.clip(RoundedCornerShape(10.dp)).clickable { open = true } else Modifier), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            name()
+            if (several) androidx.compose.material3.Text("▾", color = c.muted)
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            garage.forEach { acc ->
+                acc.cars.forEach { v ->
+                    val sel = acc.active && v.vin == ui.vehicle?.vin
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Column { Text(vm.garageName(acc, v), style = Type.body.copy(fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal), color = c.text); Text(acc.brand.display + " · " + vm.vehicleKind(v), style = Type.tiny, color = c.muted) } },
+                        onClick = { open = false; vm.switchTo(acc.id, v.vin) },
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
     val c = LocalLf.current
@@ -146,7 +173,7 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
                     Text(buildAnnotatedString { append("Lion"); withStyle(SpanStyle(color = c.accent)) { append("Flow") } },
                         style = Type.display.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold, shadow = PhotoShadow), color = OnPhoto)
                 }
-                Text(s.carName, style = Type.title.copy(fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, shadow = PhotoShadow), color = OnPhoto, maxLines = 1)
+                CarSwitcher(vm, ui) { Text(s.carName, style = Type.title.copy(fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp, shadow = PhotoShadow), color = OnPhoto, maxLines = 1) }
                 Text(
                     if (ui.refreshing) "Waking car…" else "Updated ${minutesAgo(st?.updatedAtMillis ?: ui.lastRefresh, ui.now)}",
                     style = Type.small.copy(fontWeight = FontWeight.Medium, shadow = PhotoShadow), color = OnPhoto,
@@ -428,7 +455,7 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolea
                 Text(buildAnnotatedString { append("Lion"); withStyle(SpanStyle(color = c.accentInk)) { append("Flow") } },
                     style = Type.display.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold), color = c.text)
             }
-            Text(s.carName, style = Type.title, color = c.text)
+            CarSwitcher(vm, ui) { Text(s.carName, style = Type.title, color = c.text) }
             Text(
                 if (ui.refreshing) "Waking car…" else "Updated ${minutesAgo(st?.updatedAtMillis ?: ui.lastRefresh, ui.now)}" + if (s.autoRefresh) " · auto when open" else "",
                 style = Type.tiny, color = c.muted,
