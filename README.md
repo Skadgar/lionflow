@@ -101,7 +101,7 @@ LionFlow is an independent app, not made, endorsed or supported by Stellantis, P
 
 ## Support LionFlow
 
-LionFlow is free, has no ads and never will. If it makes your Peugeot a bit nicer to live with, you can buy me a coffee:
+LionFlow is free, has no ads and never will. If it makes your car a bit nicer to live with, you can buy me a coffee:
 
 [![Support on Ko-fi](https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/thocubeat)
 
