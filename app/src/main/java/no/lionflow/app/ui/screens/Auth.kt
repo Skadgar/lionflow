@@ -92,46 +92,45 @@ private fun SecurityNote(text: String) {
 fun SignInScreen(vm: AppViewModel, ui: UiState, settings: AppSettings) {
     val c = LocalLf.current
     val platform = LocalPlatform.current
+    // Step 1: pick the brand. Step 2: sign in.
+    var step by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(if (ui.signingIn) 2 else 1) }
     AuthColumn {
         Spacer(Modifier.height(24.dp))
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LionLogo(84.dp)
             Wordmark(34)
-            Text("Sign in with your MyPeugeot account", style = Type.body, color = c.muted, textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(4.dp))
-        BrandPicker(vm, settings)
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Checkbox) { vm.settings.update { it.copy(rememberMe = !it.rememberMe) } },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(
-                checked = settings.rememberMe,
-                onCheckedChange = { v -> vm.settings.update { it.copy(rememberMe = v) } },
-                colors = CheckboxDefaults.colors(checkedColor = c.meter, uncheckedColor = c.muted, checkmarkColor = Color.White),
-            )
-            Text("Remember me", style = Type.body, color = c.text)
-        }
-        Text(
-            if (settings.rememberMe) "You stay signed in on this phone. The app still asks for your security code or fingerprint."
-            else "You'll be signed out every time the app is closed.",
-            style = Type.tiny, color = c.muted,
-        )
-        if (ui.signingIn) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                Busy(); Spacer(Modifier.size(10.dp)); Text("Signing in…", style = Type.body, color = c.text)
-            }
+        if (step == 1) {
+            Text("Choose your car brand", style = Type.title, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            BrandGrid { b -> vm.settings.update { it.copy(brand = b.id) }; step = 2 }
+            if (vm.canCancelSignIn()) SecondaryButton("Back to my cars", Modifier.fillMaxWidth()) { vm.cancelSignIn() }
+            SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
+            Text("LionFlow is an independent, unofficial app. It is not affiliated with, endorsed or sponsored by Stellantis, Peugeot, Citroën, DS Automobiles, Opel or Vauxhall. The brand names belong to their owners and are only used to say which accounts and cars LionFlow works with.", style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         } else {
-            PrimaryButton("Sign in with Peugeot", Modifier.fillMaxWidth(), icon = LfIcons.Lock) {
-                platform.openSignIn(vm.authorizeUrl())
+            Text(no.lionflow.app.model.Brand.of(settings.brand).display, style = Type.title, color = c.text, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            BrandPicker(vm, settings, showBrands = false)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Checkbox) { vm.settings.update { it.copy(rememberMe = !it.rememberMe) } },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = settings.rememberMe,
+                    onCheckedChange = { v -> vm.settings.update { it.copy(rememberMe = v) } },
+                    colors = CheckboxDefaults.colors(checkedColor = c.meter, uncheckedColor = c.muted, checkmarkColor = Color.White),
+                )
+                Text("Remember me", style = Type.body, color = c.text)
             }
+            if (ui.signingIn) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Busy(); Spacer(Modifier.size(10.dp)); Text("Signing in…", style = Type.body, color = c.text)
+                }
+            } else {
+                PrimaryButton("Sign in", Modifier.fillMaxWidth(), icon = LfIcons.Lock) { platform.openSignIn(vm.authorizeUrl()) }
+                SecondaryButton("Change brand", Modifier.fillMaxWidth()) { step = 1 }
+            }
+            SubscriptionNotice()
         }
-        if (!ui.signingIn && vm.canCancelSignIn()) SecondaryButton("Back to my cars", Modifier.fillMaxWidth()) { vm.cancelSignIn() }
-        if (!ui.signingIn) SecondaryButton("Try without an account", Modifier.fillMaxWidth()) { vm.startDemo() }
-        Spacer(Modifier.height(8.dp))
-        SubscriptionNotice()
-        SecurityNote("You type your email and password on Peugeot's own sign-in page, and the app opens again by itself. If Android asks which app to use, choose LionFlow. Your password never passes through LionFlow — it only keeps an encrypted token on this phone.")
-        Text("LionFlow is an independent, unofficial app. It is not affiliated with, endorsed or sponsored by Stellantis, Peugeot, Citroën, DS Automobiles, Opel or Vauxhall. The brand names belong to their owners and are only used to say which accounts and cars LionFlow works with.", style = Type.tiny, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
 

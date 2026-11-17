@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -44,7 +48,7 @@ import no.lionflow.app.ui.theme.Type
 /** Which carmaker's account to sign in with, and in which country. Brand names are shown as they are (not swapped). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BrandPicker(vm: AppViewModel, s: AppSettings) {
+fun BrandPicker(vm: AppViewModel, s: AppSettings, showBrands: Boolean = true) {
     val c = LocalLf.current
     val ctx = LocalContext.current
     val brand = Brand.of(s.brand)
@@ -53,8 +57,8 @@ fun BrandPicker(vm: AppViewModel, s: AppSettings) {
     val effective = listOf(s.country, "NO", "GB").firstOrNull { it in countries } ?: countries.firstOrNull() ?: s.country
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Car brand", style = Type.small, color = c.muted)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (showBrands) Text("Car brand", style = Type.small, color = c.muted)
+        if (showBrands) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Brand.entries.forEach { b ->
                 val sel = b == brand
                 Row(
@@ -127,4 +131,26 @@ fun NeedsPackHint(electric: Boolean) {
         "Needs " + (if (electric) b.eRemotePack else b.doorsPack) + " from ${b.display}. Activate it in ${b.app}, then set up remote control in Settings.",
         style = Type.tiny, color = c.muted,
     )
+}
+
+/** Step 1 of signing in: one large square button per brand. */
+@Composable
+fun BrandGrid(onPick: (Brand) -> Unit) {
+    val c = LocalLf.current
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Brand.entries.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { b ->
+                    Box(
+                        Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(c.card)
+                            .border(1.dp, c.line, RoundedCornerShape(24.dp)).clickable(role = Role.Button) { onPick(b) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Text(b.display, style = Type.title.copy(fontSize = 22.sp), color = c.text)
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
 }
