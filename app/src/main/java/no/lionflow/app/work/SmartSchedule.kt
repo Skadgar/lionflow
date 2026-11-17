@@ -67,7 +67,7 @@ object SmartSchedule {
 
     fun schedule(app: LionFlowApp) {
         val wm = WorkManager.getInstance(app)
-        if (app.settings.value.smartMode.isEmpty()) wm.cancelUniqueWork("smart-schedule")
+        if (app.settings.value.smartMode.isEmpty() && !app.settings.value.smartPlugged) wm.cancelUniqueWork("smart-schedule")
         else wm.enqueueUniquePeriodicWork("smart-schedule", ExistingPeriodicWorkPolicy.UPDATE,
             PeriodicWorkRequestBuilder<SmartWorker>(15, TimeUnit.MINUTES).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build())
     }
@@ -75,12 +75,12 @@ object SmartSchedule {
     /** One check. Returns a short message if something was changed in the car. */
     suspend fun run(app: LionFlowApp): String? {
         val s = app.settings.value
-        if (s.smartMode.isEmpty() || !app.remote.isSetUp) return null
+        if ((s.smartMode.isEmpty() && !s.smartPlugged) || !app.remote.isSetUp) return null
         val desired = desired(app) ?: return null
         val now = System.currentTimeMillis()
         val evaluated = try { JSONObject(app.settings.raw(K_EVAL).ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
         // Schedules that are due within the next hour and haven't been checked for that occurrence yet.
-        val due = desired.mapNotNull { p -> nextOccurrence(p, now)?.takeIf { it - now <= 65 * 60_000L && evaluated.optLong(p.slot.toString()) != it }?.let { p to it } }
+        val due = desired.mapNotNull { p -> nextOccurrence(p, now)?.takeIf { it - now <= 65 * 60_000L && (s.smartPlugged || evaluated.optLong(p.slot.toString()) != it) }?.let { p to it } }
         if (due.isEmpty()) return null
         val vehicle = app.api.cachedVehicle() ?: return null
         val st = VehicleStatus.parse(app.api.status(vehicle), null)
@@ -90,10 +90,11 @@ object SmartSchedule {
         var text: String? = null
         for ((p, at) in due) {
             val temp = weather.hours.minByOrNull { kotlin.math.abs(it.timeMillis - at) }?.tempC ?: weather.tempC
-            val ok = if (s.smartMode == "below") temp <= s.smartTemp else temp >= s.smartTemp
+            val tempOk = when (s.smartMode) { "below" -> temp <= s.smartTemp; "above" -> temp >= s.smartTemp; else -> true }
+            val ok = tempOk && (!s.smartPlugged || st.plugged)
             if (ok) off.remove(p.slot) else off.add(p.slot)
             evaluated.put(p.slot.toString(), at)
-            text = (if (ok) "Pre-heat stays on at " else "Pre-heat skipped at ") + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute) + " (" + Math.round(temp) + "°C)"
+            text = (if (ok) "Pre-heat stays on at " else if (tempOk) "Pre-heat skipped (not plugged in) at " else "Pre-heat skipped at ") + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute) + " (" + Math.round(temp) + "°C)"
         }
         app.settings.setRaw(K_EVAL, evaluated.toString())
         if (off == switchedOff(app)) return null

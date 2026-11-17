@@ -591,6 +591,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         no.lionflow.app.work.SmartSchedule.schedule(app())
     }
 
+    /** Smart schedule: only pre-heat when the car is plugged in. */
+    fun setSmartPlugged(on: Boolean) {
+        settings.update { it.copy(smartPlugged = on) }
+        no.lionflow.app.work.SmartSchedule.recheck(app())
+        no.lionflow.app.work.SmartSchedule.schedule(app())
+    }
+
     private val _parkedAt = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     /** "Home", a known charger's name, or a street address for where the car is parked. */
     val parkedAt: kotlinx.coroutines.flow.StateFlow<String?> = _parkedAt

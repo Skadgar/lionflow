@@ -37,6 +37,7 @@ import no.lionflow.app.ui.UiState
 import no.lionflow.app.ui.components.Divider
 import no.lionflow.app.ui.components.LfCard
 import no.lionflow.app.ui.components.Toggle
+import no.lionflow.app.ui.components.ToggleRow
 import no.lionflow.app.ui.theme.LocalLf
 import no.lionflow.app.ui.theme.Type
 import java.util.Locale
@@ -149,7 +150,7 @@ private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit
                         Text(label, style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk, modifier = Modifier.clickable { days = set.toSet() })
                     }
                 }
-                Text("The car decides when to start so the cabin is ready at this time. Peugeot doesn't let apps choose how long it runs.", style = Type.tiny, color = c.muted)
+                Text("Pre-heating starts at this time and runs for a limited time (about 10–30 minutes, depending on the car). Peugeot doesn't let apps choose how long it runs.", style = Type.tiny, color = c.muted)
             }
         },
         confirmButton = {
@@ -190,6 +191,7 @@ private fun SmartScheduleCard(vm: AppViewModel, ui: UiState) {
             }
             val t = no.lionflow.app.ui.fmtTemp(s.smartTemp.toDouble(), s)
             Text(if (mode == "below") "Schedules run when the forecast is colder than $t, and are skipped when it is $t or warmer." else "Schedules run when the forecast is warmer than $t, and are skipped when it is $t or colder.", style = Type.small, color = c.text2)
+            ToggleRow("Only if plugged in", "Skip the pre-heat when the car isn't connected to a charger, so it doesn't use the battery.", s.smartPlugged, showDivider = false) { vm.setSmartPlugged(it) }
             Text("Needs remote control and a little 12 V battery: the car is woken for each change. It uses the forecast, so it can be a few degrees off.", style = Type.tiny, color = c.muted)
         }
     }

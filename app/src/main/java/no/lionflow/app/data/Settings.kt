@@ -28,6 +28,8 @@ data class AppSettings(
     /** Smart pre-heat schedule: "" = off, "below" = only when colder than smartTemp, "above" = only when warmer. */
     val smartMode: String = "",
     val smartTemp: Int = 0,
+    /** Smart schedule: only pre-heat when the car is plugged in. */
+    val smartPlugged: Boolean = false,
     /** Wake the car from the background every N hours. 0 = never (default). */
     val bgWakeHours: Int = 0,
     val autoUpdate: Boolean = true,
@@ -79,6 +81,7 @@ class SettingsStore(context: Context) {
         wakeOnOpen = p.getBoolean("wakeOnOpen", true),
         smartMode = p.getString("smartMode", "") ?: "",
         smartTemp = p.getInt("smartTemp", 0),
+        smartPlugged = p.getBoolean("smartPlugged", false),
         bgWakeHours = p.getInt("bgWakeHours", 0),
         autoUpdate = p.getBoolean("autoUpdate", true),
         chargerSource = p.getString("chargerSource", "osm") ?: "osm",
@@ -123,6 +126,7 @@ class SettingsStore(context: Context) {
             .putBoolean("wakeOnOpen", s.wakeOnOpen)
             .putString("smartMode", s.smartMode)
             .putInt("smartTemp", s.smartTemp)
+            .putBoolean("smartPlugged", s.smartPlugged)
             .putInt("bgWakeHours", s.bgWakeHours)
             .putBoolean("autoUpdate", s.autoUpdate)
             .putString("chargerSource", s.chargerSource)
