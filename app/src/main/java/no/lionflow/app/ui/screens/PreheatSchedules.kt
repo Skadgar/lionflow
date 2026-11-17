@@ -21,6 +21,7 @@ import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,7 +57,8 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
     val c = LocalLf.current
     val confirm = LocalConfirm.current
     val st = ui.status
-    val programs = st?.programs.orEmpty().sortedBy { it.slot }
+    val programs = vm.userPrograms(st).sortedBy { it.slot }
+    val skipped = vm.smartOffSlots()
     var editing by remember { mutableStateOf<Program?>(null) }
     val busy = ui.commandInProgress != null
 
@@ -80,6 +82,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
                 Column(Modifier.weight(1f)) {
                     Text("Ready at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
                     Text(daysText(p.days), style = Type.small, color = c.muted)
+                    if (p.slot in skipped) Text("Skipped by Smart schedule", style = Type.tiny, color = c.orangeInk)
                 }
                 Toggle(p.enabled, "Schedule on") { on ->
                     if (!busy) save(programs.map { if (it.slot == p.slot) it.copy(enabled = on) else it }, if (on) "Turn schedule on" else "Turn schedule off")
@@ -99,6 +102,8 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
             Text("The car has room for 4 schedules.", style = Type.tiny, color = c.muted, modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp))
         }
     }
+
+    SmartScheduleCard(vm, ui)
 
     editing?.let { p ->
         val isNew = programs.none { it.slot == p.slot }
@@ -159,4 +164,31 @@ private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit
             }
         },
     )
+}
+
+/** Only pre-heat when it is colder (or warmer) than a set temperature, checked about an hour before the time. */
+@Composable
+private fun SmartScheduleCard(vm: AppViewModel, ui: UiState) {
+    val c = LocalLf.current
+    val s by vm.settings.state.collectAsState()
+    val on = s.smartMode.isNotEmpty()
+    val mode = s.smartMode.ifEmpty { "below" }
+    LfCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Smart schedule", style = Type.label, color = c.text)
+                Text("About an hour before a schedule is due, LionFlow checks the forecast and switches that schedule on or off in the car.", style = Type.tiny, color = c.muted)
+            }
+            Toggle(on, "Smart schedule") { v -> vm.setSmart(if (v) mode else "", s.smartTemp) }
+        }
+        if (on) {
+            no.lionflow.app.ui.components.Segmented(listOf("below" to "Only if colder than", "above" to "Only if warmer than"), mode, Modifier.fillMaxWidth()) { vm.setSmart(it, s.smartTemp) }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Text("−", style = Type.stat, color = c.accentInk, modifier = Modifier.clickable { vm.setSmart(mode, (s.smartTemp - 1).coerceAtLeast(-30)) }.padding(horizontal = 24.dp, vertical = 8.dp))
+                Text(no.lionflow.app.ui.fmtTemp(s.smartTemp.toDouble(), s), style = Type.stat, color = c.text)
+                Text("+", style = Type.stat, color = c.accentInk, modifier = Modifier.clickable { vm.setSmart(mode, (s.smartTemp + 1).coerceAtMost(40)) }.padding(horizontal = 24.dp, vertical = 8.dp))
+            }
+            Text("Needs remote control and a little 12 V battery: the car is woken for each change. It uses the forecast, so it can be a few degrees off.", style = Type.tiny, color = c.muted)
+        }
+    }
 }

@@ -25,6 +25,9 @@ data class AppSettings(
     val notifyService: Boolean = false,
     val carName: String = "My Peugeot",
     val wakeOnOpen: Boolean = true,
+    /** Smart pre-heat schedule: "" = off, "below" = only when colder than smartTemp, "above" = only when warmer. */
+    val smartMode: String = "",
+    val smartTemp: Int = 0,
     /** Wake the car from the background every N hours. 0 = never (default). */
     val bgWakeHours: Int = 0,
     val autoUpdate: Boolean = true,
@@ -72,6 +75,8 @@ class SettingsStore(context: Context) {
         notifyService = p.getBoolean("nService", false),
         carName = p.getString("carName", "My Peugeot") ?: "My Peugeot",
         wakeOnOpen = p.getBoolean("wakeOnOpen", true),
+        smartMode = p.getString("smartMode", "") ?: "",
+        smartTemp = p.getInt("smartTemp", 0),
         bgWakeHours = p.getInt("bgWakeHours", 0),
         autoUpdate = p.getBoolean("autoUpdate", true),
         chargerSource = p.getString("chargerSource", "osm") ?: "osm",
@@ -113,6 +118,8 @@ class SettingsStore(context: Context) {
             .putBoolean("nService", s.notifyService)
             .putString("carName", s.carName)
             .putBoolean("wakeOnOpen", s.wakeOnOpen)
+            .putString("smartMode", s.smartMode)
+            .putInt("smartTemp", s.smartTemp)
             .putInt("bgWakeHours", s.bgWakeHours)
             .putBoolean("autoUpdate", s.autoUpdate)
             .putString("chargerSource", s.chargerSource)
@@ -171,6 +178,9 @@ class SettingsStore(context: Context) {
 
     /** Last status snapshot used by the background notifier to detect changes. */
     /** Schedules just sent to the car, shown until Peugeot's status catches up ({"time":..,"programs":[..]}). */
+    fun raw(key: String): String = p.getString(key, "") ?: ""
+    fun setRaw(key: String, v: String) { p.edit().putString(key, v).apply() }
+
     var pendingPrograms: String
         get() = p.getString("pendingPrograms", "") ?: ""
         set(v) { p.edit().putString("pendingPrograms", v).apply() }

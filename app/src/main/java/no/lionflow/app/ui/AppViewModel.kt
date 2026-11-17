@@ -562,7 +562,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val st = _ui.value.status ?: return@runCommand CommandResult.Failed("No status yet")
         val r = remote.preconditioning(st.preconditioningOn, VehicleStatus.programsJsonOf(programs), p)
         if (r !is CommandResult.Failed) no.lionflow.app.model.ChargePower.setPendingPrograms(programs)
+        if (r !is CommandResult.Failed && settings.value.smartMode.isNotEmpty()) no.lionflow.app.work.SmartSchedule.setDesired(app(), programs)
         r
+    }
+
+    private fun app() = getApplication<Application>() as no.lionflow.app.LionFlowApp
+
+    /** The schedules as the user set them. With Smart schedule on, the car may have some switched off. */
+    fun userPrograms(st: VehicleStatus?): List<no.lionflow.app.model.Program> =
+        (if (settings.value.smartMode.isNotEmpty()) no.lionflow.app.work.SmartSchedule.desired(app()) else null) ?: st?.programs.orEmpty()
+
+    fun smartOffSlots(): Set<Int> = if (settings.value.smartMode.isEmpty()) emptySet() else no.lionflow.app.work.SmartSchedule.switchedOff(app())
+
+    /** Turn Smart schedule on/off or change its limit. */
+    fun setSmart(mode: String, temp: Int) {
+        val wasOn = settings.value.smartMode.isNotEmpty()
+        if (mode.isNotEmpty() && !wasOn) no.lionflow.app.work.SmartSchedule.setDesired(app(), _ui.value.status?.programs.orEmpty())
+        settings.update { it.copy(smartMode = mode, smartTemp = temp) }
+        if (mode.isEmpty() && wasOn) {
+            // Give the car the user's own schedules back.
+            val want = no.lionflow.app.work.SmartSchedule.desired(app())
+            val hadOff = no.lionflow.app.work.SmartSchedule.switchedOff(app()).isNotEmpty()
+            no.lionflow.app.work.SmartSchedule.clear(app())
+            if (want != null && hadOff) savePrograms(want)
+        } else if (mode.isNotEmpty()) {
+            no.lionflow.app.work.SmartSchedule.recheck(app())
+        }
+        no.lionflow.app.work.SmartSchedule.schedule(app())
     }
 
     private val _parkedAt = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)

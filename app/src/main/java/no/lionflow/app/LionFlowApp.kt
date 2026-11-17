@@ -43,6 +43,7 @@ class LionFlowApp : Application() {
         })
         scheduleBackgroundChecks()
         no.lionflow.app.work.Waker.schedule(this)
+        no.lionflow.app.work.SmartSchedule.schedule(this)
     }
 
     fun scheduleBackgroundChecks() {
