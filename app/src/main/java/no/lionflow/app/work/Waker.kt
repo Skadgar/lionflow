@@ -57,11 +57,7 @@ object Waker {
             "wake-bg", androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
             androidx.work.PeriodicWorkRequestBuilder<WakeWorker>(h.toLong(), TimeUnit.HOURS).setInputData(androidx.work.workDataOf("src" to "bg"))
                 .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build()).build())
-        if (app.settings.value.widgetWake) wm.enqueueUniquePeriodicWork(
-            "wake-widget", androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-            androidx.work.PeriodicWorkRequestBuilder<WakeWorker>(6, TimeUnit.HOURS).setInputData(androidx.work.workDataOf("src" to "widget"))
-                .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build()).build())
-        else wm.cancelUniqueWork("wake-widget")
+        wm.cancelUniqueWork("wake-widget")
     }
 }
 
@@ -70,11 +66,7 @@ class WakeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val app = applicationContext as LionFlowApp
         val s = app.settings.value
         if (!app.api.isSignedIn || !app.remote.isSetUp) return Result.success()
-        val widget = inputData.getString("src") == "widget"
-        if (widget) {
-            val has = android.appwidget.AppWidgetManager.getInstance(app).getAppWidgetIds(android.content.ComponentName(app, no.lionflow.app.widget.CarWidget::class.java)).isNotEmpty()
-            if (!s.widgetWake || !has) return Result.success()
-        } else if (s.bgWakeHours <= 0) return Result.success()
+        if (s.bgWakeHours <= 0) return Result.success()
         Waker.headsUp(app, "Waking your car to update LionFlow")
         return try { Waker.wakeAndRefresh(app); Result.success() } catch (e: Exception) { Result.success() }
     }

@@ -165,12 +165,9 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             ToggleRow("Auto-refresh when open", "When the app opens or is in use — at most every 5 min", s.autoRefresh) { v -> set { it.copy(autoRefresh = v) } }
             ToggleRow("Wake car when app opens", "Commands go through faster. Uses a little of the 12 V battery; at most every 10 min", s.wakeOnOpen) { v -> set { it.copy(wakeOnOpen = v) } }
             val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext as no.lionflow.app.LionFlowApp
-            DropdownRow("Wake car in the background", "While the app is closed. Each wake uses a little of the 12 V battery and shows a small notice.",
+            DropdownRow("Wake car automatically", "While the app is closed, widget included. Each wake uses a little of the 12 V battery and shows a small notice. The widget's refresh button always wakes it.",
                 listOf(0 to "Never", 1 to "Every hour", 3 to "Every 3 hours", 6 to "Every 6 hours", 12 to "Every 12 hours", 24 to "Once a day"), s.bgWakeHours) { v ->
                 set { it.copy(bgWakeHours = v) }; no.lionflow.app.work.Waker.schedule(appCtx)
-            }
-            ToggleRow("Widget wakes car every 6 hours", "Only if you have the widget. Tapping the widget's refresh button always wakes the car.", s.widgetWake, showDivider = false) { v ->
-                set { it.copy(widgetWake = v) }; no.lionflow.app.work.Waker.schedule(appCtx)
             }
         }
 
