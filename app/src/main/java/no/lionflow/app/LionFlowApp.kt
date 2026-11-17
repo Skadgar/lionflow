@@ -42,6 +42,7 @@ class LionFlowApp : Application() {
             description = "Charging, pre-heating, doors, battery and service"
         })
         scheduleBackgroundChecks()
+        no.lionflow.app.work.Waker.schedule(this)
     }
 
     fun scheduleBackgroundChecks() {

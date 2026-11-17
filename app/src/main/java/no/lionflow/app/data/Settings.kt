@@ -25,6 +25,10 @@ data class AppSettings(
     val notifyService: Boolean = false,
     val carName: String = "My Peugeot",
     val wakeOnOpen: Boolean = true,
+    /** Wake the car from the background every N hours. 0 = never (default). */
+    val bgWakeHours: Int = 0,
+    /** The home-screen widget wakes the car every 6 hours (only if a widget is added). */
+    val widgetWake: Boolean = true,
     val autoUpdate: Boolean = true,
     val chargerSource: String = "osm", // osm (free, no key) | nobil (needs key)
     val language: String = "system",
@@ -70,6 +74,8 @@ class SettingsStore(context: Context) {
         notifyService = p.getBoolean("nService", false),
         carName = p.getString("carName", "My Peugeot") ?: "My Peugeot",
         wakeOnOpen = p.getBoolean("wakeOnOpen", true),
+        bgWakeHours = p.getInt("bgWakeHours", 0),
+        widgetWake = p.getBoolean("widgetWake", true),
         autoUpdate = p.getBoolean("autoUpdate", true),
         chargerSource = p.getString("chargerSource", "osm") ?: "osm",
         carActions = p.getBoolean("carActions", true),
@@ -110,6 +116,8 @@ class SettingsStore(context: Context) {
             .putBoolean("nService", s.notifyService)
             .putString("carName", s.carName)
             .putBoolean("wakeOnOpen", s.wakeOnOpen)
+            .putInt("bgWakeHours", s.bgWakeHours)
+            .putBoolean("widgetWake", s.widgetWake)
             .putBoolean("autoUpdate", s.autoUpdate)
             .putString("chargerSource", s.chargerSource)
             .putBoolean("carActions", s.carActions)

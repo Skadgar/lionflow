@@ -163,7 +163,15 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 importer.launch(arrayOf("text/*", "text/csv", "application/csv", "*/*"))
             }
             ToggleRow("Auto-refresh when open", "When the app opens or is in use — at most every 5 min", s.autoRefresh) { v -> set { it.copy(autoRefresh = v) } }
-            ToggleRow("Wake car when app opens", "Commands go through faster. Uses a little of the 12 V battery; at most every 10 min", s.wakeOnOpen, showDivider = false) { v -> set { it.copy(wakeOnOpen = v) } }
+            ToggleRow("Wake car when app opens", "Commands go through faster. Uses a little of the 12 V battery; at most every 10 min", s.wakeOnOpen) { v -> set { it.copy(wakeOnOpen = v) } }
+            val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext as no.lionflow.app.LionFlowApp
+            DropdownRow("Wake car in the background", "While the app is closed. Each wake uses a little of the 12 V battery and shows a small notice.",
+                listOf(0 to "Never", 1 to "Every hour", 3 to "Every 3 hours", 6 to "Every 6 hours", 12 to "Every 12 hours", 24 to "Once a day"), s.bgWakeHours) { v ->
+                set { it.copy(bgWakeHours = v) }; no.lionflow.app.work.Waker.schedule(appCtx)
+            }
+            ToggleRow("Widget wakes car every 6 hours", "Only if you have the widget. Tapping the widget's refresh button always wakes the car.", s.widgetWake, showDivider = false) { v ->
+                set { it.copy(widgetWake = v) }; no.lionflow.app.work.Waker.schedule(appCtx)
+            }
         }
 
         RouteTrackingSettings(vm, s)
@@ -327,6 +335,26 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             confirmButton = { TextButton(onClick = { confirmSignOut = false; vm.signOut() }) { Text("Sign out", color = c.danger) } },
             dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = c.muted) } },
         )
+    }
+}
+
+@Composable
+private fun DropdownRow(title: String, subtitle: String, options: List<Pair<Int, String>>, selected: Int, onSelect: (Int) -> Unit) {
+    val c = LocalLf.current
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { open = true }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = Type.label, color = c.text)
+                Text(subtitle, style = Type.tiny, color = c.muted)
+            }
+            Text((options.firstOrNull { it.first == selected }?.second ?: "Never") + " ▾", style = Type.label, color = c.accentInk, modifier = Modifier.padding(start = 12.dp))
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { (v, label) ->
+                androidx.compose.material3.DropdownMenuItem(text = { Text(label, style = Type.body, color = c.text) }, onClick = { open = false; onSelect(v) })
+            }
+        }
     }
 }
 

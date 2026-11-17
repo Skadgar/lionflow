@@ -97,6 +97,10 @@ object WidgetData {
 
 class CarWidget : AppWidgetProvider() {
 
+    override fun onEnabled(context: Context) {
+        no.lionflow.app.work.Waker.schedule(context.applicationContext as LionFlowApp)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         render(context, appWidgetManager, appWidgetIds)
         if (WidgetData.load(context) == null) refresh(context)
@@ -108,7 +112,7 @@ class CarWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH) refresh(context)
+        if (intent.action == ACTION_REFRESH) refresh(context, wake = true)
         if (intent.action == ACTION_NEXT_CAR) {
             val app = context.applicationContext as LionFlowApp
             no.lionflow.app.model.Garage.next(app)?.let { no.lionflow.app.model.Garage.activate(app, it); refresh(context) }
@@ -120,10 +124,15 @@ class CarWidget : AppWidgetProvider() {
         const val ACTION_NEXT_CAR = "no.lionflow.app.WIDGET_NEXT_CAR"
 
         /** Shows the spinner immediately, then fetches in the background. */
-        fun refresh(ctx: Context) {
-            WidgetData.setRefresh(ctx, refreshing = true, status = "Refreshing…")
+        fun refresh(ctx: Context, wake: Boolean = false) {
+            val canWake = wake && (ctx.applicationContext as LionFlowApp).remote.isSetUp
+            WidgetData.setRefresh(ctx, refreshing = true, status = if (canWake) "Waking the car…" else "Refreshing…")
+            if (canWake) android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(ctx, tr("Waking your car — this can take a few seconds"), android.widget.Toast.LENGTH_SHORT).show()
+            }
             WorkManager.getInstance(ctx).enqueueUniqueWork(
-                "widget-refresh", ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build()
+                "widget-refresh", ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequestBuilder<WidgetRefreshWorker>().setInputData(androidx.work.workDataOf("wake" to canWake)).build()
             )
         }
 
@@ -257,6 +266,7 @@ class WidgetRefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
                 WidgetData.setRefresh(ctx, true, "Almost there — Peugeot sometimes needs up to 30 seconds")
             }
             try {
+                if (inputData.getBoolean("wake", false)) { no.lionflow.app.work.Waker.wake(app); app.remote.disconnect() }
                 val st = no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(app.api.status(vehicle), null))
                 explainer.cancel()
                 WidgetData.save(ctx, st)
