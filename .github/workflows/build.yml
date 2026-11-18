@@ -101,6 +101,10 @@ jobs:
           MSG: ${{ github.event.head_commit.message }}
         run: printf '%s\n' "$MSG" | grep -viE '^(co-authored-by|claude-session|signed-off-by):' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > notes.md
 
+      # Tiny file the GitHub installs fetch once a day; GitHub's download counter for it is the "active devices" badge.
+      - name: Ping file
+        run: echo ok > ping.txt
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -112,6 +116,7 @@ jobs:
             LionFlow.apk
             LionFlow-*.aab
             Watch-LionFlow-*.apk
+            ping.txt
           make_latest: true
 
       # Google Play internal testing (no review, instant). Promote to the closed test in Play Console when wanted.

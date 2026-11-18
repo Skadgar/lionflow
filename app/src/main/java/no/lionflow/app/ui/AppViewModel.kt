@@ -652,9 +652,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // A getter (not a lazy field): init runs checkForUpdate() before fields declared further down exist.
     val fromPlay: Boolean get() = no.lionflow.app.update.Updater.installedFromPlay(getApplication())
 
+    /**
+     * GitHub installs only, at most once a day: fetches a tiny empty file from the GitHub release. GitHub's own
+     * download counter for that file is the "active devices" number in the README. Nothing is sent about you or the phone.
+     */
+    private fun countActiveDevice() {
+        val day = (System.currentTimeMillis() / 86_400_000L).toString()
+        if (settings.raw("lastPingDay") == day) return
+        settings.setRaw("lastPingDay", day)
+        viewModelScope.launch {
+            try {
+                no.lionflow.app.api.Http.text(okhttp3.Request.Builder()
+                    .url("https://github.com/thocubeat/lionflow/releases/latest/download/ping.txt")
+                    .header("User-Agent", no.lionflow.app.api.Http.USER_AGENT).get().build())
+            } catch (_: Exception) { settings.setRaw("lastPingDay", "") }   // try again next time the app opens
+        }
+    }
+
     fun checkForUpdate(force: Boolean) {
         if (no.lionflow.app.BuildConfig.DEBUG) return // test/screenshot builds
         if (fromPlay) return // Google Play keeps this copy up to date
+        countActiveDevice()
         if (!force && !settings.value.autoUpdate) return
         val now = System.currentTimeMillis()
         if (!force && now - settings.lastUpdateCheck < 10 * 60_000L) return

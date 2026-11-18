@@ -1,6 +1,6 @@
 # LionFlow
 
-![Downloads](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thocubeat/lionflow/stats/downloads.json)
+![Downloads](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thocubeat/lionflow/stats/downloads.json) ![Active devices](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thocubeat/lionflow/stats/devices.json)
 
 **[⬇ Download the latest version (APK)](https://github.com/thocubeat/lionflow/releases/latest/download/LionFlow.apk)** · [All releases](https://github.com/thocubeat/lionflow/releases)
 
