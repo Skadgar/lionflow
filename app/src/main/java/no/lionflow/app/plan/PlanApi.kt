@@ -7,6 +7,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import org.json.JSONObject
 import java.util.Locale
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 /** The free online services behind the trip planner. All are OpenStreetMap-based and need no key. */
 object PlanApi {
@@ -57,8 +59,12 @@ object PlanApi {
         throw last ?: ApiException(0, "No road route found between these places")
     }
 
-    /** Fast chargers (with a CCS plug) within about 2 km of the route. */
-    suspend fun chargers(r: RouteData): List<RawCharger> {
+    /** Fast chargers (with a CCS plug) near the route: ready-made map tiles first, the live search if those are not available. */
+    suspend fun chargers(r: RouteData): List<RawCharger> =
+        (try { ChargerTiles.load(r) } catch (e: Exception) { null }) ?: live(r)
+
+    /** Fast chargers (with a CCS plug) within about 2 km of the route, asked of the free Overpass servers. */
+    private suspend fun live(r: RouteData): List<RawCharger> {
         // Boxes around each ~40 km of the route. A box search with a plug filter is answered far quicker than
         // "everything near this long line"; chargers too far from the road are dropped afterwards.
         val boxes = StringBuilder()
@@ -86,5 +92,71 @@ object PlanApi {
         }
         val q = "[out:json][timeout:25];($boxes);out center 2000;"
         return PlanParse.chargers(OsmChargers.raw(q))
+    }
+}
+
+/**
+ * Fast-charger map tiles (2x2 degrees) built weekly by GitHub Actions from OpenStreetMap and served from the
+ * repository's "chargers" branch. A route touches a handful of small files, which arrive in a second or two,
+ * far quicker than asking the busy free Overpass servers.
+ */
+object ChargerTiles {
+    private const val BASE = "https://raw.githubusercontent.com/thocubeat/lionflow/chargers/"
+    private const val DAY = 24 * 3600 * 1000L
+    private var built: Set<String>? = null
+    private var builtAt = 0L
+    private val cache = HashMap<String, Pair<Long, List<RawCharger>>>()
+
+    private fun tile(lat: Double, lon: Double) = "${Math.floor(lat / 2).toInt()}_${Math.floor(lon / 2).toInt()}"
+
+    private suspend fun fetch(path: String): JSONObject? =
+        try {
+            Http.json(Request.Builder().url(BASE + path).header("User-Agent", Http.CONTACT_AGENT).get().build()) as? JSONObject
+        } catch (e: ApiException) {
+            if (e.code == 404) null else throw e
+        }
+
+    /** The chargers near the route, or null when the tiles can't be had (then the live search is used). */
+    suspend fun load(r: RouteData): List<RawCharger>? {
+        val now = System.currentTimeMillis()
+        if (built == null || now - builtAt > DAY) {
+            val m = fetch("meta.json") ?: return null
+            val arr = m.optJSONArray("tiles") ?: return null
+            built = (0 until arr.length()).map { arr.getString(it) }.toSet()
+            builtAt = now
+        }
+        val have = built ?: return null
+        val need = LinkedHashSet<String>()
+        for (i in 0 until r.size) for (dy in listOf(-0.05, 0.05)) for (dx in listOf(-0.08, 0.08)) need.add(tile(r.lat[i] + dy, r.lon[i] + dx))
+        if (need.any { it !in have }) return null      // outside the area the tiles cover
+        val missing = need.filter { id -> cache[id]?.let { now - it.first < 7 * DAY } != true }
+        if (missing.isNotEmpty()) {
+            val loaded = kotlinx.coroutines.coroutineScope {
+                missing.map { id -> async { id to fetch("t/$id.json") } }.awaitAll()
+            }
+            for ((id, j) in loaded) cache[id] = now to (j?.let { PlanParse.chargers(it) } ?: emptyList())
+        }
+        // Keep only what is near the road: mark small grid cells along the route (and their neighbours).
+        val cells = HashSet<Long>()
+        fun mark(la: Double, lo: Double) {
+            val cy = Math.floor(la / 0.03).toLong(); val cx = Math.floor(lo / 0.06).toLong()
+            for (a in -1..1) for (b in -1..1) cells.add((cy + a) * 1_000_000L + (cx + b))
+        }
+        for (i in 0 until r.size) {
+            mark(r.lat[i], r.lon[i])
+            if (i + 1 < r.size) {
+                val steps = ((r.km[i + 1] - r.km[i]) / 2.0).toInt()
+                for (k in 1..steps) {
+                    val f = k.toDouble() / (steps + 1)
+                    mark(r.lat[i] + (r.lat[i + 1] - r.lat[i]) * f, r.lon[i] + (r.lon[i + 1] - r.lon[i]) * f)
+                }
+            }
+        }
+        val out = ArrayList<RawCharger>()
+        for (id in need) for (c in cache[id]?.second.orEmpty()) {
+            val key = Math.floor(c.lat / 0.03).toLong() * 1_000_000L + Math.floor(c.lon / 0.06).toLong()
+            if (key in cells) out.add(c)
+        }
+        return out
     }
 }
