@@ -219,7 +219,9 @@ class Planner(
         carKw = maxKw; fitCount = if (fitted != null) fitSamples.size else 0
         val o = Options(startNow().toDouble(), minPct, targetPct, kwh, maxKw)
         val energy = withContext(Dispatchers.Default) { r.energy(m.factor) }
-        var p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
+        suspend fun run(ed: List<StopEdit>): Plan =
+            withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, ed, excluded, m, viaNear().values.map { it.id }.toSet()) }
+        var p = run(edits)
         var changed = false
         if (!p.ok && corridorFor !== r) {
             // The car can't make it in one go: look up the fast chargers along the way (once per route).
@@ -227,18 +229,28 @@ class Planner(
             corridorRaw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
             corridorFor = r; changed = true
         }
-        // A stay at a via stop: look for a fast charger right by it (best effort; the tip just doesn't show if this fails).
+        // Look for a fast charger right by each stop on the way (best effort; without it the plan just has no stop there).
         val stayAt = planVias.indices.filter { planStays.getOrElse(it) { 0 } > 0 }
-        val key = stayAt.joinToString("|") { "${planVias[it].lat},${planVias[it].lon}" }
+        val lookAt = if (r.totalKm > 100) planVias.indices.toList() else stayAt
+        val key = lookAt.joinToString("|") { "${planVias[it].lat},${planVias[it].lon}" }
         if (key != viaRawKey) {
-            viaRaw = if (stayAt.isEmpty()) emptyList() else kotlinx.coroutines.coroutineScope {
-                stayAt.map { i -> async { try { PlanApi.chargersNear(planVias[i].lat, planVias[i].lon, nobilKey()) } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() } } }.awaitAll().flatten()
+            viaRaw = if (lookAt.isEmpty()) emptyList() else kotlinx.coroutines.coroutineScope {
+                lookAt.map { i -> async { try { PlanApi.chargersNear(planVias[i].lat, planVias[i].lon, nobilKey()) } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() } } }.awaitAll().flatten()
             }
             viaRawKey = key; changed = true
         }
         if (changed) {
             chargers = withContext(Dispatchers.Default) { place(corridorRaw + viaRaw, r) }
-            p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
+            p = run(edits)
+        }
+        // When the trip needs charging anyway, charge at the charger by a stop where the user stays: the stay is the charging break.
+        if (p.stops.isNotEmpty() || !p.ok) {
+            val near = viaNear()
+            val auto = stayAt.mapNotNull { i ->
+                val ch = near[i] ?: return@mapNotNull null
+                if (ch.id in excluded || edits.any { it.chargerId == ch.id }) null else StopEdit(ch.id, minutes = planStays[i].coerceIn(5, 180))
+            }
+            if (auto.isNotEmpty()) p = run(edits + auto)
         }
         // A charging stop right at a via stop is the same wait: count the overlap once.
         val overlap = stayAt.sumOf { i ->
@@ -246,6 +258,15 @@ class Planner(
             p.stops.filter { Geo.km(v.lat, v.lon, it.charger.lat, it.charger.lon) < 1.0 }.maxOfOrNull { minOf(it.minutes, planStays[i]) } ?: 0
         }
         plan = p.copy(totalMin = p.totalMin + planStays.sum() - overlap)
+    }
+
+    /** The nearest charger within 1 km of each stop on the way, by the stop's index. */
+    private fun viaNear(): Map<Int, PlanCharger> {
+        val out = HashMap<Int, PlanCharger>()
+        planVias.forEachIndexed { i, v ->
+            chargers.map { it to Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }.minByOrNull { it.second }?.let { out[i] = it.first }
+        }
+        return out
     }
 
     /** Puts chargers on the route, drops doubles and far-off ones, and looks up prices. */

@@ -253,7 +253,7 @@ object TripPlanner {
 
     fun plan(
         route: RouteData, energy: DoubleArray, chargers: List<PlanCharger>, o: Options,
-        edits: List<StopEdit>, excluded: Set<String>, model: Consumption.Model,
+        edits: List<StopEdit>, excluded: Set<String>, model: Consumption.Model, preferred: Set<String> = emptySet(),
     ): Plan {
         val n = route.size
         if (n < 2 || energy.size != n) return Plan(emptyList(), o.startPct, 0.0, 0, 0.0, 0.0, true, null, null, "", 0)
@@ -307,7 +307,11 @@ object TripPlanner {
                     failKm = route.km[i]
                     break
                 }
-                c = cands.maxByOrNull { score(it) }!!
+                val best = cands.maxByOrNull { score(it) }!!
+                // A charger by a stop on the way is the natural place to charge: it saves a separate stop,
+                // as long as it isn't far short of the best charger within reach.
+                val pref = cands.filter { it.id in preferred }.maxByOrNull { score(it) }
+                c = if (pref != null && pref.km >= best.km - 80) pref else best
                 edit = null
             }
 
