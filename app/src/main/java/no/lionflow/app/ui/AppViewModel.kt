@@ -237,7 +237,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 api.exchangeCode(code)
                 try { api.loadUserInfo() } catch (e: AuthExpiredException) { throw e } catch (_: Exception) {}
-                val all = api.vehicles()
+                // Some accounts answer "No vehicle found" (404 / 40400) when the car isn't available to third-party apps: not a failed sign-in.
+                var none = false
+                val all = try { api.vehicles() } catch (e: no.lionflow.app.api.ApiException) {
+                    if (e.code != 404 && !(e.message ?: "").contains("40400")) throw e
+                    none = true; emptyList()
+                }
                 val v = api.pick(all)
                 val cur = settings.activeAccount
                 val accs = settings.accounts()
@@ -245,7 +250,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     else accs + no.lionflow.app.data.SettingsStore.Account(cur, settings.value.brand, settings.value.country))
                 v?.let { no.lionflow.app.model.ChargeLog.setVin(it.vin); no.lionflow.app.model.ChargePower.setVin(it.vin) }
                 _ui.update { it.copy(vehicle = v, vehicles = all, signingIn = false, phase = Phase.SetupRemote, photoPath = v?.vin?.let { vin -> settings.photoFor(vin) }) }
-                if (v == null) toast("No car found on this account — add it in the MyPeugeot app first")
+                if (v == null) toast(if (none) "Signed in, but ${no.lionflow.app.model.Brands.current.display} says no car is available on this account for the country you chose. If the car shows in ${no.lionflow.app.model.Brands.current.app}, check that the country matches the one in that app. Some newer cars can't be reached by other apps yet."
+                    else "No car found on this account — add it in the MyPeugeot app first")
             } catch (e: Exception) {
                 _ui.update { it.copy(signingIn = false) }
                 toast("Sign-in failed — ${no.lionflow.app.api.Http.describe(e)}")
