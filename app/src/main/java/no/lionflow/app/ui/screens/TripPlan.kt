@@ -166,7 +166,7 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
                 for (place in rows.take(8)) {
                     val saved = p.isSaved(place)
                     val recentOnly = !saved && q.length < 2 && p.recent.any { it.name == place.name && it.detail == place.detail }
-                    SuggestRow(LfIcons.Pin, c.muted, place.name, place.detail, saved, { p.toggleSaved(place) }, { pick(place) }, if (recentOnly) ({ p.removeRecent(place) }) else null)
+                    SuggestRow(LfIcons.Pin, c.muted, place.name, place.detail, saved, { p.toggleSaved(place) }, if (recentOnly) ({ p.removeRecent(place) }) else null) { pick(place) }
                 }
                 val note = when {
                     q.length >= 2 && rows.isEmpty() && p.searching -> "Searching…"
@@ -217,7 +217,7 @@ private fun AddressRow(
 }
 
 @Composable
-private fun SuggestRow(icon: ImageVector, tint: Color, name: String, detail: String, saved: Boolean?, onStar: () -> Unit, onClick: () -> Unit, onRemove: (() -> Unit)? = null) {
+private fun SuggestRow(icon: ImageVector, tint: Color, name: String, detail: String, saved: Boolean?, onStar: () -> Unit, onRemove: (() -> Unit)? = null, onClick: () -> Unit) {
     val c = LocalLf.current
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onClick).padding(start = 14.dp, end = 6.dp),
