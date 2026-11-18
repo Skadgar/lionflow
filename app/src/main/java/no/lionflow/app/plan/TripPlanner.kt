@@ -9,6 +9,9 @@ import kotlin.math.sqrt
 /** An address or point the user can drive from or to. */
 data class Place(val name: String, val detail: String, val lat: Double, val lon: Double, val country: String = "")
 
+/** A car ferry on the route: the quay it leaves from and arrives at, the crossing time, and where along the route it starts. */
+data class Ferry(val name: String, val aLat: Double, val aLon: Double, val bLat: Double, val bLon: Double, val minutes: Double, val idx: Int)
+
 /** A driving route: every point with the distance and driving time up to it, and the speed on the stretch before it. */
 class RouteData(
     val lat: DoubleArray,
@@ -17,6 +20,8 @@ class RouteData(
     val min: DoubleArray,
     val speed: DoubleArray,
 ) {
+    /** Car ferries on the way (their crossing time is already in [min]). */
+    var ferries: List<Ferry> = emptyList()
     val size: Int get() = lat.size
     val totalKm: Double get() = if (size == 0) 0.0 else km[size - 1]
     val totalMin: Double get() = if (size == 0) 0.0 else min[size - 1]
@@ -24,9 +29,22 @@ class RouteData(
     /** Energy used up to each point (kWh) for a car with this consumption factor. */
     fun energy(factor: Double): DoubleArray {
         val e = DoubleArray(size)
-        for (i in 1 until size) e[i] = e[i - 1] + (km[i] - km[i - 1]) * Consumption.shape(speed[i]) / 100.0 * factor
+        val c = conditions
+        for (i in 1 until size) {
+            val base = (km[i] - km[i - 1]) * Consumption.shape(speed[i]) / 100.0 * factor
+            // Cold (or heat) scales the use; hills and wind add or take off. A stretch never gives energy back overall.
+            val seg = if (c == null) base else max(0.0, base * c.tempMul[i] + c.extraKwh[i])
+            e[i] = e[i - 1] + seg
+        }
         return e
     }
+
+    /** What hills, wind and temperature do on this route (null until looked up, or when that failed). */
+    var conditions: Conditions? = null
+    /** The hour of departure [conditions] was looked up for. */
+    var conditionsKey: Long = Long.MIN_VALUE
+    /** Heights along the route (distance, metres); the same whatever the departure time. */
+    var elevation: Pair<DoubleArray, DoubleArray>? = null
 
     companion object {
         /**
@@ -264,7 +282,8 @@ object TripPlanner {
         fun detourMin(c: PlanCharger) = detourKm(c) / 40.0 * 60.0
         fun effKw(c: PlanCharger) = min(if (c.kw <= 0) 50.0 else c.kw, o.carMaxKw)
         // Far along the route is good; slow, far off the road or a single plug is not.
-        fun score(c: PlanCharger) = c.km - (1 - effKw(c) / o.carMaxKw) * 70 - c.offKm * 12 - (if (c.points == 1) 12 else 0)
+        // A charger right by a stop the user chose to pass through is worth a lot: it saves a separate stop.
+        fun score(c: PlanCharger) = c.km - (1 - effKw(c) / o.carMaxKw) * 70 - c.offKm * 12 - (if (c.points == 1) 12 else 0) + (if (c.id in preferred) 80 else 0)
 
         val byId = chargers.associateBy { it.id }
         val pins = edits.mapNotNull { e -> byId[e.chargerId]?.let { it to e } }.sortedBy { it.first.km }

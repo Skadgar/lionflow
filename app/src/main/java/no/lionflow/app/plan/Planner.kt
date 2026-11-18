@@ -70,6 +70,24 @@ class Planner(
     var planStays by mutableStateOf<List<Int>>(emptyList())
         private set
 
+    /** When the trip starts; null = now. A time that has passed counts as now. */
+    var departAt by mutableStateOf<Long?>(null)
+        private set
+    fun departMillis(): Long = departAt?.takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis()
+
+    /** A car ferry on the route with the wait for it: when it leaves (if the timetable is known) and minutes to wait. */
+    class FerryInfo(val ferry: Ferry, val waitMin: Int, val departMs: Long?)
+    var ferryInfo by mutableStateOf<List<FerryInfo>>(emptyList())
+        private set
+
+    /** One of the routes found: the road, and its plan once that is worked out (null until then). */
+    class AltRoute(val route: RouteData, val plan: Plan?, val raw: List<RawCharger>?)
+    var alts by mutableStateOf<List<AltRoute>>(emptyList())
+        private set
+    var altIndex by mutableStateOf(0)
+        private set
+    private var altJob: Job? = null
+
     var saved by mutableStateOf(loadPlaces("planSaved"))
         private set
     var recent by mutableStateOf(loadPlaces("planRecent"))
@@ -174,7 +192,9 @@ class Planner(
                 busy = "Finding the route…"
                 val via = vias.filterNotNull().take(3)
                 val stay = vias.indices.filter { vias[it] != null }.take(3).map { stays.getOrElse(it) { 0 } }
-                val r = PlanApi.route(a, b, via)
+                val rs = PlanApi.routes(a, b, via)
+                val r = rs[0]
+                altJob?.cancel(); alts = rs.map { AltRoute(it, null, null) }; altIndex = 0; ferryInfo = emptyList()
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList()
                 route = r; planFrom = a; planTo = b; planVias = via; planStays = stay
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
@@ -183,6 +203,7 @@ class Planner(
                 remember(b); from?.let { remember(it) }; via.forEach { remember(it) }
                 compute()
                 editing = false
+                startAlts()
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 error = "Couldn't plan the trip — ${Http.describe(e)}"
             } finally { busy = null }
@@ -195,14 +216,14 @@ class Planner(
         planJob?.cancel()
         planJob = scope.launch {
             error = null
-            try { compute() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            try { compute(); if (alts.any { it.plan == null }) startAlts() } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 error = "Couldn't find chargers — ${Http.describe(e)}"
             } finally { busy = null }
         }
     }
 
-    private suspend fun compute() {
-        val r = route ?: return
+    /** Battery use and charging speed for this car (matched to its own trips and fast charges when there are enough). */
+    private fun context(): Pair<Options, Consumption.Model> {
         val kwh = batteryKwh()
         val m = Consumption.fit(trips().mapNotNull { t ->
             val used = t.kwh ?: t.avgKwhPer100?.let { it * t.distanceKm / 100 }
@@ -210,63 +231,150 @@ class Planner(
             if (used != null && v != null) Consumption.TripSample(t.distanceKm, used, v) else null
         }, kwh)
         model = m
-        // Charging speed: matched to the user's own fast charges when there are enough, else a typical figure.
         val fitSamples = no.lionflow.app.model.ChargeLog.sessions.value
             .filter { (it.mode?.contains("Quick", true) == true || (it.avgKw ?: 0.0) >= 40.0) && it.endPct - it.startPct >= 8 && it.hours * 60 >= 8 && it.kwh > 0 }
             .sortedByDescending { it.start }.take(8).map { Triple(it.startPct, it.endPct, it.hours * 60) }
         val fitted = ChargeCurve.fitMaxKw(fitSamples, kwh)
         val maxKw = fitted ?: if (kwh >= 68) 110.0 else 80.0
         carKw = maxKw; fitCount = if (fitted != null) fitSamples.size else 0
-        val o = Options(startNow().toDouble(), minPct, targetPct, kwh, maxKw)
+        return Options(startNow().toDouble(), minPct, targetPct, kwh, maxKw) to m
+    }
+
+    /**
+     * Works out the stops for [r], then adds what the plan itself doesn't know about: stays at the places the user
+     * passes through, and the wait for car ferries (from the timetable where there is one, else a typical wait).
+     */
+    private suspend fun solve(
+        r: RouteData, o: Options, m: Consumption.Model, ch: List<PlanCharger>, ed: List<StopEdit>, ex: Set<String>,
+        prefer: Set<String>, vias: List<Place>, stays: List<Int>,
+    ): Pair<Plan, List<FerryInfo>> {
+        ensureConditions(r)
         val energy = withContext(Dispatchers.Default) { r.energy(m.factor) }
-        suspend fun run(ed: List<StopEdit>): Plan =
-            withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, ed, excluded, m, viaNear().values.map { it.id }.toSet()) }
-        var p = run(edits)
+        val p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, ch, o, ed, ex, m, prefer) }
+        // A charging stop right at a via stop is the same wait: count the overlap once.
+        val overlap = vias.indices.sumOf { i ->
+            val v = vias[i]; val st = stays.getOrElse(i) { 0 }
+            if (st <= 0) 0 else p.stops.filter { Geo.km(v.lat, v.lon, it.charger.lat, it.charger.lon) < 1.0 }.maxOfOrNull { minOf(it.minutes, st) } ?: 0
+        }
+        val start = departMillis()
+        var extra = 0.0
+        val infos = ArrayList<FerryInfo>()
+        for (f in r.ferries.sortedBy { it.idx }) {
+            val km = r.km[f.idx]
+            val charging = p.stops.filter { it.charger.km <= km && it.kwh > 0.01 }.sumOf { it.minutes + 5 }
+            val stayed = vias.indices.sumOf { i -> if (r.km[Geo.project(r, vias[i].lat, vias[i].lon).first] <= km) stays.getOrElse(i) { 0 } else 0 }
+            val eta = start + ((r.min[f.idx] + charging + stayed + extra) * 60_000.0).toLong()
+            val dep = try { kotlinx.coroutines.withTimeoutOrNull(8_000L) { PlanApi.ferryDeparture(f, eta) } } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+            val wait = if (dep != null) ((dep - eta) / 60_000.0).coerceIn(0.0, 240.0) else 20.0
+            infos += FerryInfo(f, wait.roundToInt(), dep)
+            extra += wait
+        }
+        return p.copy(totalMin = p.totalMin + stays.sum() - overlap + extra) to infos
+    }
+
+    /** The stops the via places call for: a charger within 1 km of a via stop with a stay is used for that stay, and any charger that close is preferred. */
+    private fun viaPlan(): Pair<List<StopEdit>, Set<String>> {
+        if (planVias.isEmpty()) return emptyList<StopEdit>() to emptySet()
+        val prefer = HashSet<String>(); val implicit = ArrayList<StopEdit>()
+        planVias.forEachIndexed { i, v ->
+            val near = chargers.map { it to Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }
+            near.forEach { prefer += it.first.id }
+            val stay = planStays.getOrElse(i) { 0 }
+            val best = near.filter { it.first.id !in excluded && edits.none { e -> e.chargerId == it.first.id } }.maxByOrNull { it.first.kw * 10 - it.second }
+            if (stay > 0 && best != null && implicit.none { it.chargerId == best.first.id }) implicit += StopEdit(best.first.id, minutes = stay)
+        }
+        return implicit to prefer
+    }
+
+    /** Hills, wind and temperature along the route, for the hour of departure (looked up once per route and hour; a failed lookup is left out). */
+    private suspend fun ensureConditions(r: RouteData) {
+        val key = departMillis() / 3_600_000L
+        if (r.conditionsKey == key) return
+        r.conditionsKey = key
+        r.conditions = try { kotlinx.coroutines.withTimeoutOrNull(10_000L) { ConditionsApi.load(r, departMillis()) } }
+            catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+    }
+
+    private suspend fun solveHere(r: RouteData, o: Options, m: Consumption.Model): Pair<Plan, List<FerryInfo>> {
+        val (implicit, prefer) = viaPlan()
+        return solve(r, o, m, chargers, edits + implicit, excluded, prefer, planVias, planStays)
+    }
+
+    private suspend fun compute() {
+        val r = route ?: return
+        val (o, m) = context()
+        var res = solveHere(r, o, m)
         var changed = false
-        if (!p.ok && corridorFor !== r) {
+        if (!res.first.ok && corridorFor !== r) {
             // The car can't make it in one go: look up the fast chargers along the way (once per route).
             busy = "Finding chargers along the route…"
             corridorRaw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
             corridorFor = r; changed = true
         }
-        // Look for a fast charger right by each stop on the way (best effort; without it the plan just has no stop there).
-        val stayAt = planVias.indices.filter { planStays.getOrElse(it) { 0 } > 0 }
-        val lookAt = if (r.totalKm > 100) planVias.indices.toList() else stayAt
-        val key = lookAt.joinToString("|") { "${planVias[it].lat},${planVias[it].lon}" }
+        // Chargers right by every stop on the way (best effort): fewer separate stops, and a place to charge during a stay.
+        val key = planVias.joinToString("|") { "${it.lat},${it.lon}" }
         if (key != viaRawKey) {
-            viaRaw = if (lookAt.isEmpty()) emptyList() else kotlinx.coroutines.coroutineScope {
-                lookAt.map { i -> async { try { PlanApi.chargersNear(planVias[i].lat, planVias[i].lon, nobilKey()) } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() } } }.awaitAll().flatten()
+            viaRaw = if (planVias.isEmpty()) emptyList() else kotlinx.coroutines.coroutineScope {
+                planVias.map { v -> async { try { PlanApi.chargersNear(v.lat, v.lon, nobilKey()) } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() } } }.awaitAll().flatten()
             }
             viaRawKey = key; changed = true
         }
         if (changed) {
             chargers = withContext(Dispatchers.Default) { place(corridorRaw + viaRaw, r) }
-            p = run(edits)
+            res = solveHere(r, o, m)
         }
-        // When the trip needs charging anyway, charge at the charger by a stop where the user stays: the stay is the charging break.
-        if (p.stops.isNotEmpty() || !p.ok) {
-            val near = viaNear()
-            val auto = stayAt.mapNotNull { i ->
-                val ch = near[i] ?: return@mapNotNull null
-                if (ch.id in excluded || edits.any { it.chargerId == ch.id }) null else StopEdit(ch.id, minutes = planStays[i].coerceIn(5, 180))
-            }
-            if (auto.isNotEmpty()) p = run(edits + auto)
-        }
-        // A charging stop right at a via stop is the same wait: count the overlap once.
-        val overlap = stayAt.sumOf { i ->
-            val v = planVias[i]
-            p.stops.filter { Geo.km(v.lat, v.lon, it.charger.lat, it.charger.lon) < 1.0 }.maxOfOrNull { minOf(it.minutes, planStays[i]) } ?: 0
-        }
-        plan = p.copy(totalMin = p.totalMin + planStays.sum() - overlap)
+        plan = res.first; ferryInfo = res.second
+        alts = alts.mapIndexed { i, a -> if (i == altIndex) AltRoute(a.route, res.first, if (corridorFor === r) corridorRaw else null) else a }
     }
 
-    /** The nearest charger within 1 km of each stop on the way, by the stop's index. */
-    private fun viaNear(): Map<Int, PlanCharger> {
-        val out = HashMap<Int, PlanCharger>()
-        planVias.forEachIndexed { i, v ->
-            chargers.map { it to Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }.minByOrNull { it.second }?.let { out[i] = it.first }
+    /** Works out the other routes in the background, so they can be compared with the chosen one. */
+    private fun startAlts() {
+        altJob?.cancel()
+        if (alts.size < 2) return
+        altJob = scope.launch {
+            for (i in alts.indices) {
+                val a = alts[i]
+                if (i == altIndex || a.plan != null) continue
+                try {
+                    val (o, m) = context()
+                    val raw = a.raw ?: kotlinx.coroutines.withTimeoutOrNull(25_000L) { PlanApi.chargers(a.route, nobilKey()) }
+                    val ch = withContext(Dispatchers.Default) { place(raw.orEmpty(), a.route) }
+                    val res = solve(a.route, o, m, ch, emptyList(), emptySet(), emptySet(), emptyList(), emptyList())
+                    alts = alts.mapIndexed { k, x -> if (k == i) AltRoute(a.route, res.first, raw) else x }
+                } catch (e: CancellationException) { throw e } catch (e: Exception) { }
+            }
         }
-        return out
+    }
+
+    /** The other routes' plans are out of date after a change to the numbers. */
+    private fun staleAlts() { alts = alts.mapIndexed { i, a -> if (i == altIndex) a else AltRoute(a.route, null, a.raw) } }
+
+    /** Switches to another of the routes found. */
+    fun selectRoute(i: Int) {
+        if (i == altIndex || i !in alts.indices) return
+        val a = alts[i]
+        planJob?.cancel(); altJob?.cancel()
+        altIndex = i; route = a.route; edits = emptyList(); excluded = emptySet()
+        corridorRaw = a.raw ?: emptyList(); corridorFor = if (a.raw != null) a.route else null
+        viaRawKey = ""; viaRaw = emptyList(); ferryInfo = emptyList()
+        prefetch?.cancel(); prefetch = null; prefetchFor = null
+        chargers = place(corridorRaw, a.route)
+        planJob = scope.launch {
+            error = null
+            try { compute(); startAlts() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                error = "Couldn't find chargers — ${Http.describe(e)}"
+            } finally { busy = null }
+        }
+    }
+
+    /** Moves the start time to the next or the previous quarter of an hour (back to "now" at the earliest). */
+    fun shiftDepart(dir: Int) {
+        val now = System.currentTimeMillis()
+        val base = departAt?.takeIf { it > now } ?: now
+        val q = 15 * 60_000L
+        val t = if (dir > 0) (base / q + 1) * q else ((base - 1) / q) * q
+        departAt = if (t <= now + 60_000L) null else t
+        staleAlts(); recompute()
     }
 
     /** Puts chargers on the route, drops doubles and far-off ones, and looks up prices. */
@@ -284,9 +392,9 @@ class Planner(
 
     // ---------------- changes to the plan ----------------
 
-    fun setStart(pct: Int?) { startPct = pct?.coerceIn(1, 100); recompute() }
-    fun setMin(pct: Int) { minPct = pct.coerceIn(5, 50); app.settings.setRaw("planMin", minPct.toString()); recompute() }
-    fun setTarget(pct: Int) { targetPct = pct.coerceIn(50, 100); app.settings.setRaw("planTarget", targetPct.toString()); recompute() }
+    fun setStart(pct: Int?) { startPct = pct?.coerceIn(1, 100); staleAlts(); recompute() }
+    fun setMin(pct: Int) { minPct = pct.coerceIn(5, 50); app.settings.setRaw("planMin", minPct.toString()); staleAlts(); recompute() }
+    fun setTarget(pct: Int) { targetPct = pct.coerceIn(50, 100); app.settings.setRaw("planTarget", targetPct.toString()); staleAlts(); recompute() }
 
     private fun put(e: StopEdit) {
         val old = edits.firstOrNull { it.chargerId == e.chargerId }
@@ -341,7 +449,7 @@ class Planner(
 
     /** Closes the planner and takes the route off the map. */
     fun close() {
-        planJob?.cancel(); searchJob?.cancel()
+        planJob?.cancel(); searchJob?.cancel(); altJob?.cancel(); alts = emptyList(); altIndex = 0; ferryInfo = emptyList()
         open = false; editing = true; busy = null; error = null
         prefetch?.cancel(); prefetch = null; prefetchFor = null
         route = null; plan = null; chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList(); edits = emptyList(); excluded = emptySet()

@@ -5,7 +5,9 @@ import no.lionflow.app.api.Http
 import no.lionflow.app.api.NobilApi
 import no.lionflow.app.api.OsmChargers
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.Locale
 import kotlinx.coroutines.async
@@ -39,26 +41,69 @@ object PlanApi {
         "https://router.project-osrm.org/route/v1/driving/",
     )
 
-    /** The fastest driving route (OSRM), with distance and time for every stretch. */
-    suspend fun route(a: Place, b: Place, via: List<Place> = emptyList()): RouteData {
+    /** The fastest driving route (OSRM). */
+    suspend fun route(a: Place, b: Place, via: List<Place> = emptyList()): RouteData = routes(a, b, via).first()
+
+    /**
+     * The fastest driving route (OSRM) and, when there are no stops on the way, up to two alternatives,
+     * with distance and time for every stretch and the car ferries.
+     */
+    suspend fun routes(a: Place, b: Place, via: List<Place> = emptyList()): List<RouteData> {
+        val noRoute = "No road route found between these places"
+        val way = (listOf(a) + via + listOf(b)).joinToString(";") { "${num(it.lon)},${num(it.lat)}" }
+        // Servers differ in what they accept: ask for 2 alternatives, then 1, then none.
+        val variants = if (via.isEmpty()) listOf("&alternatives=2", "&alternatives=true", "") else listOf("")
         var last: Exception? = null
         for (base in ROUTERS) {
-            try {
-                val way = (listOf(a) + via + listOf(b)).joinToString(";") { "${num(it.lon)},${num(it.lat)}" }
-                val url = base + "$way?overview=full&geometries=polyline6&annotations=distance,duration"
-                val j = Http.json(Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).get().build()) as? JSONObject
-                val r = j?.let { PlanParse.route(it) }
-                if (r != null && r.totalKm > 0.05) return r
-                last = ApiException(0, "No road route found between these places")
+            var done = false
+            for (alt in variants) {
+                try {
+                    val url = base + "$way?overview=full&geometries=polyline6&annotations=distance,duration&steps=true$alt"
+                    val j = Http.json(Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).get().build()) as? JSONObject
+                    val rs = j?.let { PlanParse.routes(it) }.orEmpty().filter { it.totalKm > 0.05 }
+                    if (rs.isNotEmpty()) return rs.take(3)
+                    last = ApiException(0, noRoute); done = true; break
+                } catch (e: ApiException) {
+                    last = if (e.code == 400) ApiException(0, noRoute) else e
+                    if (e.code != 400) break
+                } catch (e: java.io.IOException) {
+                    last = e; break
+                }
+            }
+            if (done) break
+        }
+        throw last ?: ApiException(0, noRoute)
+    }
+
+    /**
+     * The next departure of a car ferry at or after [atMs], from Entur's public timetable (Norway only);
+     * null when the crossing isn't found or isn't in Norway.
+     */
+    suspend fun ferryDeparture(f: Ferry, atMs: Long): Long? {
+        if (f.aLat !in 57.5..71.5 || f.aLon !in 4.0..31.5) return null
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
+        fun loc(la: Double, lo: Double) = JSONObject().put("coordinates", JSONObject().put("latitude", la).put("longitude", lo))
+        val query = "query(\$from: Location!, \$to: Location!, \$dt: DateTime) { trip(from: \$from, to: \$to, dateTime: \$dt, numTripPatterns: 3, " +
+            "modes: {accessMode: foot, egressMode: foot, transportModes: [{transportMode: water}]}) { tripPatterns { legs { mode expectedStartTime } } } }"
+        val body = JSONObject().put("query", query).put("variables", JSONObject()
+            .put("from", loc(f.aLat, f.aLon)).put("to", loc(f.bLat, f.bLon)).put("dt", fmt.format(java.util.Date(atMs))))
+        val req = Request.Builder().url("https://api.entur.io/journey-planner/v3/graphql")
+            .header("ET-Client-Name", "lionflow-app").header("User-Agent", Http.CONTACT_AGENT)
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+        val j = Http.json(req) as? JSONObject ?: return null
+        val pats = j.optJSONObject("data")?.optJSONObject("trip")?.optJSONArray("tripPatterns") ?: return null
+        var best: Long? = null
+        for (i in 0 until pats.length()) {
+            val legs = pats.optJSONObject(i)?.optJSONArray("legs") ?: continue
+            for (k in 0 until legs.length()) {
+                val l = legs.optJSONObject(k) ?: continue
+                if (l.optString("mode") != "water") continue
+                val t = try { fmt.parse(l.optString("expectedStartTime"))?.time } catch (_: Exception) { null } ?: continue
+                if (t >= atMs - 60_000L && (best == null || t < best!!)) best = t
                 break
-            } catch (e: ApiException) {
-                last = if (e.code == 400) ApiException(0, "No road route found between these places") else e
-                if (e.code == 400) break
-            } catch (e: java.io.IOException) {
-                last = e
             }
         }
-        throw last ?: ApiException(0, "No road route found between these places")
+        return best
     }
 
     /** Fast chargers (with a CCS plug) near the route: ready-made map tiles first, the live search if those are not available. */

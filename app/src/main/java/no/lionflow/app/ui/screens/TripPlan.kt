@@ -247,6 +247,15 @@ private fun BatteryOptions(p: Planner) {
     val c = LocalLf.current
     val start = p.startNow()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(vertical = 4.dp)) {
+        val dep = p.departAt?.takeIf { it > System.currentTimeMillis() }
+        val leaveText = if (dep == null) L10n.tr("Now") else {
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = dep }
+            val today = java.util.Calendar.getInstance()
+            val sameDay = cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR) && cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR)
+            (if (sameDay) "" else java.text.SimpleDateFormat("EEE ", L10n.locale).format(java.util.Date(dep))) +
+                TimeFmt.hm(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+        }
+        OptionRow("Leave", leaveText, { p.shiftDepart(-1) }, { p.shiftDepart(1) })
         OptionRow(if (p.startPct == null) "Start with (car now)" else "Start with", "$start %", { p.setStart(((start - 1) / 5) * 5) }, { p.setStart((start / 5 + 1) * 5) })
         OptionRow("Never below", "${p.minPct} %", { p.setMin(p.minPct - 5) }, { p.setMin(p.minPct + 5) })
         OptionRow("Charge to", "${p.targetPct} %", { p.setTarget(p.targetPct - 5) }, { p.setTarget(p.targetPct + 5) })
@@ -292,7 +301,7 @@ private fun OptionRow(label: String, value: String, onMinus: () -> Unit, onPlus:
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = Type.body, color = c.text2, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         StepButton(LfIcons.Minus, "Less", onMinus)
-        Plain(value, Type.label, c.text, Modifier.width(64.dp), align = TextAlign.Center)
+        Plain(value, Type.label, c.text, Modifier.widthIn(min = 64.dp), align = TextAlign.Center)
         StepButton(LfIcons.Plus, "More", onPlus)
     }
 }
@@ -334,7 +343,7 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(dur(plan.totalMin), style = Type.stat.copy(fontSize = 26.sp), color = c.text, modifier = Modifier.weight(1f))
                 if (plan.ok) {
-                    val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MINUTE, plan.totalMin.roundToInt()) }
+                    val cal = java.util.Calendar.getInstance().apply { timeInMillis = p.departMillis(); add(java.util.Calendar.MINUTE, plan.totalMin.roundToInt()) }
                     Text("Arrive " + TimeFmt.hm(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE)), style = Type.label, color = c.text2)
                 }
             }
@@ -351,6 +360,8 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
                 plan.cost?.let { Tag("≈ " + money(it, plan.currency) + if (plan.unpriced > 0) " +" else "", c.card, c.text2, c.line2) }
             }
         }
+        if (options && p.alts.size > 1) AltChooser(p, s)
+        if (p.ferryInfo.isNotEmpty()) FerryRows(p)
         if (!plan.ok) Text(
             if (p.startNow() <= p.minPct) "The start charge is at or below your minimum. Start with more, or lower the minimum."
             else "No fast charger within reach after ${fmtDistance(plan.failKm, s)}. Lower the minimum, raise Charge to, charge more before, or pick a charger on the map.",
@@ -389,10 +400,23 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         if (p.changed) Text("Undo my changes to the stops", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk, modifier = Modifier.clickable { p.resetStops() })
 
         Text(
-            if (p.model.trips > 0) "Battery use is worked out from your ${p.model.trips} longest trips (${String.format(Locale.US, "%.1f", p.model.at(90.0))} kWh/100 km at 90 km/h). Hills and wind are not counted."
-            else "Battery use is a typical figure until LionFlow has your trips. Hills and wind are not counted.",
+            if (p.model.trips > 0) "Battery use is worked out from your ${p.model.trips} longest trips (${String.format(Locale.US, "%.1f", p.model.at(90.0))} kWh/100 km at 90 km/h)."
+            else "Battery use is a typical figure until LionFlow has your trips.",
             style = Type.tiny, color = c.muted,
         )
+        p.route?.let { rt ->
+            val cd = rt.conditions
+            val lines = when {
+                cd == null -> listOf("Hills, wind and temperature are not counted (the forecast could not be fetched).")
+                cd.hasHills && cd.hasWeather -> listOf(
+                    "Hills (${cd.climbM.roundToInt()} m of climbing), wind and temperature along the route are included.",
+                    "Forecast along the route: ${cd.tMin!!.roundToInt()} to ${cd.tMax!!.roundToInt()} °C, wind up to ${cd.windMax!!.roundToInt()} m/s.",
+                )
+                cd.hasHills -> listOf("Hills (${cd.climbM.roundToInt()} m of climbing) are included. No forecast for wind and temperature (too far ahead, or not available).")
+                else -> listOf("Forecast along the route: ${cd.tMin!!.roundToInt()} to ${cd.tMax!!.roundToInt()} °C, wind up to ${cd.windMax!!.roundToInt()} m/s.")
+            }
+            for (l in lines) Text(L10n.tr(l), style = Type.tiny, color = c.muted)
+        }
         Text(
             if (p.fitCount > 0) "Charging time matches your last ${p.fitCount} fast charges (top speed about ${p.carKw.roundToInt()} kW)."
             else "Charging time is a typical figure until LionFlow has seen your fast charges.",
@@ -492,5 +516,54 @@ fun PlanChargerCard(ch: PlanCharger, isStop: Boolean, s: AppSettings, modifier: 
             Modifier.fillMaxWidth().height(44.dp).clip(CircleShape).background(if (isStop) c.raised else c.accent).clickable(role = Role.Button, onClick = if (isStop) onRemove else onAdd),
             contentAlignment = Alignment.Center,
         ) { Text(if (isStop) "Remove this stop" else "Charge here", style = Type.label, color = if (isStop) c.text else c.onAccent) }
+    }
+}
+
+/** Up to three routes side by side, each labelled with what it is best at (fastest, shortest, cheapest). */
+@Composable
+private fun AltChooser(p: Planner, s: AppSettings) {
+    val c = LocalLf.current
+    val alts = p.alts
+    val done = alts.filter { it.plan?.ok == true }
+    val fastest = done.minByOrNull { it.plan!!.totalMin }
+    val shortest = done.minByOrNull { it.route.totalKm }
+    val cheapest = done.filter { it.plan!!.cost != null }.minByOrNull { it.plan!!.cost!! }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Routes", style = Type.label, color = c.text2)
+        alts.forEachIndexed { i, a ->
+            val sel = i == p.altIndex
+            val pl = a.plan
+            val tags = listOfNotNull(
+                if (a === fastest) L10n.tr("Fastest") else null,
+                if (a === shortest) L10n.tr("Shortest") else null,
+                if (a === cheapest && done.size > 1) L10n.tr("Cheapest") else null,
+            ).joinToString(" · ")
+            val info = if (pl == null) L10n.tr("Working it out…")
+                else listOfNotNull(dur(pl.totalMin), fmtDistance(a.route.totalKm, s), pl.cost?.let { "≈ " + money(it, pl.currency) }).joinToString(" · ")
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, if (sel) c.accentInk else c.line2, RoundedCornerShape(14.dp))
+                    .clickable { p.selectRoute(i) }.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Plain(info, Type.body.copy(fontWeight = FontWeight.SemiBold), c.text)
+                    if (tags.isNotEmpty()) Plain(tags, Type.tiny, c.muted)
+                }
+            }
+        }
+    }
+}
+
+/** The car ferries on the way, with when they leave and how long the wait is. */
+@Composable
+private fun FerryRows(p: Planner) {
+    val c = LocalLf.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        p.ferryInfo.forEach { f ->
+            val at = f.departMs?.let { ms -> java.util.Calendar.getInstance().apply { timeInMillis = ms }.let { " · " + L10n.tr("leaves") + " " + TimeFmt.hm(it.get(java.util.Calendar.HOUR_OF_DAY), it.get(java.util.Calendar.MINUTE)) } } ?: ""
+            Plain("⛴ ${f.ferry.name} · ${dur(f.ferry.minutes)} · ${L10n.tr("wait")} ${f.waitMin} min$at", Type.small, c.text2, maxLines = 2)
+        }
+        Text("Ferry times: Entur in Norway, otherwise a typical wait is assumed.", style = Type.tiny, color = c.muted)
     }
 }

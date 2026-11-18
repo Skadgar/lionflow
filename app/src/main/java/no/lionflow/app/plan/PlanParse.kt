@@ -37,8 +37,16 @@ object PlanParse {
     }
 
     /** OSRM route answer with an encoded line (6 decimals) and distance/time per stretch. */
-    fun route(j: JSONObject): RouteData? {
-        val r = j.optJSONArray("routes")?.optJSONObject(0) ?: return null
+    fun route(j: JSONObject): RouteData? = routes(j).firstOrNull()
+
+    /** All the routes in an OSRM answer: the best one first, then the alternatives. */
+    fun routes(j: JSONObject): List<RouteData> {
+        val arr = j.optJSONArray("routes") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { one(arr.optJSONObject(it)) }
+    }
+
+    private fun one(r: JSONObject?): RouteData? {
+        r ?: return null
         val geometry = r.optString("geometry")
         if (geometry.isBlank()) return null
         val (lat, lon) = Geo.decodePolyline(geometry, 6)
@@ -52,7 +60,29 @@ object PlanParse {
             for (k in 0 until d.length()) { dist.add(d.optDouble(k, 0.0)); dur.add(t.optDouble(k, 0.0)) }
         }
         val fits = dist.size == lat.size - 1
-        return RouteData.build(lat, lon, if (fits) dist.toDoubleArray() else null, if (fits) dur.toDoubleArray() else null, r.optDouble("duration", 0.0))
+        val rd = RouteData.build(lat, lon, if (fits) dist.toDoubleArray() else null, if (fits) dur.toDoubleArray() else null, r.optDouble("duration", 0.0))
+        rd.ferries = ferries(r, rd)
+        return rd
+    }
+
+    /** Car ferries: the steps OSRM marks with mode "ferry". */
+    private fun ferries(r: JSONObject, rd: RouteData): List<Ferry> {
+        val out = ArrayList<Ferry>()
+        val legs = r.optJSONArray("legs") ?: return out
+        for (i in 0 until legs.length()) {
+            val steps = legs.optJSONObject(i)?.optJSONArray("steps") ?: continue
+            for (k in 0 until steps.length()) {
+                val st = steps.optJSONObject(k) ?: continue
+                if (st.optString("mode") != "ferry") continue
+                val g = st.optString("geometry")
+                if (g.isBlank()) continue
+                val (la, lo) = Geo.decodePolyline(g, 6)
+                if (la.size < 2) continue
+                out.add(Ferry(st.optString("name").ifBlank { "Ferry" }, la[0], lo[0], la[la.size - 1], lo[lo.size - 1],
+                    st.optDouble("duration", 0.0) / 60.0, Geo.project(rd, la[0], lo[0]).first))
+            }
+        }
+        return out
     }
 
     /** Overpass answer: charging stations with a CCS plug. */
