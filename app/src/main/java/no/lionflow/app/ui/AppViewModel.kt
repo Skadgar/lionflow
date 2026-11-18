@@ -805,7 +805,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 var page: String? = null
                 var guard = 0
                 do {
-                    val j = api.trips(v, since, page)
+                    // "404 / 40400 No trip was found" just means the car has no trips in this period (some cars say so on every call).
+                    val j = try { api.trips(v, since, page) } catch (e: no.lionflow.app.api.ApiException) {
+                        if (e.code == 404) break else throw e
+                    }
                     j.optJSONObject("_embedded")?.optJSONArray("trips")?.objects()?.forEach { all += Trip.parse(it) }
                     val next = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")
                     page = next?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
