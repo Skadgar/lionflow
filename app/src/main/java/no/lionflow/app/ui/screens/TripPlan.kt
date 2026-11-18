@@ -565,6 +565,8 @@ private fun FerryRows(p: Planner) {
             val at = f.departMs?.let { ms -> java.util.Calendar.getInstance().apply { timeInMillis = ms }.let { " · " + L10n.tr("leaves") + " " + TimeFmt.hm(it.get(java.util.Calendar.HOUR_OF_DAY), it.get(java.util.Calendar.MINUTE)) } } ?: ""
             Plain("⛴ ${f.ferry.name} · ${dur(f.ferry.minutes)} · ${L10n.tr("wait")} ${f.waitMin} min$at", Type.small, c.text2, maxLines = 2)
         }
-        Text("Ferry times: Entur in Norway, otherwise a typical wait is assumed.", style = Type.tiny, color = c.muted)
+        val platform = LocalPlatform.current
+        Text("Ferry times: Entur and Transitous where the operator publishes them, otherwise a typical wait is assumed.", style = Type.tiny, color = c.muted,
+            modifier = Modifier.clickable { platform.openUrl("https://transitous.org/sources/") })
     }
 }

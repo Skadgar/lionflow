@@ -264,7 +264,7 @@ class Planner(
             val charging = p.stops.filter { it.charger.km <= km && it.kwh > 0.01 }.sumOf { it.minutes + 5 }
             val stayed = vias.indices.sumOf { i -> if (r.km[Geo.project(r, vias[i].lat, vias[i].lon).first] <= km) stays.getOrElse(i) { 0 } else 0 }
             val eta = start + ((r.min[f.idx] + charging + stayed + extra) * 60_000.0).toLong()
-            val dep = try { kotlinx.coroutines.withTimeoutOrNull(8_000L) { PlanApi.ferryDeparture(f, eta) } } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+            val dep = try { kotlinx.coroutines.withTimeoutOrNull(13_000L) { PlanApi.ferryDeparture(f, eta) } } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
             val wait = if (dep != null) ((dep - eta) / 60_000.0).coerceIn(0.0, 240.0) else 20.0
             infos += FerryInfo(f, wait.roundToInt(), dep)
             extra += wait

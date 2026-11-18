@@ -80,7 +80,43 @@ object PlanApi {
      * null when the crossing isn't found or isn't in Norway.
      */
     suspend fun ferryDeparture(f: Ferry, atMs: Long): Long? {
-        if (f.aLat !in 57.5..71.5 || f.aLon !in 4.0..31.5) return null
+        // Asked once per crossing and quarter of an hour: the plan is worked out again on every small change.
+        val key = "${num(f.aLat)},${num(f.aLon)},${num(f.bLat)},${num(f.bLon)},${atMs / 900_000L}"
+        synchronized(ferryCache) { if (ferryCache.containsKey(key)) return ferryCache[key] }
+        val norway = f.aLat in 57.5..71.5 && f.aLon in 4.0..31.5
+        val t = (if (norway) try { kotlinx.coroutines.withTimeoutOrNull(5_000L) { enturDeparture(f, atMs) } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } else null)
+            ?: kotlinx.coroutines.withTimeoutOrNull(7_000L) { transitousDeparture(f, atMs) }
+        synchronized(ferryCache) { if (ferryCache.size > 200) ferryCache.clear(); ferryCache[key] = t }
+        return t
+    }
+    private val ferryCache = HashMap<String, Long?>()
+
+    /**
+     * The next ferry between two quays in Transitous' timetables (community-run, the whole world where
+     * operators publish their times); null when it has none for this crossing.
+     */
+    private suspend fun transitousDeparture(f: Ferry, atMs: Long): Long? {
+        val iso = java.time.Instant.ofEpochMilli(atMs).truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString()
+        val url = "https://api.transitous.org/api/v6/plan?fromPlace=${num(f.aLat)},${num(f.aLon)}&toPlace=${num(f.bLat)},${num(f.bLon)}" +
+            "&time=${java.net.URLEncoder.encode(iso, "UTF-8")}&transitModes=FERRY&directModes=&maxTransfers=0&searchWindow=10800&numItineraries=3"
+        val j = Http.json(Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).get().build()) as? JSONObject ?: return null
+        val its = j.optJSONArray("itineraries") ?: return null
+        var best: Long? = null
+        for (i in 0 until its.length()) {
+            val legs = its.optJSONObject(i)?.optJSONArray("legs") ?: continue
+            for (k in 0 until legs.length()) {
+                val l = legs.optJSONObject(k) ?: continue
+                if (l.optString("mode") != "FERRY") continue
+                val t = try { java.time.OffsetDateTime.parse(l.optString("startTime")).toInstant().toEpochMilli() } catch (_: Exception) { null } ?: break
+                if (t >= atMs - 60_000L && (best == null || t < best!!)) best = t
+                break
+            }
+        }
+        return best
+    }
+
+    /** Entur's public timetable (Norway). */
+    private suspend fun enturDeparture(f: Ferry, atMs: Long): Long? {
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
         fun loc(la: Double, lo: Double) = JSONObject().put("coordinates", JSONObject().put("latitude", la).put("longitude", lo))
         val query = "query(\$from: Location!, \$to: Location!, \$dt: DateTime) { trip(from: \$from, to: \$to, dateTime: \$dt, numTripPatterns: 3, " +
