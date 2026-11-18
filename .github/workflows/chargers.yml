@@ -1,8 +1,8 @@
 name: Charger tiles
 
-# Builds the fast-charger map tiles the trip planner downloads (OpenStreetMap data, via Overpass) and
-# publishes them on the "chargers" branch, so the app gets them from GitHub's fast CDN instead of asking
-# the busy free Overpass servers while you wait. Nothing is collected from users.
+# Builds the fast-charger map tiles the trip planner downloads and publishes them on the "chargers" branch, so the
+# app gets them from GitHub's fast CDN instead of asking the busy free Overpass servers while you wait.
+# Source: the OpenStreetMap Europe file from Geofabrik (no Overpass). Nothing is collected from users.
 on:
   schedule:
     - cron: "23 3 * * 1"
@@ -14,22 +14,30 @@ permissions:
 jobs:
   tiles:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-      - name: Get the previous tiles
+      - name: Install osmium
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+      - name: Download Europe
         run: |
-          mkdir out
-          git fetch origin chargers:chargers 2>/dev/null && git --work-tree=out checkout chargers -- . 2>/dev/null || true
-          git reset -q
-      - name: Build
-        run: python3 scripts/build_chargers.py out
+          sudo mkdir -p /mnt/w && sudo chown "$USER" /mnt/w
+          df -h /mnt
+          curl -fL --retry 5 --retry-delay 20 -A "LionFlow-charger-tiles (https://github.com/thocubeat/lionflow)" \
+            -o /mnt/w/europe.osm.pbf https://download.geofabrik.de/europe-latest.osm.pbf
+          ls -lh /mnt/w
+      - name: Cut out the charging stations
+        run: |
+          osmium tags-filter /mnt/w/europe.osm.pbf nwr/amenity=charging_station -o /mnt/w/cs.osm.pbf
+          osmium export /mnt/w/cs.osm.pbf -f geojsonseq --geometry-types=point,polygon --add-unique-id=type_id -o /mnt/w/cs.geojsonseq
+          ls -lh /mnt/w
+      - name: Build tiles
+        run: python3 scripts/build_chargers.py /mnt/w/cs.geojsonseq out
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd out
-          rm -rf .git
           git init -q -b chargers
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
