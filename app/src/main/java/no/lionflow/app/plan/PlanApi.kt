@@ -40,11 +40,12 @@ object PlanApi {
     )
 
     /** The fastest driving route (OSRM), with distance and time for every stretch. */
-    suspend fun route(a: Place, b: Place): RouteData {
+    suspend fun route(a: Place, b: Place, via: List<Place> = emptyList()): RouteData {
         var last: Exception? = null
         for (base in ROUTERS) {
             try {
-                val url = base + "${num(a.lon)},${num(a.lat)};${num(b.lon)},${num(b.lat)}?overview=full&geometries=polyline6&annotations=distance,duration"
+                val way = (listOf(a) + via + listOf(b)).joinToString(";") { "${num(it.lon)},${num(it.lat)}" }
+                val url = base + "$way?overview=full&geometries=polyline6&annotations=distance,duration"
                 val j = Http.json(Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT).get().build()) as? JSONObject
                 val r = j?.let { PlanParse.route(it) }
                 if (r != null && r.totalKm > 0.05) return r

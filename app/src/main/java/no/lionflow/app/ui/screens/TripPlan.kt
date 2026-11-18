@@ -121,7 +121,7 @@ private fun chargerLine(c: PlanCharger, s: AppSettings, price: Boolean = true): 
 fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
     val c = LocalLf.current
     val focus = LocalFocusManager.current
-    // The address being typed: 0 = from, 1 = to, -1 = none.
+    // The address being typed: 0 = from, 1 = to, 2.. = a stop on the way, -1 = none.
     var field by remember { mutableStateOf(if (p.to == null) 1 else -1) }
     var query by remember { mutableStateOf("") }
     val requester = remember { FocusRequester() }
@@ -129,7 +129,7 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
 
     fun open(which: Int) { field = which; query = ""; p.clearSearch() }
     fun done() { query = ""; p.clearSearch(); field = if (p.to == null) 1 else -1; if (field < 0) focus.clearFocus() }
-    fun pick(place: Place?) { if (field == 0) p.from = place else p.to = place; done() }
+    fun pick(place: Place?) { if (field == 0) p.from = place else if (field == 1) p.to = place else p.setVia(field - 2, place); done() }
 
     val carHere = ui.status?.lat != null
     val fromText = p.from?.name ?: L10n.tr(if (carHere) "Car's position" else "My position")
@@ -138,7 +138,15 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AddressRow(LfIcons.Car, c.orangeInk, "From", fromText, field == 0, query, requester, { query = it; p.search(it) }, { open(0) }, { done() })
+                p.vias.forEachIndexed { i, v ->
+                    AddressRow(LfIcons.Pin, c.muted, "Via", v?.name, field == i + 2, query, requester, { query = it; p.search(it) }, { open(i + 2) },
+                        { if (v == null) p.removeVia(i); done() }, onRemove = { p.removeVia(i); done() })
+                }
                 AddressRow(LfIcons.Pin, c.accentInk, "Where to?", p.to?.name, field == 1, query, requester, { query = it; p.search(it) }, { open(1) }, { if (p.to != null) done() else { query = ""; p.clearSearch() } })
+                if (field < 0 && p.vias.size < 3) Text(
+                    "Add a stop on the way", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                    modifier = Modifier.clickable(role = Role.Button) { p.addVia(); open(p.vias.size + 1) }.padding(horizontal = 4.dp, vertical = 6.dp),
+                )
             }
             Box(
                 Modifier.size(40.dp).clip(CircleShape).background(c.raised).clickable(role = Role.Button) { p.swapEnds() }
@@ -179,7 +187,7 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
 @Composable
 private fun AddressRow(
     icon: ImageVector, tint: Color, hint: String, value: String?, active: Boolean, query: String, requester: FocusRequester,
-    onQuery: (String) -> Unit, onOpen: () -> Unit, onClose: () -> Unit,
+    onQuery: (String) -> Unit, onOpen: () -> Unit, onClose: () -> Unit, onRemove: (() -> Unit)? = null,
 ) {
     val c = LocalLf.current
     val shape = RoundedCornerShape(14.dp)
@@ -200,6 +208,7 @@ private fun AddressRow(
             LfIcon(LfIcons.Close, c.muted, 18.dp, "Close", Modifier.clickable(onClick = onClose).padding(4.dp))
         } else if (value != null) Plain(value, Type.body, c.text, Modifier.weight(1f))
         else Text(hint, style = Type.body, color = c.muted, modifier = Modifier.weight(1f))
+        if (!active && onRemove != null) LfIcon(LfIcons.Close, c.muted, 18.dp, "Remove this stop", Modifier.clickable(onClick = onRemove).padding(4.dp))
     }
 }
 
@@ -313,12 +322,23 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
 
         // The trip, stop by stop
         if (from != null) EndRow(c.orangeInk, placeName(from), from.detail, "${p.startNow()} %") { onShow(from.lat, from.lon) }
-        plan.stops.forEachIndexed { i, st -> StopCard(i + 1, st, p, s, onShow) }
+        // Charging stops and the places the user asked to pass through, in the order they come along the road.
+        val rt = p.route
+        val vias = if (rt == null) emptyList() else p.planVias.map { v -> v to rt.km[no.lionflow.app.plan.Geo.project(rt, v.lat, v.lon).first] }.sortedBy { it.second }
+        var vi = 0
+        plan.stops.forEachIndexed { i, st ->
+            while (vi < vias.size && vias[vi].second <= st.charger.km) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, L10n.tr("Via")) { onShow(v.lat, v.lon) }; vi++ }
+            StopCard(i + 1, st, p, s, onShow)
+        }
+        while (vi < vias.size) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, L10n.tr("Via")) { onShow(v.lat, v.lon) }; vi++ }
         if (to != null) EndRow(c.accentInk, placeName(to), to.detail, if (plan.ok) "${plan.arrivePct.roundToInt()} %" else "—") { onShow(to.lat, to.lon) }
 
         if (options) BatteryOptions(p)
         if (plan.ok && from != null && to != null) PrimaryButton("Open in Google Maps", Modifier.fillMaxWidth(), icon = LfIcons.Locate) {
-            val stops = plan.stops.take(9).joinToString("%7C") { "${it.charger.lat},${it.charger.lon}" }
+            val rt2 = p.route
+            val along = plan.stops.map { it.charger.km to "${it.charger.lat},${it.charger.lon}" } +
+                (if (rt2 == null) emptyList() else p.planVias.map { v -> rt2.km[no.lionflow.app.plan.Geo.project(rt2, v.lat, v.lon).first] to "${v.lat},${v.lon}" })
+            val stops = along.sortedBy { it.first }.take(9).joinToString("%7C") { it.second }
             platform.openUrl(
                 "https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=${from.lat},${from.lon}&destination=${to.lat},${to.lon}" +
                     if (stops.isNotEmpty()) "&waypoints=$stops" else "",

@@ -446,6 +446,7 @@ private fun addSymbols(ctx: Context, style: Style, accent: Int) {
     style.addImage("lf-ch-fast", disc(26f, dark, 2f, accent) { cv, sz -> bolt(cv, sz, dark) })
     style.addImage("lf-ch", disc(20f, accent, 1.5f, android.graphics.Color.parseColor("#16181B")) { cv, sz -> bolt(cv, sz, accent) })
     style.addImage("lf-start", disc(22f, white, 3f, android.graphics.Color.parseColor("#FFB547")) { _, _ -> })
+    style.addImage("lf-via", disc(20f, white, 3f, android.graphics.Color.parseColor("#6B7280")) { _, _ -> })
     style.addImage("lf-end", disc(26f, white, 3f, dark) { cv, sz ->
         cv.drawCircle(sz / 2f, sz / 2f, sz * 0.14f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = white })
     })
@@ -512,6 +513,7 @@ private fun updateLayers(ctx: Context, style: Style, chargers: List<Charger>, ui
     if (route != null && route.size >= 2) {
         marks += Feature.fromGeometry(Point.fromLngLat(route.lon[0], route.lat[0])).apply { addStringProperty("icon", "lf-start") }
         marks += Feature.fromGeometry(Point.fromLngLat(route.lon[route.size - 1], route.lat[route.size - 1])).apply { addStringProperty("icon", "lf-end") }
+        planner?.planVias.orEmpty().forEach { v -> marks += Feature.fromGeometry(Point.fromLngLat(v.lon, v.lat)).apply { addStringProperty("icon", "lf-via") } }
         stops.forEachIndexed { i, st ->
             marks += Feature.fromGeometry(Point.fromLngLat(st.charger.lon, st.charger.lat)).apply {
                 addStringProperty("id", st.charger.id)

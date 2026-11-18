@@ -34,6 +34,8 @@ class Planner(
     /** null = where the car is. */
     var from by mutableStateOf<Place?>(null)
     var to by mutableStateOf<Place?>(null)
+    /** Up to 3 places the trip passes through, in order; null = a slot the user is still filling in. */
+    var vias by mutableStateOf<List<Place?>>(emptyList())
     /** null = the car's current charge. */
     var startPct by mutableStateOf<Int?>(null)
     var minPct by mutableStateOf(app.settings.raw("planMin").toIntOrNull()?.coerceIn(5, 50) ?: 20)
@@ -59,6 +61,8 @@ class Planner(
     var planFrom by mutableStateOf<Place?>(null)
         private set
     var planTo by mutableStateOf<Place?>(null)
+        private set
+    var planVias by mutableStateOf<List<Place>>(emptyList())
         private set
 
     var saved by mutableStateOf(loadPlaces("planSaved"))
@@ -149,13 +153,14 @@ class Planner(
             if (a == null) { error = "Choose where the trip starts"; return@launch }
             try {
                 busy = "Finding the route…"
-                val r = PlanApi.route(a, b)
+                val via = vias.filterNotNull().take(3)
+                val r = PlanApi.route(a, b, via)
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); chargersFor = null
-                route = r; planFrom = a; planTo = b
+                route = r; planFrom = a; planTo = b; planVias = via
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
                 if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey()) } } }
                 priceCountry = if (a.country.isNotBlank() && a.country.equals(b.country, ignoreCase = true)) a.country else ""
-                remember(b); from?.let { remember(it) }
+                remember(b); from?.let { remember(it) }; via.forEach { remember(it) }
                 compute()
                 editing = false
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
@@ -237,7 +242,12 @@ class Planner(
     val changed: Boolean get() = edits.isNotEmpty() || excluded.isNotEmpty()
     fun resetStops() { edits = emptyList(); excluded = emptySet(); recompute() }
 
+    fun addVia() { if (vias.size < 3) vias = vias + null }
+    fun setVia(i: Int, place: Place?) { if (i in vias.indices) vias = vias.toMutableList().also { it[i] = place } }
+    fun removeVia(i: Int) { if (i in vias.indices) vias = vias.filterIndexed { j, _ -> j != i } }
+
     fun swapEnds() {
+        vias = vias.reversed()
         val a = from; val b = to
         if (b == null) return
         to = a ?: origin()
