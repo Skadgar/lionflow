@@ -1,6 +1,7 @@
 package no.lionflow.app.api
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import kotlinx.coroutines.launch
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
@@ -173,20 +174,34 @@ object OsmChargers {
 
     /** Runs an Overpass query on the first free server that answers. */
     suspend fun raw(q: String): JSONObject {
-        var last: Exception? = null
-        for (url in ENDPOINTS) {
-            try {
-                val req = Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT)
-                    .post(okhttp3.FormBody.Builder().add("data", q).build()).build()
-                return Http.json(req) as? JSONObject ?: JSONObject()
-            } catch (e: ApiException) {
-                last = e
-                if (e.code != 429 && e.code < 500) throw e
-            } catch (e: java.io.IOException) {
-                last = e
+        // Ask the servers side by side, each starting a little after the one before; the first good answer wins.
+        // (One busy server used to hold everything up for a minute before the next was tried.)
+        val result = kotlinx.coroutines.CompletableDeferred<JSONObject>()
+        val failed = java.util.concurrent.atomic.AtomicInteger(0)
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+        ENDPOINTS.forEachIndexed { i, url ->
+            scope.launch {
+                kotlinx.coroutines.delay(i * 2500L)
+                if (result.isCompleted) return@launch
+                try {
+                    val req = Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT)
+                        .post(okhttp3.FormBody.Builder().add("data", q).build()).build()
+                    val j = Http.json(req) as? JSONObject ?: JSONObject()
+                    // A server that ran out of time answers "OK" with a remark and no data.
+                    if (j.optString("remark").isNotBlank() && (j.optJSONArray("elements")?.length() ?: 0) == 0) throw java.io.IOException("server gave up")
+                    result.complete(j)
+                } catch (e: Exception) {
+                    if (failed.incrementAndGet() == ENDPOINTS.size) result.completeExceptionally(BusyException())
+                }
             }
         }
-        throw if (last is ApiException || last == null) BusyException() else last
+        return try {
+            kotlinx.coroutines.withTimeout(40_000L) { result.await() }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            throw BusyException()
+        } finally {
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+        }
     }
 
     private suspend fun query(endpoint: String, lat: Double, lon: Double, radiusM: Int, limit: Int, amenity: String): List<Charger> {

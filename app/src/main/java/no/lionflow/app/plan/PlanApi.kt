@@ -59,23 +59,32 @@ object PlanApi {
 
     /** Fast chargers (with a CCS plug) within about 2 km of the route. */
     suspend fun chargers(r: RouteData): List<RawCharger> {
-        // The route as a line with a point about every 2 km (at most ~450 points).
-        val step = maxOf(2.0, r.totalKm / 450.0)
-        val sb = StringBuilder()
-        var next = 0.0
-        for (i in 0 until r.size) {
-            if (r.km[i] >= next || i == r.size - 1) {
-                if (sb.isNotEmpty()) sb.append(',')
-                sb.append(num(r.lat[i])).append(',').append(num(r.lon[i]))
-                next = r.km[i] + step
+        // Boxes around each ~40 km of the route. A box search with a plug filter is answered far quicker than
+        // "everything near this long line"; chargers too far from the road are dropped afterwards.
+        val boxes = StringBuilder()
+        var i = 0
+        while (i < r.size - 1) {
+            var s = 90.0; var n = -90.0; var w = 180.0; var e = -180.0
+            val startKm = r.km[i]
+            var k = i
+            while (k < r.size && (r.km[k] - startKm <= 40.0 || k == i)) {
+                if (r.lat[k] < s) s = r.lat[k]; if (r.lat[k] > n) n = r.lat[k]
+                if (r.lon[k] < w) w = r.lon[k]; if (r.lon[k] > e) e = r.lon[k]
+                k++
             }
+            if (k < r.size) {   // reach to the first point of the next stretch, so no gap is left between boxes
+                if (r.lat[k] < s) s = r.lat[k]; if (r.lat[k] > n) n = r.lat[k]
+                if (r.lon[k] < w) w = r.lon[k]; if (r.lon[k] > e) e = r.lon[k]
+            }
+            val padLat = 0.025
+            val padLon = 0.025 / Math.cos(Math.toRadians((s + n) / 2)).coerceAtLeast(0.2)
+            val box = "(${num(s - padLat)},${num(w - padLon)},${num(n + padLat)},${num(e + padLon)})"
+            boxes.append("node[\"amenity\"=\"charging_station\"][\"socket:type2_combo\"]$box;")
+                .append("way[\"amenity\"=\"charging_station\"][\"socket:type2_combo\"]$box;")
+                .append("node[\"amenity\"=\"charging_station\"][\"socket:tesla_supercharger_ccs\"]$box;")
+            i = k
         }
-        val around = "(around:2000,$sb)"
-        val q = "[out:json][timeout:40];(" +
-            "node[\"amenity\"=\"charging_station\"][\"socket:type2_combo\"]$around;" +
-            "way[\"amenity\"=\"charging_station\"][\"socket:type2_combo\"]$around;" +
-            "node[\"amenity\"=\"charging_station\"][\"socket:tesla_supercharger_ccs\"]$around;" +
-            ");out center 900;"
+        val q = "[out:json][timeout:25];($boxes);out center 2000;"
         return PlanParse.chargers(OsmChargers.raw(q))
     }
 }
