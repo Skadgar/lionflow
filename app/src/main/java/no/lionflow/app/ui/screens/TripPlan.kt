@@ -165,7 +165,8 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
                 if (field == 0 && q.length < 2) SuggestRow(LfIcons.Car, c.orangeInk, L10n.tr(if (carHere) "Car's position" else "My position"), "", null, { }) { pick(null) }
                 for (place in rows.take(8)) {
                     val saved = p.isSaved(place)
-                    SuggestRow(LfIcons.Pin, c.muted, place.name, place.detail, saved, { p.toggleSaved(place) }) { pick(place) }
+                    val recentOnly = !saved && q.length < 2 && p.recent.any { it.name == place.name && it.detail == place.detail }
+                    SuggestRow(LfIcons.Pin, c.muted, place.name, place.detail, saved, { p.toggleSaved(place) }, { pick(place) }, if (recentOnly) ({ p.removeRecent(place) }) else null)
                 }
                 val note = when {
                     q.length >= 2 && rows.isEmpty() && p.searching -> "Searching…"
@@ -216,7 +217,7 @@ private fun AddressRow(
 }
 
 @Composable
-private fun SuggestRow(icon: ImageVector, tint: Color, name: String, detail: String, saved: Boolean?, onStar: () -> Unit, onClick: () -> Unit) {
+private fun SuggestRow(icon: ImageVector, tint: Color, name: String, detail: String, saved: Boolean?, onStar: () -> Unit, onClick: () -> Unit, onRemove: (() -> Unit)? = null) {
     val c = LocalLf.current
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onClick).padding(start = 14.dp, end = 6.dp),
@@ -227,6 +228,11 @@ private fun SuggestRow(icon: ImageVector, tint: Color, name: String, detail: Str
             Plain(name, Type.body, c.text)
             if (detail.isNotBlank()) Plain(detail, Type.tiny, c.muted)
         }
+        if (onRemove != null) Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onRemove)
+                .semantics { contentDescription = L10n.tr("Remove from recent places") },
+            contentAlignment = Alignment.Center,
+        ) { LfIcon(LfIcons.Close, c.muted, 16.dp) }
         if (saved != null) Box(
             Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onStar)
                 .semantics { contentDescription = L10n.tr(if (saved) "Remove from saved places" else "Save this place") },
@@ -347,7 +353,7 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         }
         if (!plan.ok) Text(
             if (p.startNow() <= p.minPct) "The start charge is at or below your minimum. Start with more, or lower the minimum."
-            else "No fast charger within reach after ${fmtDistance(plan.failKm, s)}. Lower the minimum, charge more before, or pick a charger on the map.",
+            else "No fast charger within reach after ${fmtDistance(plan.failKm, s)}. Lower the minimum, raise Charge to, charge more before, or pick a charger on the map.",
             style = Type.small, color = c.text,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, c.danger, RoundedCornerShape(14.dp)).padding(12.dp),
         )
@@ -385,6 +391,11 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         Text(
             if (p.model.trips > 0) "Battery use is worked out from your ${p.model.trips} longest trips (${String.format(Locale.US, "%.1f", p.model.at(90.0))} kWh/100 km at 90 km/h). Hills and wind are not counted."
             else "Battery use is a typical figure until LionFlow has your trips. Hills and wind are not counted.",
+            style = Type.tiny, color = c.muted,
+        )
+        Text(
+            if (p.fitCount > 0) "Charging time matches your last ${p.fitCount} fast charges (top speed about ${p.carKw.roundToInt()} kW)."
+            else "Charging time is a typical figure until LionFlow has seen your fast charges.",
             style = Type.tiny, color = c.muted,
         )
         if (plan.stops.any { it.cost != null }) Text("Prices are the usual drop-in prices (checked ${p.pricesAsOf}), not live prices.", style = Type.tiny, color = c.muted)

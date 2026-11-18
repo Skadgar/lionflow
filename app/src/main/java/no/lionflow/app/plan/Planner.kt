@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,7 +81,15 @@ class Planner(
 
     private var searchJob: Job? = null
     private var planJob: Job? = null
-    private var chargersFor: RouteData? = null
+    private var corridorFor: RouteData? = null
+    private var corridorRaw: List<RawCharger> = emptyList()
+    private var viaRawKey = ""
+    private var viaRaw: List<RawCharger> = emptyList()
+    /** The car's top charging power used for the plan, and how many of its own fast charges that was fitted to (0 = a typical figure). */
+    var carKw by mutableStateOf(0.0)
+        private set
+    var fitCount by mutableStateOf(0)
+        private set
     /** The charger lookup, started as soon as a long route is known so it runs while the first plan is worked out. */
     private var prefetch: kotlinx.coroutines.Deferred<Result<List<RawCharger>>>? = null
     private var prefetchFor: RouteData? = null
@@ -118,6 +127,12 @@ class Planner(
     fun toggleSaved(p: Place) {
         saved = if (isSaved(p)) saved.filterNot { same(it, p) } else (listOf(p) + saved).take(20)
         storePlaces("planSaved", saved)
+    }
+
+    /** Takes a place off the list of recent destinations. */
+    fun removeRecent(p: Place) {
+        recent = recent.filterNot { same(it, p) }
+        storePlaces("planRecent", recent)
     }
 
     private fun remember(p: Place) {
@@ -160,7 +175,7 @@ class Planner(
                 val via = vias.filterNotNull().take(3)
                 val stay = vias.indices.filter { vias[it] != null }.take(3).map { stays.getOrElse(it) { 0 } }
                 val r = PlanApi.route(a, b, via)
-                edits = emptyList(); excluded = emptySet(); chargers = emptyList(); chargersFor = null
+                edits = emptyList(); excluded = emptySet(); chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList()
                 route = r; planFrom = a; planTo = b; planVias = via; planStays = stay
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
                 if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey()) } } }
@@ -195,18 +210,42 @@ class Planner(
             if (used != null && v != null) Consumption.TripSample(t.distanceKm, used, v) else null
         }, kwh)
         model = m
-        val o = Options(startNow().toDouble(), minPct, targetPct, kwh, if (kwh >= 68) 160.0 else 100.0)
+        // Charging speed: matched to the user's own fast charges when there are enough, else a typical figure.
+        val fitSamples = no.lionflow.app.model.ChargeLog.sessions.value
+            .filter { (it.mode?.contains("Quick", true) == true || (it.avgKw ?: 0.0) >= 40.0) && it.endPct - it.startPct >= 8 && it.hours * 60 >= 8 && it.kwh > 0 }
+            .sortedByDescending { it.start }.take(8).map { Triple(it.startPct, it.endPct, it.hours * 60) }
+        val fitted = ChargeCurve.fitMaxKw(fitSamples, kwh)
+        val maxKw = fitted ?: if (kwh >= 68) 110.0 else 80.0
+        carKw = maxKw; fitCount = if (fitted != null) fitSamples.size else 0
+        val o = Options(startNow().toDouble(), minPct, targetPct, kwh, maxKw)
         val energy = withContext(Dispatchers.Default) { r.energy(m.factor) }
         var p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
-        if ((!p.ok || planStays.any { it > 0 }) && chargersFor !== r) {
-            // The car can't make it in one go, or there is a stay to suggest a charger for: look up the fast chargers along the way (once per route).
+        var changed = false
+        if (!p.ok && corridorFor !== r) {
+            // The car can't make it in one go: look up the fast chargers along the way (once per route).
             busy = "Finding chargers along the route…"
-            val raw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
-            chargers = withContext(Dispatchers.Default) { place(raw, r) }
-            chargersFor = r
+            corridorRaw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
+            corridorFor = r; changed = true
+        }
+        // A stay at a via stop: look for a fast charger right by it (best effort; the tip just doesn't show if this fails).
+        val stayAt = planVias.indices.filter { planStays.getOrElse(it) { 0 } > 0 }
+        val key = stayAt.joinToString("|") { "${planVias[it].lat},${planVias[it].lon}" }
+        if (key != viaRawKey) {
+            viaRaw = if (stayAt.isEmpty()) emptyList() else kotlinx.coroutines.coroutineScope {
+                stayAt.map { i -> async { try { PlanApi.chargersNear(planVias[i].lat, planVias[i].lon, nobilKey()) } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() } } }.awaitAll().flatten()
+            }
+            viaRawKey = key; changed = true
+        }
+        if (changed) {
+            chargers = withContext(Dispatchers.Default) { place(corridorRaw + viaRaw, r) }
             p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
         }
-        plan = p.copy(totalMin = p.totalMin + planStays.sum())
+        // A charging stop right at a via stop is the same wait: count the overlap once.
+        val overlap = stayAt.sumOf { i ->
+            val v = planVias[i]
+            p.stops.filter { Geo.km(v.lat, v.lon, it.charger.lat, it.charger.lon) < 1.0 }.maxOfOrNull { minOf(it.minutes, planStays[i]) } ?: 0
+        }
+        plan = p.copy(totalMin = p.totalMin + planStays.sum() - overlap)
     }
 
     /** Puts chargers on the route, drops doubles and far-off ones, and looks up prices. */
@@ -228,7 +267,12 @@ class Planner(
     fun setMin(pct: Int) { minPct = pct.coerceIn(5, 50); app.settings.setRaw("planMin", minPct.toString()); recompute() }
     fun setTarget(pct: Int) { targetPct = pct.coerceIn(50, 100); app.settings.setRaw("planTarget", targetPct.toString()); recompute() }
 
-    private fun put(e: StopEdit) { edits = edits.filterNot { it.chargerId == e.chargerId } + e; recompute() }
+    private fun put(e: StopEdit) {
+        val old = edits.firstOrNull { it.chargerId == e.chargerId }
+        // Keep what was already set for this stop (its own "charge to" and its break go together).
+        edits = edits.filterNot { it.chargerId == e.chargerId } + StopEdit(e.chargerId, e.targetPct ?: old?.targetPct, e.minutes ?: old?.minutes)
+        recompute()
+    }
     /** Charge to this much at a stop. */
     fun chargeTo(id: String, pct: Int) = put(StopEdit(id, targetPct = pct.coerceIn(5, 100)))
     /** Stay this long at a stop. */
@@ -279,7 +323,7 @@ class Planner(
         planJob?.cancel(); searchJob?.cancel()
         open = false; editing = true; busy = null; error = null
         prefetch?.cancel(); prefetch = null; prefetchFor = null
-        route = null; plan = null; chargers = emptyList(); chargersFor = null; edits = emptyList(); excluded = emptySet()
+        route = null; plan = null; chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList(); edits = emptyList(); excluded = emptySet()
         results = emptyList()
     }
 }

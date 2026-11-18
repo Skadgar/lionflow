@@ -155,6 +155,21 @@ object ChargeCurve {
         return m
     }
 
+    /**
+     * The car's top charging power that makes the model match the user's own fast charges: each sample is
+     * (from %, to %, minutes it really took). Null when there are too few to say.
+     */
+    fun fitMaxKw(samples: List<Triple<Double, Double, Double>>, batteryKwh: Double): Double? {
+        if (samples.size < 2) return null
+        val actual = samples.sumOf { it.third }
+        fun model(max: Double) = samples.sumOf { minutes(it.first, it.second, batteryKwh, 350.0, max) }
+        var lo = 30.0; var hi = 250.0
+        if (actual >= model(lo)) return lo
+        if (actual <= model(hi)) return hi
+        repeat(30) { val mid = (lo + hi) / 2; if (model(mid) > actual) lo = mid else hi = mid }
+        return (lo + hi) / 2
+    }
+
     fun pctAfter(from: Double, minutes: Double, batteryKwh: Double, chargerKw: Double, carMaxKw: Double): Double {
         var s = from; var left = minutes
         while (s < 100 && left > 0) {
@@ -301,23 +316,16 @@ object TripPlanner {
             val after = pins.getOrNull(pin)
             val nextKwh = if (after != null) energy[after.first.idx] + detourKwh(after.first) else totalKwh
             val needPct = o.minPct + (nextKwh - energy[c.idx]) / b * 100 + 2
+            // "Charge to" is a ceiling: never fill above it (a stop the user set to a higher number may go there).
+            // A longer break only keeps the car plugged in longer; it doesn't raise the charge past the ceiling.
+            val cap = (edit?.targetPct ?: o.targetPct).toDouble()
             var leave = when {
-                edit?.minutes != null -> ChargeCurve.pctAfter(arr, edit.minutes.toDouble(), b, effKw(c), o.carMaxKw)
+                edit?.minutes != null -> min(ChargeCurve.pctAfter(arr, edit.minutes.toDouble(), b, effKw(c), o.carMaxKw), cap)
                 edit?.targetPct != null -> edit.targetPct.toDouble()
-                // A little over the usual target beats one more short stop.
-                needPct <= o.targetPct + 10 -> min(needPct, 100.0)
-                else -> {
-                    // More than the usual target is needed. Fine if another charger is within reach from here; otherwise fill up more.
-                    val reach = energy[c.idx] + (o.targetPct - o.minPct) / 100.0 * b
-                    val nextKm = after?.first?.km ?: route.totalKm
-                    val another = after != null && nextKwh <= reach || chargers.any {
-                        it.id != c.id && it.id !in excluded && it.id !in used && it.km > c.km + 8 && it.km < nextKm - 5 && energy[it.idx] + detourKwh(it) <= reach
-                    }
-                    if (another) o.targetPct.toDouble() else min(needPct, 100.0)
-                }
+                else -> min(needPct, cap)
             }
             leave = leave.coerceIn(arr, 100.0)
-            val mins = ChargeCurve.minutes(arr, leave, b, effKw(c), o.carMaxKw)
+            val mins = if (edit?.minutes != null) edit.minutes.toDouble() else ChargeCurve.minutes(arr, leave, b, effKw(c), o.carMaxKw)
             val kwh = (leave - arr) / 100 * b
             val leg = route.min[c.idx] - route.min[pos] + detourMin(c)
             clock += leg; drive += leg

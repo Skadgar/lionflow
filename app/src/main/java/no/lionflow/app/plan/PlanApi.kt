@@ -77,6 +77,23 @@ object PlanApi {
         return (try { ChargerTiles.load(r) } catch (e: Exception) { null }) ?: live(r)
     }
 
+    /** Fast chargers within about 1.5 km of one place (a stop on the way). NOBIL in the Nordics, else the map tiles, else Overpass. */
+    suspend fun chargersNear(lat: Double, lon: Double, nobilKey: String = ""): List<RawCharger> {
+        val dLat = 0.015; val dLon = 0.015 / Math.cos(Math.toRadians(lat)).coerceAtLeast(0.2)
+        if (nobilKey.isNotBlank() && lat in 54.5..71.5 && lon in 4.0..32.0) {
+            try {
+                val found = kotlinx.coroutines.withTimeout(10_000L) { NobilApi.box(nobilKey, lat - dLat, lon - dLon, lat + dLat, lon + dLon) }
+                if (found.isNotEmpty()) return found
+            } catch (e: kotlinx.coroutines.CancellationException) { if (e !is kotlinx.coroutines.TimeoutCancellationException) throw e } catch (e: Exception) { }
+        }
+        try { ChargerTiles.near(lat, lon, 1.6)?.let { return it } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { }
+        val q = "[out:json][timeout:20];(" +
+            "node[\"amenity\"=\"charging_station\"][\"socket:type2_combo\"](around:1600,${num(lat)},${num(lon)});" +
+            "way[\"amenity\"=\"charging_station\"][\"socket:type2_combo\"](around:1600,${num(lat)},${num(lon)});" +
+            ");out center 40;"
+        return PlanParse.chargers(OsmChargers.raw(q))
+    }
+
     /** Both ends of the route are in Norway, Sweden, Denmark or Finland. */
     private fun nordic(r: RouteData): Boolean {
         fun inside(la: Double, lo: Double) = la in 54.5..71.5 && lo in 4.0..32.0
@@ -160,6 +177,37 @@ object ChargerTiles {
         } catch (e: ApiException) {
             if (e.code == 404) null else throw e
         }
+
+    /** The chargers within [km] of a place, or null when the tiles don't cover it or can't be had. */
+    suspend fun near(lat: Double, lon: Double, km: Double): List<RawCharger>? {
+        val have = areas() ?: return null
+        val dLat = km / 111.0; val dLon = km / (111.0 * Math.cos(Math.toRadians(lat)).coerceAtLeast(0.2))
+        val ids = LinkedHashSet<String>()
+        for (a in listOf(-dLat, dLat)) for (b in listOf(-dLon, dLon)) ids.add(tile(lat + a, lon + b))
+        if (!ids.all { covers(have, it) }) return null
+        val now = System.currentTimeMillis()
+        for (id in ids.filter { i -> cache[i]?.let { now - it.first < 7 * DAY } != true }) {
+            cache[id] = now to (fetch("t/$id.json")?.let { PlanParse.chargers(it) } ?: emptyList())
+        }
+        return ids.flatMap { cache[it]?.second.orEmpty() }.filter { Geo.km(lat, lon, it.lat, it.lon) <= km }.distinctBy { it.id }
+    }
+
+    private suspend fun areas(): List<DoubleArray>? {
+        val now = System.currentTimeMillis()
+        if (covered == null || now - builtAt > DAY) {
+            val m = fetch("meta.json") ?: return null
+            val arr = m.optJSONArray("covered") ?: return null
+            covered = (0 until arr.length()).mapNotNull { i -> arr.optJSONArray(i)?.let { a -> DoubleArray(4) { a.optDouble(it) } } }
+            builtAt = now
+        }
+        return covered
+    }
+
+    private fun covers(have: List<DoubleArray>, id: String): Boolean {
+        val (ty, tx) = id.split("_").map { it.toInt() }
+        val la = ty * 2 + 1.0; val lo = tx * 2 + 1.0
+        return have.any { la >= it[0] && la <= it[2] && lo >= it[1] && lo <= it[3] }
+    }
 
     /** The chargers near the route, or null when the tiles can't be had (then the live search is used). */
     suspend fun load(r: RouteData): List<RawCharger>? {
