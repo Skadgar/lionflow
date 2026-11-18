@@ -81,7 +81,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Starts at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
+                    Text("Runs at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
                     Text(daysText(p.days), style = Type.small, color = c.muted)
                     if (p.slot in skipped) Text("Skipped by Smart schedule", style = Type.tiny, color = c.orangeInk)
                 }
@@ -127,7 +127,7 @@ private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit
         title = { Text(if (isNew) "New schedule" else "Edit schedule", color = c.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Starts at", style = Type.small, color = c.muted)
+                Text("Runs at", style = Type.small, color = c.muted)
                 TimeInput(state = time, colors = TimePickerDefaults.colors(
                     timeSelectorSelectedContainerColor = c.raised, timeSelectorUnselectedContainerColor = c.raised,
                     timeSelectorSelectedContentColor = c.text, timeSelectorUnselectedContentColor = c.text,
