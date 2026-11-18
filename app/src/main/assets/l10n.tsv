@@ -768,7 +768,6 @@ Start with	Départ avec	Start mit	Salir con	Start med
 Never below	Jamais sous	Nie unter	Nunca por debajo de	Aldri under
 Charge to	Charger jusqu'à	Laden bis	Cargar hasta	Lad til
 Less	Moins	Weniger	Menos	Mindre
-Use the car's charge now: {0} %	Utiliser la charge actuelle de la voiture : {0} %	Aktuellen Ladestand des Autos nehmen: {0} %	Usar la carga actual del coche: {0} %	Bruk bilens lading nå: {0} %
 Arrive 	Arrivée 	Ankunft 	Llegada 	Fremme 
 No charging needed	Aucune recharge nécessaire	Kein Laden nötig	No hace falta cargar	Ingen lading nødvendig
 1 stop	1 arrêt	1 Stopp	1 parada	1 stopp
@@ -796,3 +795,5 @@ Choose where the trip starts	Choisissez le point de départ	Startpunkt der Fahrt
 Couldn't plan the trip	Impossible de planifier le trajet	Fahrt konnte nicht geplant werden	No se pudo planificar el viaje	Kunne ikke planlegge turen
 Couldn't find chargers	Impossible de trouver des bornes	Ladestationen konnten nicht gefunden werden	No se pudieron encontrar cargadores	Kunne ikke finne ladere
 No road route found between these places	Aucun itinéraire routier trouvé entre ces lieux	Keine Straßenroute zwischen diesen Orten gefunden	No se encontró ruta por carretera entre estos lugares	Fant ingen kjørerute mellom disse stedene
+Start with (car now)	Départ avec (voiture, maintenant)	Start mit (Auto jetzt)	Salir con (coche ahora)	Start med (bilen nå)
+No internet connection, or all the free charger servers are down	Pas de connexion internet, ou tous les serveurs gratuits de bornes sont indisponibles	Keine Internetverbindung, oder alle kostenlosen Ladesäulen-Server sind ausgefallen	Sin conexión a internet, o todos los servidores gratuitos de cargadores están caídos	Ingen internettforbindelse, eller alle de gratis laderserverne er nede

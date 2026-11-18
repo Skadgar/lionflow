@@ -228,14 +228,10 @@ private fun BatteryOptions(p: Planner) {
     val c = LocalLf.current
     val start = p.startNow()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(vertical = 4.dp)) {
-        OptionRow("Start with", "$start %", { p.setStart(((start - 1) / 5) * 5) }, { p.setStart((start / 5 + 1) * 5) })
+        OptionRow(if (p.startPct == null) "Start with (car now)" else "Start with", "$start %", { p.setStart(((start - 1) / 5) * 5) }, { p.setStart((start / 5 + 1) * 5) })
         OptionRow("Never below", "${p.minPct} %", { p.setMin(p.minPct - 5) }, { p.setMin(p.minPct + 5) })
         OptionRow("Charge to", "${p.targetPct} %", { p.setTarget(p.targetPct - 5) }, { p.setTarget(p.targetPct + 5) })
     }
-    if (p.startPct != null && p.startPct != p.carPct()) Text(
-        "Use the car's charge now: ${p.carPct()} %", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
-        modifier = Modifier.clickable { p.setStart(null) },
-    )
 }
 
 @Composable

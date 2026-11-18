@@ -7,6 +7,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,6 +73,9 @@ class Planner(
     private var searchJob: Job? = null
     private var planJob: Job? = null
     private var chargersFor: RouteData? = null
+    /** The charger lookup, started as soon as a long route is known so it runs while the first plan is worked out. */
+    private var prefetch: kotlinx.coroutines.Deferred<Result<List<RawCharger>>>? = null
+    private var prefetchFor: RouteData? = null
     private var priceCountry = ""
     private val prices by lazy {
         Prices(try { app.assets.open("charge_prices.json").bufferedReader().use { it.readText() } } catch (_: Exception) { "{}" })
@@ -145,6 +149,8 @@ class Planner(
                 val r = PlanApi.route(a, b)
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); chargersFor = null
                 route = r; planFrom = a; planTo = b
+                prefetch?.cancel(); prefetch = null; prefetchFor = null
+                if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r) } } }
                 priceCountry = if (a.country.isNotBlank() && a.country.equals(b.country, ignoreCase = true)) a.country else ""
                 remember(b); from?.let { remember(it) }
                 compute()
@@ -182,7 +188,7 @@ class Planner(
         if (!p.ok && chargersFor !== r) {
             // The car can't make it in one go: look up the fast chargers along the way (once per route).
             busy = "Finding chargers along the route…"
-            val raw = PlanApi.chargers(r)
+            val raw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r)
             chargers = withContext(Dispatchers.Default) { place(raw, r) }
             chargersFor = r
             p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
@@ -239,6 +245,7 @@ class Planner(
     fun close() {
         planJob?.cancel(); searchJob?.cancel()
         open = false; editing = true; busy = null; error = null
+        prefetch?.cancel(); prefetch = null; prefetchFor = null
         route = null; plan = null; chargers = emptyList(); chargersFor = null; edits = emptyList(); excluded = emptySet()
         results = emptyList()
     }

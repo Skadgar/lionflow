@@ -1,7 +1,10 @@
 package no.lionflow.app.api
 
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
@@ -172,16 +175,38 @@ object OsmChargers {
         throw if (last is ApiException || last == null) BusyException() else last
     }
 
+    /**
+     * Asks a server whether it has room right now: seconds to wait (0 = free), or null when it doesn't answer at all.
+     * Takes at most 3 s, so a dead or busy server is known before any real search is started.
+     */
+    private suspend fun probe(url: String): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val c = Http.client.newBuilder().callTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+            val req = Request.Builder().url(url.replace("/interpreter", "/status")).header("User-Agent", Http.CONTACT_AGENT).get().build()
+            c.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@use 5
+                val t = resp.body?.string().orEmpty()
+                when {
+                    t.contains("available now") -> 0
+                    else -> Regex("in (\\d+) seconds").find(t)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(1, 20) ?: 5
+                }
+            }
+        } catch (e: Exception) { null }
+    }
+
     /** Runs an Overpass query on the first free server that answers. */
     suspend fun raw(q: String): JSONObject {
-        // Ask the servers side by side, each starting a little after the one before; the first good answer wins.
-        // (One busy server used to hold everything up for a minute before the next was tried.)
+        // 1. Check the servers first (3 s): which are up, and which have room right now.
+        val waits = kotlinx.coroutines.coroutineScope { ENDPOINTS.map { u -> async { u to probe(u) } }.awaitAll() }
+        val usable = waits.filter { it.second != null }.sortedBy { it.second }
+        if (usable.isEmpty()) throw java.io.IOException("No internet connection, or all the free charger servers are down")
+        // 2. Ask the free ones at once and the others a little later; the first good answer wins.
         val result = kotlinx.coroutines.CompletableDeferred<JSONObject>()
         val failed = java.util.concurrent.atomic.AtomicInteger(0)
         val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
-        ENDPOINTS.forEachIndexed { i, url ->
+        usable.forEachIndexed { i, (url, wait) ->
             scope.launch {
-                kotlinx.coroutines.delay(i * 2500L)
+                kotlinx.coroutines.delay((wait ?: 0) * 1000L + i * 1500L)
                 if (result.isCompleted) return@launch
                 try {
                     val req = Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT)
@@ -191,7 +216,7 @@ object OsmChargers {
                     if (j.optString("remark").isNotBlank() && (j.optJSONArray("elements")?.length() ?: 0) == 0) throw java.io.IOException("server gave up")
                     result.complete(j)
                 } catch (e: Exception) {
-                    if (failed.incrementAndGet() == ENDPOINTS.size) result.completeExceptionally(BusyException())
+                    if (failed.incrementAndGet() == usable.size) result.completeExceptionally(BusyException())
                 }
             }
         }
