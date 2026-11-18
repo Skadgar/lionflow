@@ -69,7 +69,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
         Text("Pre-heating schedules", style = Type.label, color = c.text, modifier = Modifier.padding(start = 18.dp, top = 16.dp, end = 18.dp))
         Text(
             if (vm.programsPending() && ui.commandInProgress == null) "Sent to the car. Peugeot's status can take a while to show the change."
-            else "The car starts heating or cooling the cabin at the time you set.",
+            else "The car heats or cools the cabin so it is ready at the time you set.",
             style = Type.tiny, color = c.muted, modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 6.dp))
         if (programs.isEmpty()) {
             Text("No schedules yet.", style = Type.small, color = c.muted, modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
@@ -81,7 +81,7 @@ fun PreheatSchedules(vm: AppViewModel, ui: UiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Runs at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
+                    Text("Ready at " + no.lionflow.app.ui.l10n.TimeFmt.hm(p.hour, p.minute), style = Type.stat, color = if (p.enabled) c.text else c.muted)
                     Text(daysText(p.days), style = Type.small, color = c.muted)
                     if (p.slot in skipped) Text("Skipped by Smart schedule", style = Type.tiny, color = c.orangeInk)
                 }
@@ -127,7 +127,7 @@ private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit
         title = { Text(if (isNew) "New schedule" else "Edit schedule", color = c.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Runs at", style = Type.small, color = c.muted)
+                Text("Ready at", style = Type.small, color = c.muted)
                 TimeInput(state = time, colors = TimePickerDefaults.colors(
                     timeSelectorSelectedContainerColor = c.raised, timeSelectorUnselectedContainerColor = c.raised,
                     timeSelectorSelectedContentColor = c.text, timeSelectorUnselectedContentColor = c.text,
@@ -150,7 +150,7 @@ private fun ScheduleEditor(p: Program, isNew: Boolean, onSave: (Program) -> Unit
                         Text(label, style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk, modifier = Modifier.clickable { days = set.toSet() })
                     }
                 }
-                Text("Pre-heating starts at this time and runs for a limited time (about 10–30 minutes, depending on the car). Peugeot doesn't let apps choose how long it runs.", style = Type.tiny, color = c.muted)
+                Text("The car heats or cools the cabin so it is ready at this time. It starts about 45 minutes before when plugged in (about 20 when not) and keeps going about 10 minutes after. The car decides this, apps can't change it.", style = Type.tiny, color = c.muted)
             }
         },
         confirmButton = {

@@ -290,9 +290,9 @@ Monday to Friday	Du lundi au vendredi	Montag bis Freitag	De lunes a viernes	Mand
 No days	Aucun jour	Keine Tage	Ningún día	Ingen dager
 Pre-heating schedules	Programmes de préchauffage	Zeitpläne für die Vorklimatisierung	Programaciones de preacondicionamiento	Tidsplaner for forvarming
 Sent to the car. Peugeot's status can take a while to show the change.	Envoyé à la voiture. Le statut Peugeot peut mettre un moment à afficher le changement.	An das Auto gesendet. Peugeots Status kann eine Weile brauchen, bis er die Änderung zeigt.	Enviado al coche. El estado de Peugeot puede tardar un poco en mostrar el cambio.	Sendt til bilen. Det kan ta litt tid før Peugeots status viser endringen.
-The car starts heating or cooling the cabin at the time you set.	La voiture commence à chauffer ou refroidir l'habitacle à l'heure choisie.	Das Auto beginnt zur gewählten Zeit, den Innenraum zu heizen oder zu kühlen.	El coche empieza a calentar o enfriar el habitáculo a la hora elegida.	Bilen begynner å varme eller kjøle kupeen på tidspunktet du velger.
+The car heats or cools the cabin so it is ready at the time you set.	La voiture chauffe ou refroidit l'habitacle pour qu'il soit prêt à l'heure choisie.	Das Auto heizt oder kühlt den Innenraum so, dass er zur gewählten Zeit fertig ist.	El coche calienta o enfría el habitáculo para que esté listo a la hora elegida.	Bilen varmer eller kjøler kupeen slik at den er klar til tiden du velger.
 No schedules yet.	Pas encore de programme.	Noch keine Zeitpläne.	Aún no hay programaciones.	Ingen tidsplaner ennå.
-Runs at 	Actif à 	Läuft um 	Funciona a las 	Kjører kl. 
+Ready at 	Prêt à 	Bereit um 	Listo a las 	Klar kl. 
 Schedule on	Programme activé	Zeitplan an	Programación activada	Tidsplan på
 Turn schedule on	Activer le programme	Zeitplan einschalten	Activar la programación	Slå på tidsplan
 Turn schedule off	Désactiver le programme	Zeitplan ausschalten	Desactivar la programación	Slå av tidsplan
@@ -303,9 +303,9 @@ Save schedule	Enregistrer le programme	Zeitplan speichern	Guardar programación	
 Delete schedule	Supprimer le programme	Zeitplan löschen	Eliminar programación	Slett tidsplan
 New schedule	Nouveau programme	Neuer Zeitplan	Nueva programación	Ny tidsplan
 Edit schedule	Modifier le programme	Zeitplan bearbeiten	Editar programación	Rediger tidsplan
-Runs at	Actif à	Läuft um	Funciona a las	Kjører kl.
+Ready at	Prêt à	Bereit um	Listo a las	Klar kl.
 Days	Jours	Tage	Días	Dager
-Pre-heating starts at this time and runs for a limited time (about 10–30 minutes, depending on the car). Peugeot doesn't let apps choose how long it runs.	Le préchauffage démarre à cette heure et dure un temps limité (environ 10 à 30 minutes selon la voiture). Peugeot ne permet pas aux apps de choisir la durée.	Die Vorklimatisierung startet zu dieser Zeit und läuft begrenzt (etwa 10–30 Minuten, je nach Auto). Peugeot lässt Apps die Dauer nicht festlegen.	El preacondicionamiento empieza a esta hora y dura un tiempo limitado (unos 10–30 minutos, según el coche). Peugeot no permite que las apps elijan la duración.	Forvarmingen starter på dette tidspunktet og varer en begrenset tid (ca. 10–30 minutter, avhengig av bilen). Peugeot lar ikke apper velge hvor lenge den går.
+The car heats or cools the cabin so it is ready at this time. It starts about 45 minutes before when plugged in (about 20 when not) and keeps going about 10 minutes after. The car decides this, apps can't change it.	La voiture chauffe ou refroidit l'habitacle pour qu'il soit prêt à cette heure. Elle démarre environ 45 minutes avant quand elle est branchée (environ 20 sinon) et continue environ 10 minutes après. C'est la voiture qui décide, les apps ne peuvent pas le modifier.	Das Auto heizt oder kühlt den Innenraum so, dass er zu dieser Zeit fertig ist. Es startet etwa 45 Minuten vorher, wenn es angesteckt ist (sonst etwa 20), und läuft etwa 10 Minuten danach weiter. Das entscheidet das Auto, Apps können es nicht ändern.	El coche calienta o enfría el habitáculo para que esté listo a esta hora. Empieza unos 45 minutos antes si está enchufado (unos 20 si no) y sigue unos 10 minutos después. Lo decide el coche, las apps no pueden cambiarlo.	Bilen varmer eller kjøler kupeen slik at den er klar til dette tidspunktet. Den starter ca. 45 minutter før når den er tilkoblet (ca. 20 ellers) og går ca. 10 minutter etter. Det er bilen som bestemmer dette, apper kan ikke endre det.
 Profile	Profil	Profil	Perfil	Profil
 MyPeugeot account	Compte MyPeugeot	MyPeugeot-Konto	Cuenta MyPeugeot	MyPeugeot-konto
 Edit	Modifier	Bearbeiten	Editar	Rediger
