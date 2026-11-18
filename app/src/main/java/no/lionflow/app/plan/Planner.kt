@@ -36,6 +36,8 @@ class Planner(
     var to by mutableStateOf<Place?>(null)
     /** Up to 3 places the trip passes through, in order; null = a slot the user is still filling in. */
     var vias by mutableStateOf<List<Place?>>(emptyList())
+    /** Minutes to stay at each via stop (same order as [vias]). */
+    var stays by mutableStateOf<List<Int>>(emptyList())
     /** null = the car's current charge. */
     var startPct by mutableStateOf<Int?>(null)
     var minPct by mutableStateOf(app.settings.raw("planMin").toIntOrNull()?.coerceIn(5, 50) ?: 20)
@@ -63,6 +65,8 @@ class Planner(
     var planTo by mutableStateOf<Place?>(null)
         private set
     var planVias by mutableStateOf<List<Place>>(emptyList())
+        private set
+    var planStays by mutableStateOf<List<Int>>(emptyList())
         private set
 
     var saved by mutableStateOf(loadPlaces("planSaved"))
@@ -154,9 +158,10 @@ class Planner(
             try {
                 busy = "Finding the route…"
                 val via = vias.filterNotNull().take(3)
+                val stay = vias.indices.filter { vias[it] != null }.take(3).map { stays.getOrElse(it) { 0 } }
                 val r = PlanApi.route(a, b, via)
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); chargersFor = null
-                route = r; planFrom = a; planTo = b; planVias = via
+                route = r; planFrom = a; planTo = b; planVias = via; planStays = stay
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
                 if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey()) } } }
                 priceCountry = if (a.country.isNotBlank() && a.country.equals(b.country, ignoreCase = true)) a.country else ""
@@ -201,7 +206,7 @@ class Planner(
             chargersFor = r
             p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
         }
-        plan = p
+        plan = p.copy(totalMin = p.totalMin + planStays.sum())
     }
 
     /** Puts chargers on the route, drops doubles and far-off ones, and looks up prices. */
@@ -242,12 +247,25 @@ class Planner(
     val changed: Boolean get() = edits.isNotEmpty() || excluded.isNotEmpty()
     fun resetStops() { edits = emptyList(); excluded = emptySet(); recompute() }
 
-    fun addVia() { if (vias.size < 3) vias = vias + null }
+    fun addVia() { if (vias.size < 3) { vias = vias + null; stays = stays.take(vias.size - 1).let { it + List(vias.size - it.size) { 0 } } } }
     fun setVia(i: Int, place: Place?) { if (i in vias.indices) vias = vias.toMutableList().also { it[i] = place } }
-    fun removeVia(i: Int) { if (i in vias.indices) vias = vias.filterIndexed { j, _ -> j != i } }
+    fun removeVia(i: Int) {
+        if (i !in vias.indices) return
+        vias = vias.filterIndexed { j, _ -> j != i }
+        stays = stays.filterIndexed { j, _ -> j != i }
+    }
+
+    /** How long to stay at a via stop. A plan that is showing is worked out again at once (no new route needed). */
+    fun setStay(i: Int, minutes: Int) {
+        if (i !in vias.indices) return
+        val list = stays.toMutableList(); while (list.size < vias.size) list.add(0)
+        list[i] = minutes.coerceIn(0, 480); stays = list
+        val shown = vias.indices.filter { vias[it] != null }
+        if (route != null && shown.size == planVias.size) { planStays = shown.map { stays.getOrElse(it) { 0 } }; recompute() }
+    }
 
     fun swapEnds() {
-        vias = vias.reversed()
+        vias = vias.reversed(); stays = stays.reversed()
         val a = from; val b = to
         if (b == null) return
         to = a ?: origin()

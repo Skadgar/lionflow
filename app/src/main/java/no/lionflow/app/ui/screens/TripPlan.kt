@@ -97,6 +97,8 @@ fun Modifier.blockTouches(): Modifier = this.pointerInput(Unit) { detectTapGestu
 
 fun placeName(p: Place): String = if (p.detail.isEmpty() && (p.name == "Car's position" || p.name == "My position")) L10n.tr(p.name) else p.name
 
+private fun viaTag(stay: Int): String = if (stay > 0) L10n.tr("Via") + " · $stay min" else L10n.tr("Via")
+
 private fun dur(minutes: Double): String {
     val m = minutes.roundToInt().coerceAtLeast(0)
     return if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
@@ -174,6 +176,7 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
                 if (note != null) Text(note, style = Type.small, color = c.muted, modifier = Modifier.padding(14.dp))
             }
         } else {
+            ViaStays(p)
             BatteryOptions(p)
             PrimaryButton(if (p.plan != null) "Plan again" else "Plan trip", Modifier.fillMaxWidth(), icon = LfIcons.Route, enabled = p.to != null && p.busy == null) { p.go() }
         }
@@ -244,11 +247,25 @@ private fun BatteryOptions(p: Planner) {
     }
 }
 
+/** How long to stay at each stop on the way. */
+@Composable
+private fun ViaStays(p: Planner) {
+    val c = LocalLf.current
+    val rows = p.vias.withIndex().filter { it.value != null }
+    if (rows.isEmpty()) return
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(vertical = 4.dp)) {
+        for ((i, v) in rows) {
+            val m = p.stays.getOrElse(i) { 0 }
+            OptionRow("Stay at ${placeName(v!!)}", "$m min", { p.setStay(i, m - if (m > 30) 15 else 5) }, { p.setStay(i, m + if (m >= 30) 15 else 5) })
+        }
+    }
+}
+
 @Composable
 private fun OptionRow(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     val c = LocalLf.current
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = Type.body, color = c.text2, modifier = Modifier.weight(1f))
+        Text(label, style = Type.body, color = c.text2, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         StepButton(LfIcons.Minus, "Less", onMinus)
         Plain(value, Type.label, c.text, Modifier.width(64.dp), align = TextAlign.Center)
         StepButton(LfIcons.Plus, "More", onPlus)
@@ -324,16 +341,16 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         if (from != null) EndRow(c.orangeInk, placeName(from), from.detail, "${p.startNow()} %") { onShow(from.lat, from.lon) }
         // Charging stops and the places the user asked to pass through, in the order they come along the road.
         val rt = p.route
-        val vias = if (rt == null) emptyList() else p.planVias.map { v -> v to rt.km[no.lionflow.app.plan.Geo.project(rt, v.lat, v.lon).first] }.sortedBy { it.second }
+        val vias = if (rt == null) emptyList() else p.planVias.mapIndexed { k, v -> Triple(v, rt.km[no.lionflow.app.plan.Geo.project(rt, v.lat, v.lon).first], p.planStays.getOrElse(k) { 0 }) }.sortedBy { it.second }
         var vi = 0
         plan.stops.forEachIndexed { i, st ->
-            while (vi < vias.size && vias[vi].second <= st.charger.km) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, L10n.tr("Via")) { onShow(v.lat, v.lon) }; vi++ }
+            while (vi < vias.size && vias[vi].second <= st.charger.km) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, viaTag(vias[vi].third)) { onShow(v.lat, v.lon) }; vi++ }
             StopCard(i + 1, st, p, s, onShow)
         }
-        while (vi < vias.size) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, L10n.tr("Via")) { onShow(v.lat, v.lon) }; vi++ }
+        while (vi < vias.size) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, viaTag(vias[vi].third)) { onShow(v.lat, v.lon) }; vi++ }
         if (to != null) EndRow(c.accentInk, placeName(to), to.detail, if (plan.ok) "${plan.arrivePct.roundToInt()} %" else "—") { onShow(to.lat, to.lon) }
 
-        if (options) BatteryOptions(p)
+        if (options) { ViaStays(p); BatteryOptions(p) }
         if (plan.ok && from != null && to != null) PrimaryButton("Open in Google Maps", Modifier.fillMaxWidth(), icon = LfIcons.Locate) {
             val rt2 = p.route
             val along = plan.stops.map { it.charger.km to "${it.charger.lat},${it.charger.lon}" } +
