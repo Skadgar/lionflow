@@ -47,3 +47,4 @@ SOFTWARE.
 - Map data © OpenStreetMap contributors (ODbL), tiles by OpenFreeMap
 - Weather data from MET Norway (NLOD / CC BY 4.0)
 - Charging stations from OpenStreetMap via the Overpass API (ODbL, default), or from NOBIL (CC BY 3.0) with your own free API key
+- Trip planner: address search by Photon (komoot, data © OpenStreetMap contributors), routes by OSRM (Project OSRM / FOSSGIS servers, data © OpenStreetMap contributors)

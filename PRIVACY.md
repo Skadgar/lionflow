@@ -13,6 +13,7 @@ LionFlow is an unofficial, open-source app for controlling your own Peugeot. It 
 | Your location (only while the app or Android Auto map is open) | Map position, weather, nearby chargers | Approximate coordinates go to MET Norway (weather), OpenStreetMap Overpass or NOBIL (chargers) and OpenFreeMap (map tiles for the area you view) |
 | Car photo, service history, imported trips, charging log, home and charger places | Your own notes | Stay on your phone |
 | Address of a charging spot / your home or charger address | Show where you charged; find coordinates for an address you type | OpenStreetMap Nominatim (`nominatim.openstreetmap.org`) receives the coordinates or the address for the lookup |
+| Trip planner (only when you plan a trip) | Address suggestions, the driving route and the fast chargers along it | The text you type and your approximate position go to Photon (`photon.komoot.io`) for address search; the start and destination go to the OSRM route service (`routing.openstreetmap.de`, or `router.project-osrm.org` as a fallback); the route line goes to OpenStreetMap Overpass to find chargers. Saved and recent addresses stay on your phone. |
 | Recorded routes (only if you turn on Route tracking) | Show your drives on a map | Stay on your phone. Recorded with the phone's GPS while it's connected to your car over Bluetooth. |
 | Update checks (GitHub version only) | Finding new versions | GitHub (`api.github.com`) |
 
