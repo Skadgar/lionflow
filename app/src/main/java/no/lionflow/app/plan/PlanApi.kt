@@ -147,7 +147,7 @@ object PlanApi {
 object ChargerTiles {
     private const val BASE = "https://raw.githubusercontent.com/thocubeat/lionflow/chargers/"
     private const val DAY = 24 * 3600 * 1000L
-    private var built: Set<String>? = null
+    private var covered: List<DoubleArray>? = null   // south, west, north, east of every area the tiles cover
     private var builtAt = 0L
     private val cache = HashMap<String, Pair<Long, List<RawCharger>>>()
 
@@ -163,16 +163,21 @@ object ChargerTiles {
     /** The chargers near the route, or null when the tiles can't be had (then the live search is used). */
     suspend fun load(r: RouteData): List<RawCharger>? {
         val now = System.currentTimeMillis()
-        if (built == null || now - builtAt > DAY) {
+        if (covered == null || now - builtAt > DAY) {
             val m = fetch("meta.json") ?: return null
-            val arr = m.optJSONArray("tiles") ?: return null
-            built = (0 until arr.length()).map { arr.getString(it) }.toSet()
+            val arr = m.optJSONArray("covered") ?: return null
+            covered = (0 until arr.length()).mapNotNull { i -> arr.optJSONArray(i)?.let { a -> DoubleArray(4) { a.optDouble(it) } } }
             builtAt = now
         }
-        val have = built ?: return null
+        val have = covered ?: return null
         val need = LinkedHashSet<String>()
         for (i in 0 until r.size) for (dy in listOf(-0.05, 0.05)) for (dx in listOf(-0.08, 0.08)) need.add(tile(r.lat[i] + dy, r.lon[i] + dx))
-        if (need.any { it !in have }) return null      // outside the area the tiles cover
+        // Every tile must lie inside an area the tiles cover; otherwise the live search is used.
+        for (id in need) {
+            val (ty, tx) = id.split("_").map { it.toInt() }
+            val la = ty * 2 + 1.0; val lo = tx * 2 + 1.0
+            if (have.none { la >= it[0] && la <= it[2] && lo >= it[1] && lo <= it[3] }) return null
+        }
         val missing = need.filter { id -> cache[id]?.let { now - it.first < 7 * DAY } != true }
         if (missing.isNotEmpty()) {
             val loaded = kotlinx.coroutines.coroutineScope {

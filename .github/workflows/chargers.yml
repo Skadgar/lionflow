@@ -2,7 +2,7 @@ name: Charger tiles
 
 # Builds the fast-charger map tiles the trip planner downloads and publishes them on the "chargers" branch, so the
 # app gets them from GitHub's fast CDN instead of asking the busy free Overpass servers while you wait.
-# Source: the OpenStreetMap Europe file from Geofabrik (no Overpass). Nothing is collected from users.
+# Source: the OpenStreetMap continent files from Geofabrik (no Overpass). Nothing is collected from users.
 on:
   schedule:
     - cron: "23 3 * * 1"
@@ -14,21 +14,35 @@ permissions:
 jobs:
   tiles:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - name: Install osmium
         run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
-      - name: Download Europe
+      - name: Cut the charging stations out of every continent
         run: |
           sudo mkdir -p /mnt/w && sudo chown "$USER" /mnt/w
           df -h /mnt
-          curl -fL --retry 5 --retry-delay 20 -A "LionFlow-charger-tiles (https://github.com/thocubeat/lionflow)" \
-            -o /mnt/w/europe.osm.pbf https://download.geofabrik.de/europe-latest.osm.pbf
-          ls -lh /mnt/w
-      - name: Cut out the charging stations
+          ok=""
+          # One continent at a time (the biggest file is ~30 GB), keeping only the charging stations before the next.
+          for region in europe russia asia north-america central-america south-america africa australia-oceania; do
+            echo "::group::$region"
+            if curl -fL --retry 5 --retry-delay 20 -A "LionFlow-charger-tiles (https://github.com/thocubeat/lionflow)" \
+                 -o /mnt/w/r.pbf "https://download.geofabrik.de/${region}-latest.osm.pbf" \
+               && osmium tags-filter /mnt/w/r.pbf nwr/amenity=charging_station -o "/mnt/w/cs-${region}.osm.pbf"; then
+              ok="${ok:+$ok,}$region"
+            else
+              echo "::warning::$region failed, skipped"
+            fi
+            rm -f /mnt/w/r.pbf
+            echo "::endgroup::"
+          done
+          echo "REGIONS=$ok" >> "$GITHUB_ENV"
+          echo "Done: $ok"
+          case ",$ok," in *,europe,*) ;; *) echo "::error::Europe is missing"; exit 1;; esac
+      - name: Export
         run: |
-          osmium tags-filter /mnt/w/europe.osm.pbf nwr/amenity=charging_station -o /mnt/w/cs.osm.pbf
+          osmium merge /mnt/w/cs-*.osm.pbf -o /mnt/w/cs.osm.pbf
           osmium export /mnt/w/cs.osm.pbf -f geojsonseq --geometry-types=point,polygon --add-unique-id=type_id -o /mnt/w/cs.geojsonseq
           ls -lh /mnt/w
       - name: Build tiles

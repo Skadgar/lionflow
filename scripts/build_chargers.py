@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds the fast-charger map tiles that the trip planner downloads.
 
-Runs in GitHub Actions (weekly), after osmium has cut every charging station out of the OpenStreetMap Europe file
+Runs in GitHub Actions (weekly), after osmium has cut every charging station out of the OpenStreetMap continent files
 (Geofabrik) into a GeoJSON sequence. This script keeps the ones with a CCS plug and writes t/<tileLat>_<tileLon>.json
 for every 2x2 degree tile, in the same shape as an Overpass answer with only the tags the app reads.
 Usage: build_chargers.py INPUT.geojsonseq OUTDIR
@@ -9,8 +9,17 @@ Usage: build_chargers.py INPUT.geojsonseq OUTDIR
 import json, os, shutil, sys, time
 
 SRC, OUT = sys.argv[1], sys.argv[2]
-LAT = range(17, 36)     # 34..72 N
-LON = range(-13, 23)    # 26 W..46 E
+# What each Geofabrik extract covers, as south, west, north, east. Only regions that were downloaded are claimed.
+COVER = {
+    "europe": [34, -32, 72, 45],
+    "russia": [41, 19, 82, 180],
+    "asia": [-11, 25, 56, 180],
+    "north-america": [14, -180, 84, -50],
+    "central-america": [5, -95, 22, -57],
+    "south-america": [-56, -93, 13, -30],
+    "africa": [-35, -26, 38, 52],
+    "australia-oceania": [-50, 110, 0, 180],
+}
 KEEP = {"name", "operator", "brand", "network", "capacity", "socket:type2_combo", "charge", "maxpower"}
 KIND = {"n": "node", "w": "way", "r": "relation", "a": "way"}
 
@@ -73,9 +82,10 @@ def main():
     for key, els in tiles.items():
         with open(os.path.join(OUT, "t", key + ".json"), "w", encoding="utf-8") as f:
             json.dump({"elements": els}, f, separators=(",", ":"), ensure_ascii=False)
-    built = [f"{ty}_{tx}" for ty in LAT for tx in LON]      # every tile of the grid; tiles without a file are empty
+    regions = [r for r in os.environ.get("REGIONS", "europe").split(",") if r in COVER]
+    # Tiles inside a covered area without a file are empty; the app uses the live search anywhere else.
     with open(os.path.join(OUT, "meta.json"), "w") as f:
-        json.dump({"updated": time.strftime("%Y-%m-%d", time.gmtime()), "size": 2, "tiles": built}, f, separators=(",", ":"))
+        json.dump({"updated": time.strftime("%Y-%m-%d", time.gmtime()), "size": 2, "covered": [COVER[r] for r in regions]}, f, separators=(",", ":"))
     print(f"{n} chargers in {len(tiles)} tiles")
     if n < int(os.environ.get("MIN_CHARGERS", "5000")):
         sys.exit("far too few chargers found: the input must be broken")
