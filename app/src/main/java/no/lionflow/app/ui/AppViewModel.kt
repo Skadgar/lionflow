@@ -458,6 +458,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val maint = try { api.maintenance(v) } catch (e: no.lionflow.app.api.ApiException) { if (missing) null else throw e }
                 val st = applyHolds(no.lionflow.app.model.ChargePower.record(VehicleStatus.parse(raw, maint)))
+                if (settings.value.smartMode.isNotEmpty() && !programsPending()) try { no.lionflow.app.work.SmartSchedule.syncFromCar(app(), st.programs) } catch (_: Exception) {}
                 val now = System.currentTimeMillis()
                 settings.lastRefresh = now
                 no.lionflow.app.widget.WidgetData.save(getApplication<Application>(), st)

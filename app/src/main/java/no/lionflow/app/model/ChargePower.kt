@@ -90,7 +90,7 @@ object ChargePower {
         val raw = settings?.pendingPrograms.orEmpty()
         if (raw.isBlank()) null else {
             val j = org.json.JSONObject(raw)
-            if (System.currentTimeMillis() - j.getLong("time") > 24 * 3_600_000L) { settings?.pendingPrograms = ""; null }
+            if (System.currentTimeMillis() - j.getLong("time") > 2 * 3_600_000L) { settings?.pendingPrograms = ""; null }
             else {
                 val a = j.getJSONArray("programs")
                 (0 until a.length()).map { i ->
@@ -107,6 +107,13 @@ object ChargePower {
         val car = st.programs.map { key(it) }.toSet()
         val want = pend.map { key(it) }.toSet()
         if (car == want) { settings?.pendingPrograms = ""; return st }
+        // The car's list is still the old one for a while. If it changes to something that is neither the old nor the new list,
+        // someone else (another phone, MyPeugeot) edited the schedules: show the car's list instead of ours.
+        val raw = org.json.JSONObject(settings?.pendingPrograms.orEmpty())
+        val carKey = car.sorted().joinToString(";")
+        val base = raw.optString("base", "")
+        if (base.isEmpty()) { raw.put("base", carKey); settings?.pendingPrograms = raw.toString() }
+        else if (base != carKey) { settings?.pendingPrograms = ""; return st }
         return st.copy(programs = pend)
     }
 

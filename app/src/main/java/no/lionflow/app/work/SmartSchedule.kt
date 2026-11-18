@@ -37,6 +37,27 @@ object SmartSchedule {
         app.settings.setRaw(K_OFF, ""); app.settings.setRaw(K_EVAL, "")
     }
 
+    /** Pick up schedules that were added, changed or removed outside LionFlow (MyPeugeot, another phone) so they aren't hidden. */
+    fun syncFromCar(app: LionFlowApp, car: List<Program>) {
+        val want = desired(app) ?: return
+        val off = switchedOff(app)
+        val byDesired = want.associateBy { it.slot }
+        var changed = false
+        val out = ArrayList<Program>()
+        for (c in car) {
+            val d = byDesired[c.slot]
+            when {
+                d == null -> { out.add(c); changed = true }
+                d.days.sorted() != c.days.sorted() || d.hour != c.hour || d.minute != c.minute || (c.slot !in off && d.enabled != c.enabled) -> { out.add(c); off.remove(c.slot); changed = true }
+                else -> out.add(d)
+            }
+        }
+        if (want.any { w -> car.none { it.slot == w.slot } }) changed = true
+        if (!changed) return
+        setDesired(app, out)
+        app.settings.setRaw(K_OFF, off.filter { s -> out.any { it.slot == s } }.joinToString(","))
+    }
+
     /** Check again (for example after the limit changed). */
     fun recheck(app: LionFlowApp) { app.settings.setRaw(K_EVAL, "") }
 
