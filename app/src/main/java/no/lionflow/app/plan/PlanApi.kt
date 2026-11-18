@@ -2,6 +2,7 @@ package no.lionflow.app.plan
 
 import no.lionflow.app.api.ApiException
 import no.lionflow.app.api.Http
+import no.lionflow.app.api.NobilApi
 import no.lionflow.app.api.OsmChargers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -60,8 +61,51 @@ object PlanApi {
     }
 
     /** Fast chargers (with a CCS plug) near the route: ready-made map tiles first, the live search if those are not available. */
-    suspend fun chargers(r: RouteData): List<RawCharger> =
-        (try { ChargerTiles.load(r) } catch (e: Exception) { null }) ?: live(r)
+    suspend fun chargers(r: RouteData, nobilKey: String = ""): List<RawCharger> {
+        // Nordic routes with a NOBIL key: NOBIL is quick and says how many charge points are free right now.
+        if (nobilKey.isNotBlank() && nordic(r)) {
+            try {
+                val found = kotlinx.coroutines.withTimeout(20_000L) {
+                    kotlinx.coroutines.coroutineScope {
+                        boxes(r).map { b -> async { NobilApi.box(nobilKey, b[0], b[1], b[2], b[3]) } }.awaitAll().flatten()
+                    }
+                }
+                if (found.isNotEmpty()) return found
+            } catch (e: kotlinx.coroutines.CancellationException) { if (e is kotlinx.coroutines.TimeoutCancellationException) Unit else throw e } catch (e: Exception) { }
+        }
+        return (try { ChargerTiles.load(r) } catch (e: Exception) { null }) ?: live(r)
+    }
+
+    /** Both ends of the route are in Norway, Sweden, Denmark or Finland. */
+    private fun nordic(r: RouteData): Boolean {
+        fun inside(la: Double, lo: Double) = la in 54.5..71.5 && lo in 4.0..32.0
+        return r.size > 1 && inside(r.lat[0], r.lon[0]) && inside(r.lat[r.size - 1], r.lon[r.size - 1])
+    }
+
+    /** South, west, north, east of a box around each ~40 km of the route, with some room on every side. */
+    private fun boxes(r: RouteData): List<DoubleArray> {
+        val out = ArrayList<DoubleArray>()
+        var i = 0
+        while (i < r.size - 1) {
+            var s = 90.0; var n = -90.0; var w = 180.0; var e = -180.0
+            val startKm = r.km[i]
+            var k = i
+            while (k < r.size && (r.km[k] - startKm <= 40.0 || k == i)) {
+                if (r.lat[k] < s) s = r.lat[k]; if (r.lat[k] > n) n = r.lat[k]
+                if (r.lon[k] < w) w = r.lon[k]; if (r.lon[k] > e) e = r.lon[k]
+                k++
+            }
+            if (k < r.size) {
+                if (r.lat[k] < s) s = r.lat[k]; if (r.lat[k] > n) n = r.lat[k]
+                if (r.lon[k] < w) w = r.lon[k]; if (r.lon[k] > e) e = r.lon[k]
+            }
+            val padLat = 0.025
+            val padLon = 0.025 / Math.cos(Math.toRadians((s + n) / 2)).coerceAtLeast(0.2)
+            out.add(doubleArrayOf(s - padLat, w - padLon, n + padLat, e + padLon))
+            i = k
+        }
+        return out
+    }
 
     /** Fast chargers (with a CCS plug) within about 2 km of the route, asked of the free Overpass servers. */
     private suspend fun live(r: RouteData): List<RawCharger> {

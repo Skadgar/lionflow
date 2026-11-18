@@ -127,6 +127,9 @@ class Planner(
 
     // ---------------- planning ----------------
 
+    /** NOBIL key: the one built into the app, else the one typed in Settings. */
+    private fun nobilKey(): String = no.lionflow.app.BuildConfig.NOBIL_KEY.ifBlank { app.settings.value.nobilKey }
+
     /** Where the trip starts: the chosen address, else the car, else the phone. */
     private fun origin(): Place? {
         from?.let { return it }
@@ -150,7 +153,7 @@ class Planner(
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); chargersFor = null
                 route = r; planFrom = a; planTo = b
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
-                if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r) } } }
+                if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey()) } } }
                 priceCountry = if (a.country.isNotBlank() && a.country.equals(b.country, ignoreCase = true)) a.country else ""
                 remember(b); from?.let { remember(it) }
                 compute()
@@ -188,7 +191,7 @@ class Planner(
         if (!p.ok && chargersFor !== r) {
             // The car can't make it in one go: look up the fast chargers along the way (once per route).
             busy = "Finding chargers along the route…"
-            val raw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r)
+            val raw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
             chargers = withContext(Dispatchers.Default) { place(raw, r) }
             chargersFor = r
             p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
@@ -204,7 +207,7 @@ class Planner(
             val (idx, off) = Geo.project(r, c.lat, c.lon)
             if (off > 2.5) continue
             val price = prices.find(priceCountry, c.name + " " + c.operator, c.chargeTag)
-            out.add(PlanCharger(c.id, c.name, c.operator, c.lat, c.lon, c.kw, c.points, idx, r.km[idx], off, price?.first, price?.second.orEmpty()))
+            out.add(PlanCharger(c.id, c.name, c.operator, c.lat, c.lon, c.kw, c.points, idx, r.km[idx], off, price?.first, price?.second.orEmpty(), c.free))
         }
         return out.sortedBy { it.km }
     }

@@ -110,6 +110,7 @@ private fun perKwh(c: PlanCharger): String? = c.price?.let { String.format(Local
 private fun chargerLine(c: PlanCharger, s: AppSettings, price: Boolean = true): String = listOfNotNull(
     c.operator.takeIf { it.isNotBlank() && !c.name.contains(it, ignoreCase = true) },
     if (c.kw > 0) "${c.kw.roundToInt()} kW" else null,
+    c.free?.let { f -> if (c.points >= f && c.points > 0) L10n.tr("$f of ${c.points} free") else L10n.tr("$f free") },
     fmtDistance(c.km, s),
     if (price) perKwh(c) else null,
 ).joinToString(" · ")

@@ -183,6 +183,8 @@ data class PlanCharger(
     val offKm: Double,
     val price: Double? = null,
     val currency: String = "",
+    /** Charge points free right now, when known. */
+    val free: Int? = null,
 )
 
 /** A stop the user chose, or changed: where, and optionally how full to charge or how long to stay. */

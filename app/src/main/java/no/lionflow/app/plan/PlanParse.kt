@@ -6,6 +6,8 @@ import org.json.JSONObject
 data class RawCharger(
     val id: String, val name: String, val operator: String, val lat: Double, val lon: Double,
     val kw: Double, val points: Int, val chargeTag: String,
+    /** Charge points free right now, when the source tells (NOBIL); null = not known. */
+    val free: Int? = null,
 )
 
 /** Reads the answers from the address search, the route service and the charger search. */

@@ -103,6 +103,48 @@ data class Charger(
 )
 
 object NobilApi {
+    /** Fast chargers (50 kW and up) inside a box, with how many charge points are free right now when NOBIL knows. */
+    suspend fun box(apiKey: String, south: Double, west: Double, north: Double, east: Double): List<no.lionflow.app.plan.RawCharger> {
+        val url = "https://nobil.no/api/server/search.php".toHttpUrl().newBuilder()
+            .addQueryParameter("apikey", apiKey)
+            .addQueryParameter("apiversion", "3")
+            .addQueryParameter("action", "search")
+            .addQueryParameter("type", "rectangle")
+            .addQueryParameter("northeast", "($north,$east)")
+            .addQueryParameter("southwest", "($south,$west)")
+            .addQueryParameter("limit", "500")
+            .addQueryParameter("format", "json")
+            .build()
+        val j = Http.json(Request.Builder().url(url).header("User-Agent", Http.USER_AGENT).get().build()) as? JSONObject ?: return emptyList()
+        val stations = j.optJSONArray("chargerstations") ?: return emptyList()
+        return stations.objects().mapNotNull { s ->
+            val c = s.optJSONObject("csmd") ?: return@mapNotNull null
+            val pos = c.optString("Position").trim('(', ')').split(",")
+            val la = pos.getOrNull(0)?.trim()?.toDoubleOrNull() ?: return@mapNotNull null
+            val lo = pos.getOrNull(1)?.trim()?.toDoubleOrNull() ?: return@mapNotNull null
+            var maxKw = 0.0
+            s.optJSONObject("attr")?.optJSONObject("conn")?.let { conn ->
+                for (key in conn.keys()) {
+                    val cap = conn.optJSONObject(key)?.optJSONObject("5")?.optString("trans").orEmpty()
+                    val kw = Regex("([0-9]+(?:[.,][0-9]+)?)\\s*kW").find(cap)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+                    if (kw != null && kw > maxKw) maxKw = kw
+                }
+            }
+            if (maxKw < 50.0) return@mapNotNull null
+            // Real-time: only trust a count when NOBIL says this station reports live status.
+            var free: Int? = null
+            val live = c.optString("Real_time_information").trim().lowercase()
+            if (live !in setOf("2", "no", "false", "0")) {
+                for (k in c.keys()) if (k.contains("avail", ignoreCase = true)) c.optString(k).trim().toIntOrNull()?.let { free = it }
+            }
+            val owner = c.optString("Owned_by").trim()
+            no.lionflow.app.plan.RawCharger(
+                "nobil-${c.optString("id")}", c.optString("name").ifBlank { owner }.ifBlank { "Charging station" }, owner,
+                la, lo, maxKw, c.optInt("Number_charging_points", 0), "", free,
+            )
+        }
+    }
+
     suspend fun near(apiKey: String, lat: Double, lon: Double, limit: Int = 40, distanceM: Int = 15000): List<Charger> {
         val url = "https://nobil.no/api/server/search.php".toHttpUrl().newBuilder()
             .addQueryParameter("apikey", apiKey)

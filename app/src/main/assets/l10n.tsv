@@ -797,3 +797,5 @@ Couldn't find chargers	Impossible de trouver des bornes	Ladestationen konnten ni
 No road route found between these places	Aucun itinéraire routier trouvé entre ces lieux	Keine Straßenroute zwischen diesen Orten gefunden	No se encontró ruta por carretera entre estos lugares	Fant ingen kjørerute mellom disse stedene
 Start with (car now)	Départ avec (voiture, maintenant)	Start mit (Auto jetzt)	Salir con (coche ahora)	Start med (bilen nå)
 No internet connection, or all the free charger servers are down	Pas de connexion internet, ou tous les serveurs gratuits de bornes sont indisponibles	Keine Internetverbindung, oder alle kostenlosen Ladesäulen-Server sind ausgefallen	Sin conexión a internet, o todos los servidores gratuitos de cargadores están caídos	Ingen internettforbindelse, eller alle de gratis laderserverne er nede
+{0} of {1} free	{0} sur {1} libres	{0} von {1} frei	{0} de {1} libres	{0} av {1} ledige
+{0} free	{0} libres	{0} frei	{0} libres	{0} ledige
