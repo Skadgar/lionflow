@@ -247,6 +247,25 @@ private fun BatteryOptions(p: Planner) {
     }
 }
 
+/** A stop on the way. With a stay, a fast charger within 1 km is suggested: charge while you are there. */
+@Composable
+private fun ViaRow(p: Planner, v: Place, stay: Int, s: AppSettings, onShow: (Double, Double) -> Unit) {
+    val c = LocalLf.current
+    EndRow(c.muted, placeName(v), v.detail, viaTag(stay)) { onShow(v.lat, v.lon) }
+    if (stay <= 0) return
+    val near = p.chargers.map { it to no.lionflow.app.plan.Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }.minByOrNull { it.second } ?: return
+    val ch = near.first
+    if (p.plan?.stops?.any { it.charger.id == ch.id } == true) return     // already a charging stop
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.okBg).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Charge while you stay: ${ch.name} (${fmtDistance(near.second, s)} away)", style = Type.small, color = c.okText)
+        Text("Charge there for $stay min", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+            modifier = Modifier.clickable(role = Role.Button) { p.chargeDuringStay(ch.id, stay) })
+    }
+}
+
 /** How long to stay at each stop on the way. */
 @Composable
 private fun ViaStays(p: Planner) {
@@ -344,10 +363,10 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         val vias = if (rt == null) emptyList() else p.planVias.mapIndexed { k, v -> Triple(v, rt.km[no.lionflow.app.plan.Geo.project(rt, v.lat, v.lon).first], p.planStays.getOrElse(k) { 0 }) }.sortedBy { it.second }
         var vi = 0
         plan.stops.forEachIndexed { i, st ->
-            while (vi < vias.size && vias[vi].second <= st.charger.km) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, viaTag(vias[vi].third)) { onShow(v.lat, v.lon) }; vi++ }
+            while (vi < vias.size && vias[vi].second <= st.charger.km) { ViaRow(p, vias[vi].first, vias[vi].third, s, onShow); vi++ }
             StopCard(i + 1, st, p, s, onShow)
         }
-        while (vi < vias.size) { val v = vias[vi].first; EndRow(c.muted, placeName(v), v.detail, viaTag(vias[vi].third)) { onShow(v.lat, v.lon) }; vi++ }
+        while (vi < vias.size) { ViaRow(p, vias[vi].first, vias[vi].third, s, onShow); vi++ }
         if (to != null) EndRow(c.accentInk, placeName(to), to.detail, if (plan.ok) "${plan.arrivePct.roundToInt()} %" else "—") { onShow(to.lat, to.lon) }
 
         if (options) { ViaStays(p); BatteryOptions(p) }

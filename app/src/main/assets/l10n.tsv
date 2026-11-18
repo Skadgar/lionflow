@@ -803,3 +803,5 @@ Add a stop on the way	Ajouter un arrêt en chemin	Zwischenstopp hinzufügen	Aña
 Via	Via	Via	Vía	Via
 Remove this stop	Supprimer cet arrêt	Diesen Stopp entfernen	Quitar esta parada	Fjern dette stoppet
 Stay at {0}	Rester à {0}	Aufenthalt bei {0}	Quedarse en {0}	Bli på {0}
+Charge while you stay: {0} ({1} away)	Recharger pendant votre pause : {0} (à {1})	Während des Aufenthalts laden: {0} ({1} entfernt)	Cargar durante la parada: {0} (a {1})	Lad mens du er der: {0} ({1} unna)
+Charge there for {0} min	Recharger là-bas pendant {0} min	Dort {0} Min. laden	Cargar allí durante {0} min	Lad der i {0} min

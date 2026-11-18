@@ -198,8 +198,8 @@ class Planner(
         val o = Options(startNow().toDouble(), minPct, targetPct, kwh, if (kwh >= 68) 160.0 else 100.0)
         val energy = withContext(Dispatchers.Default) { r.energy(m.factor) }
         var p = withContext(Dispatchers.Default) { TripPlanner.plan(r, energy, chargers, o, edits, excluded, m) }
-        if (!p.ok && chargersFor !== r) {
-            // The car can't make it in one go: look up the fast chargers along the way (once per route).
+        if ((!p.ok || planStays.any { it > 0 }) && chargersFor !== r) {
+            // The car can't make it in one go, or there is a stay to suggest a charger for: look up the fast chargers along the way (once per route).
             busy = "Finding chargers along the route…"
             val raw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
             chargers = withContext(Dispatchers.Default) { place(raw, r) }
@@ -233,6 +233,8 @@ class Planner(
     fun chargeTo(id: String, pct: Int) = put(StopEdit(id, targetPct = pct.coerceIn(5, 100)))
     /** Stay this long at a stop. */
     fun stayFor(id: String, minutes: Int) = put(StopEdit(id, minutes = minutes.coerceIn(5, 180)))
+    /** Charge at this charger for as long as the stay lasts (the tip under a via stop). */
+    fun chargeDuringStay(id: String, minutes: Int) { excluded = excluded - id; put(StopEdit(id, minutes = minutes.coerceIn(5, 180))) }
     /** Stop at a charger the user picked. */
     fun addStop(id: String) { excluded = excluded - id; put(StopEdit(id)) }
     /** Don't stop here; another charger is found if one is needed. */
