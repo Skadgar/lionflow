@@ -281,7 +281,7 @@ Show my location	Afficher ma position	Meinen Standort zeigen	Mostrar mi ubicaci�
 Navigate	Itinéraire	Navigieren	Navegar	Naviger
 Open in Maps	Ouvrir dans Maps	In Maps öffnen	Abrir en Maps	Åpne i Kart
 Your car	Votre voiture	Ihr Auto	Tu coche	Bilen din
- · tap a green dot for charger details	 · touchez un point vert pour les détails de la borne	 · tippen Sie auf einen grünen Punkt für Details	 · toca un punto verde para ver el cargador	 · trykk på en grønn prikk for detaljer om laderen
+ · tap a charger for details	 · touchez une borne pour les détails	 · Ladestation antippen für Details	 · toca un cargador para ver detalles	 · trykk på en lader for detaljer
 Position not available yet	Position pas encore disponible	Position noch nicht verfügbar	Posición aún no disponible	Posisjon ikke tilgjengelig ennå
 Map © OpenStreetMap contributors · OpenFreeMap	Carte © contributeurs OpenStreetMap · OpenFreeMap	Karte © OpenStreetMap-Mitwirkende · OpenFreeMap	Mapa © colaboradores de OpenStreetMap · OpenFreeMap	Kart © OpenStreetMap-bidragsytere · OpenFreeMap
  · Chargers: NOBIL	 · Bornes : NOBIL	 · Ladestationen: NOBIL	 · Cargadores: NOBIL	 · Ladere: NOBIL
@@ -749,3 +749,50 @@ e-Remote Control (in the Connect ONE pack on new electric and plug-in hybrid car
 e-Remote Control (Connect PLUS pack)	e-Remote Control (pack Connect PLUS)	e-Remote Control (Paket Connect PLUS)	e-Remote Control (pack Connect PLUS)	e-Remote Control (Connect PLUS-pakken)
 Remote Control (Connect PLUS pack)	Remote Control (pack Connect PLUS)	Remote Control (Paket Connect PLUS)	Remote Control (pack Connect PLUS)	Remote Control (Connect PLUS-pakken)
 Signed in, but {0} says no car is available on this account for the country you chose. If the car shows in {1}, check that the country matches the one in that app. Some newer cars can't be reached by other apps yet.	Connecté, mais {0} indique qu'aucune voiture n'est disponible sur ce compte pour le pays choisi. Si la voiture apparaît dans {1}, vérifiez que le pays correspond à celui de cette app. Certaines voitures récentes ne sont pas encore accessibles aux autres apps.	Angemeldet, aber {0} meldet, dass für das gewählte Land kein Auto in diesem Konto verfügbar ist. Wenn das Auto in {1} erscheint, prüfe, ob das Land dem in dieser App entspricht. Manche neuere Autos sind für andere Apps noch nicht erreichbar.	Sesión iniciada, pero {0} indica que no hay ningún coche disponible en esta cuenta para el país elegido. Si el coche aparece en {1}, comprueba que el país coincide con el de esa app. Algunos coches nuevos aún no son accesibles para otras apps.	Innlogget, men {0} sier at ingen bil er tilgjengelig på denne kontoen for landet du valgte. Hvis bilen vises i {1}, sjekk at landet stemmer med det i den appen. Noen nyere biler kan ikke nås av andre apper ennå.
+Plan a trip: where to?	Planifier un trajet : où aller ?	Fahrt planen: Wohin?	Planificar un viaje: ¿adónde?	Planlegg en tur: hvor skal du?
+Plan a trip	Planifier un trajet	Fahrt planen	Planificar un viaje	Planlegg en tur
+Close the trip	Fermer le trajet	Fahrt schließen	Cerrar el viaje	Lukk turen
+Car's position	Position de la voiture	Standort des Autos	Posición del coche	Bilens posisjon
+My position	Ma position	Mein Standort	Mi posición	Min posisjon
+From	Départ	Start	Desde	Fra
+Where to?	Où aller ?	Wohin?	¿Adónde?	Hvor skal du?
+Swap start and destination	Inverser départ et destination	Start und Ziel tauschen	Intercambiar origen y destino	Bytt start og mål
+Searching…	Recherche…	Suche…	Buscando…	Søker…
+No places found	Aucun lieu trouvé	Keine Orte gefunden	No se encontraron lugares	Fant ingen steder
+Type an address or a place. Tap the star to save one.	Saisissez une adresse ou un lieu. Touchez l'étoile pour l'enregistrer.	Adresse oder Ort eingeben. Mit dem Stern speichern.	Escribe una dirección o un lugar. Toca la estrella para guardarlo.	Skriv en adresse eller et sted. Trykk på stjernen for å lagre.
+Plan again	Replanifier	Neu planen	Planificar de nuevo	Planlegg på nytt
+Plan trip	Planifier le trajet	Fahrt planen	Planificar viaje	Planlegg tur
+Remove from saved places	Retirer des lieux enregistrés	Aus gespeicherten Orten entfernen	Quitar de lugares guardados	Fjern fra lagrede steder
+Save this place	Enregistrer ce lieu	Diesen Ort speichern	Guardar este lugar	Lagre dette stedet
+Start with	Départ avec	Start mit	Salir con	Start med
+Never below	Jamais sous	Nie unter	Nunca por debajo de	Aldri under
+Charge to	Charger jusqu'à	Laden bis	Cargar hasta	Lad til
+Less	Moins	Weniger	Menos	Mindre
+Use the car's charge now: {0} %	Utiliser la charge actuelle de la voiture : {0} %	Aktuellen Ladestand des Autos nehmen: {0} %	Usar la carga actual del coche: {0} %	Bruk bilens lading nå: {0} %
+Arrive 	Arrivée 	Ankunft 	Llegada 	Fremme 
+No charging needed	Aucune recharge nécessaire	Kein Laden nötig	No hace falta cargar	Ingen lading nødvendig
+1 stop	1 arrêt	1 Stopp	1 parada	1 stopp
+{0} stops	{0} arrêts	{0} Stopps	{0} paradas	{0} stopp
+{0} charging	{0} de recharge	{0} Laden	{0} cargando	{0} lading
+Arrive with {0} %	Arrivée avec {0} %	Ankunft mit {0} %	Llegada con {0} %	Fremme med {0} %
+The start charge is at or below your minimum. Start with more, or lower the minimum.	La charge de départ est égale ou inférieure à votre minimum. Partez avec plus, ou baissez le minimum.	Der Startladestand liegt auf oder unter dem Minimum. Mit mehr starten oder das Minimum senken.	La carga inicial es igual o inferior a tu mínimo. Sal con más o baja el mínimo.	Startladingen er på eller under minimum. Start med mer, eller senk minimum.
+No fast charger within reach after {0}. Lower the minimum, charge more before, or pick a charger on the map.	Aucune borne rapide à portée après {0}. Baissez le minimum, chargez plus avant, ou choisissez une borne sur la carte.	Kein Schnelllader in Reichweite nach {0}. Minimum senken, vorher mehr laden oder eine Ladestation auf der Karte wählen.	No hay cargador rápido al alcance después de {0}. Baja el mínimo, carga más antes o elige un cargador en el mapa.	Ingen hurtiglader innen rekkevidde etter {0}. Senk minimum, lad mer før, eller velg en lader på kartet.
+Open in Google Maps	Ouvrir dans Google Maps	In Google Maps öffnen	Abrir en Google Maps	Åpne i Google Maps
+Undo my changes to the stops	Annuler mes modifications des arrêts	Meine Änderungen an den Stopps zurücksetzen	Deshacer mis cambios en las paradas	Angre endringene mine på stoppene
+Battery use is worked out from your {0} longest trips ({1} kWh/100 km at 90 km/h). Hills and wind are not counted.	La consommation est calculée à partir de vos {0} plus longs trajets ({1} kWh/100 km à 90 km/h). Le relief et le vent ne sont pas pris en compte.	Der Verbrauch ist aus Ihren {0} längsten Fahrten berechnet ({1} kWh/100 km bei 90 km/h). Steigungen und Wind sind nicht eingerechnet.	El consumo se calcula con tus {0} viajes más largos ({1} kWh/100 km a 90 km/h). No se cuentan las cuestas ni el viento.	Forbruket er regnet ut fra de {0} lengste turene dine ({1} kWh/100 km i 90 km/t). Bakker og vind er ikke regnet med.
+Battery use is a typical figure until LionFlow has your trips. Hills and wind are not counted.	La consommation est une valeur typique tant que LionFlow n'a pas vos trajets. Le relief et le vent ne sont pas pris en compte.	Der Verbrauch ist ein typischer Wert, bis LionFlow Ihre Fahrten hat. Steigungen und Wind sind nicht eingerechnet.	El consumo es un valor típico hasta que LionFlow tenga tus viajes. No se cuentan las cuestas ni el viento.	Forbruket er et typisk tall til LionFlow har turene dine. Bakker og vind er ikke regnet med.
+Prices are the usual drop-in prices (checked {0}), not live prices.	Les prix sont les tarifs habituels sans abonnement (vérifiés {0}), pas des prix en direct.	Die Preise sind die üblichen Ad-hoc-Preise (geprüft {0}), keine Live-Preise.	Los precios son los habituales sin registro (comprobados {0}), no precios en vivo.	Prisene er vanlige drop-in-priser (sjekket {0}), ikke sanntidspriser.
+Map and chargers © OpenStreetMap contributors	Carte et bornes © contributeurs OpenStreetMap	Karte und Ladestationen © OpenStreetMap-Mitwirkende	Mapa y cargadores © colaboradores de OpenStreetMap	Kart og ladere © OpenStreetMap-bidragsytere
+Route: OSRM	Itinéraire : OSRM	Route: OSRM	Ruta: OSRM	Rute: OSRM
+Address search: Photon	Recherche d'adresse : Photon	Adresssuche: Photon	Búsqueda de direcciones: Photon	Adressesøk: Photon
+Break	Pause	Pause	Pausa	Pause
+Remove this stop	Retirer cet arrêt	Diesen Stopp entfernen	Quitar esta parada	Fjern dette stoppet
+Hide other chargers	Masquer les autres bornes	Andere Ladestationen ausblenden	Ocultar otros cargadores	Skjul andre ladere
+Choose another charger	Choisir une autre borne	Andere Ladestation wählen	Elegir otro cargador	Velg en annen lader
+Charge here	Recharger ici	Hier laden	Cargar aquí	Lad her
+Finding the route…	Recherche de l'itinéraire…	Route wird gesucht…	Buscando la ruta…	Finner ruten…
+Finding chargers along the route…	Recherche des bornes sur l'itinéraire…	Ladestationen entlang der Route werden gesucht…	Buscando cargadores en la ruta…	Finner ladere langs ruten…
+Choose where the trip starts	Choisissez le point de départ	Startpunkt der Fahrt wählen	Elige dónde empieza el viaje	Velg hvor turen starter
+Couldn't plan the trip	Impossible de planifier le trajet	Fahrt konnte nicht geplant werden	No se pudo planificar el viaje	Kunne ikke planlegge turen
+Couldn't find chargers	Impossible de trouver des bornes	Ladestationen konnten nicht gefunden werden	No se pudieron encontrar cargadores	Kunne ikke finne ladere
+No road route found between these places	Aucun itinéraire routier trouvé entre ces lieux	Keine Straßenroute zwischen diesen Orten gefunden	No se encontró ruta por carretera entre estos lugares	Fant ingen kjørerute mellom disse stedene

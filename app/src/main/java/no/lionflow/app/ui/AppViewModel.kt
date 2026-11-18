@@ -86,6 +86,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
+    /** The EV trip planner on the Map tab. */
+    val planner by lazy {
+        no.lionflow.app.plan.Planner(viewModelScope, lf, { _ui.value.status }, { _ui.value.trips },
+            { _ui.value.myLat?.let { la -> _ui.value.myLon?.let { lo -> la to lo } } })
+    }
     private var ticker: Job? = null
 
     val remoteReady: Boolean get() = remote.isSetUp || isDemo

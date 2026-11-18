@@ -171,6 +171,24 @@ object OsmChargers {
         throw if (last is ApiException || last == null) BusyException() else last
     }
 
+    /** Runs an Overpass query on the first free server that answers. */
+    suspend fun raw(q: String): JSONObject {
+        var last: Exception? = null
+        for (url in ENDPOINTS) {
+            try {
+                val req = Request.Builder().url(url).header("User-Agent", Http.CONTACT_AGENT)
+                    .post(okhttp3.FormBody.Builder().add("data", q).build()).build()
+                return Http.json(req) as? JSONObject ?: JSONObject()
+            } catch (e: ApiException) {
+                last = e
+                if (e.code != 429 && e.code < 500) throw e
+            } catch (e: java.io.IOException) {
+                last = e
+            }
+        }
+        throw if (last is ApiException || last == null) BusyException() else last
+    }
+
     private suspend fun query(endpoint: String, lat: Double, lon: Double, radiusM: Int, limit: Int, amenity: String): List<Charger> {
         val q = "[out:json][timeout:25];(" +
             "node[\"amenity\"=\"$amenity\"](around:$radiusM,$lat,$lon);" +
