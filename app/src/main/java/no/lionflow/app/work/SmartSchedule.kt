@@ -40,7 +40,7 @@ object SmartSchedule {
     /** Pick up schedules that were added, changed or removed outside LionFlow (MyPeugeot, another phone) so they aren't hidden. */
     fun syncFromCar(app: LionFlowApp, car: List<Program>) {
         val want = desired(app) ?: return
-        val off = switchedOff(app)
+        val off = switchedOff(app).toMutableSet()
         val byDesired = want.associateBy { it.slot }
         var changed = false
         val out = ArrayList<Program>()
