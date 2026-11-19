@@ -368,6 +368,12 @@ class Planner(
     }
 
     /** Moves the start time to the next or the previous quarter of an hour (back to "now" at the earliest). */
+    /** Leave at a set time (null = now). A time in the past means now. */
+    fun setDepart(ms: Long?) {
+        departAt = ms?.takeIf { it > System.currentTimeMillis() + 60_000L }
+        staleAlts(); recompute()
+    }
+
     fun shiftDepart(dir: Int) {
         val now = System.currentTimeMillis()
         val base = departAt?.takeIf { it > now } ?: now

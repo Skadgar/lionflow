@@ -1,5 +1,7 @@
 package no.lionflow.app.ui.screens
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -256,7 +258,15 @@ private fun BatteryOptions(p: Planner) {
             (if (sameDay) "" else java.text.SimpleDateFormat("EEE ", L10n.locale).format(java.util.Date(dep))) +
                 TimeFmt.hm(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
         }
-        OptionRow("Leave", leaveText, { p.shiftDepart(-1) }, { p.shiftDepart(1) })
+        var pickTime by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth().clickable(role = Role.Button) { pickTime = true }.padding(start = 14.dp, end = 14.dp).height(48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Leave at", style = Type.body, color = c.text2, modifier = Modifier.weight(1f))
+            Plain(leaveText, Type.label, c.accentInk)
+        }
+        if (pickTime) DepartPicker(p.departAt?.takeIf { it > System.currentTimeMillis() }, { p.setDepart(it); pickTime = false }, { pickTime = false })
         OptionRow(if (p.startPct == null) "Start with (car now)" else "Start with", "$start %", { p.setStart(((start - 1) / 5) * 5) }, { p.setStart((start / 5 + 1) * 5) })
         OptionRow("Never below", "${p.minPct} %", { p.setMin(p.minPct - 5) }, { p.setMin(p.minPct + 5) })
         OptionRow("Charge to", "${p.targetPct} %", { p.setTarget(p.targetPct - 5) }, { p.setTarget(p.targetPct + 5) })
@@ -569,4 +579,63 @@ private fun FerryRows(p: Planner) {
         Text("Ferry times: Entur and Transitous where the operator publishes them, otherwise a typical wait is assumed.", style = Type.tiny, color = c.muted,
             modifier = Modifier.clickable { platform.openUrl("https://transitous.org/sources/") })
     }
+}
+
+/** Pick the day (today and the next six) and the time to leave, or "Now". */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DepartPicker(current: Long?, onSet: (Long?) -> Unit, onClose: () -> Unit) {
+    val c = LocalLf.current
+    val start = java.util.Calendar.getInstance().apply { timeInMillis = current ?: (System.currentTimeMillis() + 15 * 60_000L) }
+    val today = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+    var day by remember { mutableStateOf(((start.timeInMillis - today.timeInMillis) / 86_400_000L).toInt().coerceIn(0, 6)) }
+    val time = androidx.compose.material3.rememberTimePickerState(
+        initialHour = start.get(java.util.Calendar.HOUR_OF_DAY),
+        initialMinute = start.get(java.util.Calendar.MINUTE) / 5 * 5,
+        is24Hour = TimeFmt.use24,
+    )
+    fun chosen(): Long = (today.clone() as java.util.Calendar).apply {
+        add(java.util.Calendar.DAY_OF_YEAR, day); set(java.util.Calendar.HOUR_OF_DAY, time.hour); set(java.util.Calendar.MINUTE, time.minute)
+    }.timeInMillis
+    val past = chosen() <= System.currentTimeMillis()
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose, containerColor = c.card,
+        title = { Text("Leave at", color = c.text) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (0..6).forEach { i ->
+                        val on = i == day
+                        val label = when (i) {
+                            0 -> L10n.tr("Today"); 1 -> L10n.tr("Tomorrow")
+                            else -> java.text.SimpleDateFormat("EEE d", L10n.locale).format(java.util.Date(today.timeInMillis + i * 86_400_000L + 3_600_000L * 12))
+                        }
+                        Box(
+                            Modifier.clip(RoundedCornerShape(50)).background(if (on) c.accent else c.raised)
+                                .border(1.dp, if (on) c.accent else c.line, RoundedCornerShape(50))
+                                .clickable { day = i }.padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) { Plain(label, Type.small.copy(fontWeight = FontWeight.SemiBold), if (on) c.onAccent else c.text) }
+                    }
+                }
+                androidx.compose.material3.TimePicker(state = time, colors = androidx.compose.material3.TimePickerDefaults.colors(
+                    clockDialColor = c.raised, clockDialSelectedContentColor = c.onAccent, clockDialUnselectedContentColor = c.text,
+                    selectorColor = c.accent, containerColor = c.card,
+                    timeSelectorSelectedContainerColor = c.accent, timeSelectorUnselectedContainerColor = c.raised,
+                    timeSelectorSelectedContentColor = c.onAccent, timeSelectorUnselectedContentColor = c.text,
+                    periodSelectorSelectedContainerColor = c.accent, periodSelectorUnselectedContainerColor = c.raised,
+                    periodSelectorSelectedContentColor = c.onAccent, periodSelectorUnselectedContentColor = c.text,
+                ))
+                if (past) Text("That time has passed. Pick a later time or a later day.", style = Type.tiny, color = c.danger)
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = !past, onClick = { onSet(chosen()) }) { Text("Set", color = if (past) c.muted else c.accentInk) }
+        },
+        dismissButton = {
+            Row {
+                androidx.compose.material3.TextButton(onClick = { onSet(null) }) { Text("Now", color = c.accentInk) }
+                androidx.compose.material3.TextButton(onClick = onClose) { Text("Cancel", color = c.muted) }
+            }
+        },
+    )
 }

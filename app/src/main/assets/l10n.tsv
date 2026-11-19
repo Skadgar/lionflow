@@ -822,3 +822,7 @@ wait	attente	Wartezeit	espera	venting
 Ferry times: Entur and Transitous where the operator publishes them, otherwise a typical wait is assumed.	Horaires des ferries : Entur et Transitous quand l'exploitant les publie, sinon une attente typique est supposée.	Fährzeiten: Entur und Transitous, wenn der Betreiber sie veröffentlicht, sonst wird eine typische Wartezeit angenommen.	Horarios de ferris: Entur y Transitous cuando el operador los publica; si no, se supone una espera típica.	Fergetider: Entur og Transitous der rederiet publiserer dem, ellers regnes en typisk ventetid.
 Leave	Départ	Abfahrt	Salida	Avreise
 Now	Maintenant	Jetzt	Ahora	Nå
+Leave at	Départ à	Abfahrt um	Salir a las	Reis kl.
+Tomorrow	Demain	Morgen	Mañana	I morgen
+That time has passed. Pick a later time or a later day.	Cette heure est passée. Choisissez une heure ou un jour plus tard.	Diese Zeit ist vorbei. Wähle eine spätere Uhrzeit oder einen späteren Tag.	Esa hora ya pasó. Elige una hora o un día posterior.	Det tidspunktet har passert. Velg et senere tidspunkt eller en senere dag.
+Set	Valider	Übernehmen	Aceptar	Bruk
