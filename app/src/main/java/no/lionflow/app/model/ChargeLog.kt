@@ -63,6 +63,8 @@ data class ChargeSession(
     val lon: Double?,
     val address: String?,     // looked up from the car's position
     val source: String?,      // charger name/operator if a known public charger is right there
+    /** True when [kwh] comes from the energy the car reported in the battery (not from % × battery size). */
+    val measured: Boolean = false,
 ) {
     val hours: Double get() = (end - start) / 3_600_000.0
     val avgKw: Double? get() = if (hours > 0.05) kwh / hours else null
@@ -71,7 +73,7 @@ data class ChargeSession(
         .put("startPct", startPct).put("endPct", endPct).put("kwh", kwh)
         .put("peakKw", peakKw ?: JSONObject.NULL).put("mode", mode ?: JSONObject.NULL)
         .put("lat", lat ?: JSONObject.NULL).put("lon", lon ?: JSONObject.NULL)
-        .put("address", address ?: JSONObject.NULL).put("source", source ?: JSONObject.NULL)
+        .put("address", address ?: JSONObject.NULL).put("source", source ?: JSONObject.NULL).put("measured", measured)
 
     companion object {
         fun fromJson(j: JSONObject) = ChargeSession(
@@ -80,7 +82,28 @@ data class ChargeSession(
             if (j.isNull("mode")) null else j.optString("mode"),
             if (j.isNull("lat")) null else j.optDouble("lat"), if (j.isNull("lon")) null else j.optDouble("lon"),
             if (j.isNull("address")) null else j.optString("address"), if (j.isNull("source")) null else j.optString("source"),
+            j.optBoolean("measured", false),
         )
+
+        /**
+         * Battery health worked out from charging sessions: how many kWh went into the battery per 100 %, compared
+         * with the battery's size when new ([newKwh]). Uses sessions where the car reported the energy in the battery
+         * and the level rose by at least 15 %; needs 3 of them. Returns (health %, sessions used), or null.
+         * Not an official number: it depends on how exactly the car reports energy and level.
+         */
+        fun healthEstimate(sessions: List<ChargeSession>, newKwh: Double?): Pair<Double, Int>? {
+            if (newKwh == null || newKwh < 5) return null
+            // The 20 newest usable sessions, so the figure follows the battery as it ages.
+            val caps = sessions.filter { it.measured && it.endPct - it.startPct >= 15 && it.kwh > 0 }
+                .sortedByDescending { it.start }
+                .map { it.kwh / ((it.endPct - it.startPct) / 100.0) }
+                .filter { it in newKwh * 0.5..newKwh * 1.15 }
+                .take(20)
+            if (caps.size < 3) return null
+            val sorted = caps.sorted()
+            val median = if (sorted.size % 2 == 1) sorted[sorted.size / 2] else (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2
+            return (median / newKwh * 100).coerceAtMost(100.0) to caps.size
+        }
     }
 }
 
@@ -222,6 +245,7 @@ object ChargeLog {
             peakKw = if (a.isNull("peak")) null else a.optDouble("peak"),
             mode = if (a.isNull("mode")) null else a.optString("mode"),
             lat = lat, lon = lon, address = null, source = near,
+            measured = startKwh != null && lastKwh != null && lastKwh > startKwh,
         )
     }
 

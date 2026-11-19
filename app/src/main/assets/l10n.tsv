@@ -871,3 +871,7 @@ Open Route tracking in Settings	Ouvrir le suivi d'itinéraire dans les réglages
 Search address or place	Rechercher une adresse ou un lieu	Adresse oder Ort suchen	Buscar dirección o lugar	Søk etter adresse eller sted
 No matches.	Aucun résultat.	Keine Treffer.	Sin resultados.	Ingen treff.
 Couldn't search right now. Check your connection.	Recherche impossible pour le moment. Vérifiez votre connexion.	Suche gerade nicht möglich. Prüfen Sie Ihre Verbindung.	No se pudo buscar ahora. Comprueba tu conexión.	Kunne ikke søke akkurat nå. Sjekk tilkoblingen.
+Estimated battery health based on charging sessions	Santé estimée de la batterie d'après les recharges	Geschätzter Akkuzustand anhand der Ladevorgänge	Salud estimada de la batería según las cargas	Estimert batterihelse basert på ladeøkter
+(not an official number) · from {0} sessions	(chiffre non officiel) · sur {0} recharges	(keine offizielle Zahl) · aus {0} Ladevorgängen	(no es una cifra oficial) · de {0} cargas	(ikke et offisielt tall) · fra {0} ladeøkter
+(not an official number) · needs 3 charging sessions of 15 % or more	(chiffre non officiel) · nécessite 3 recharges de 15 % ou plus	(keine offizielle Zahl) · braucht 3 Ladevorgänge von mindestens 15 %	(no es una cifra oficial) · necesita 3 cargas de 15 % o más	(ikke et offisielt tall) · trenger 3 ladeøkter på 15 % eller mer
+Estimated: {0}	Estimé : {0}	Geschätzt: {0}	Estimado: {0}	Estimert: {0}

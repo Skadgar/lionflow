@@ -315,6 +315,7 @@ fun ServiceScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) 
                     LfIcon(LfIcons.Check, c.accentInk, 14.dp); Text("Battery health", style = Type.small, color = c.muted)
                 }
                 Text(st?.batteryHealthPct?.let { "${it.toInt()} %" } ?: "—", style = Type.label, color = c.text)
+                EstimatedHealth(s, st, compact = true)
             }
         }
         LfCard(padding = PaddingValues(0.dp)) {

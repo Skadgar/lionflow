@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
@@ -88,6 +90,7 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
             DetailRow("Scheduled start", st?.nextDelayedHour?.let { no.lionflow.app.ui.l10n.TimeFmt.hm(it, st?.nextDelayedMinute ?: 0) } ?: "Not set")
             Divider()
             DetailRow("Battery health", st?.batteryHealthPct?.let { "${it.toInt()} %" } ?: "—")
+            EstimatedHealth(s, st)
         }
         if (vm.remoteReady) PrimaryButton(
             text = when {
@@ -107,6 +110,36 @@ fun ChargingScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean)
         )
         if (vm.remoteReady) ChargeLimitCard(vm, ui, s) else RemoteSetupHint(vm)
         ChargeLogSection(ui, s)
+    }
+}
+
+/**
+ * Battery health estimated from the phone's own charging log, shown under the car's official figure.
+ * Only for cars that report the energy in the battery and whose size when new is known (set in Settings or reported).
+ */
+@Composable
+fun EstimatedHealth(s: AppSettings, st: no.lionflow.app.model.VehicleStatus?, compact: Boolean = false) {
+    val c = LocalLf.current
+    if (st == null || st.residualKwh == null) return
+    val sessions by no.lionflow.app.model.ChargeLog.sessions.collectAsState()
+    val newKwh = s.batteryKwh.takeIf { it > 0 } ?: st.capacityKwh
+    val est = no.lionflow.app.model.ChargeSession.healthEstimate(sessions, newKwh)
+    val value = est?.let { "≈ ${it.first.toInt()} %" }
+    if (compact) {
+        if (value != null) Text("Estimated: $value", style = Type.tiny, color = c.muted)
+        return
+    }
+    Divider()
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Estimated battery health based on charging sessions", style = Type.small.copy(fontSize = 14.sp), color = c.muted, modifier = Modifier.weight(1f))
+            Text(value ?: "—", style = Type.label, color = c.text)
+        }
+        Text(
+            if (est != null) "(not an official number) · from ${est.second} sessions"
+            else "(not an official number) · needs 3 charging sessions of 15 % or more",
+            style = Type.tiny, color = c.muted,
+        )
     }
 }
 
