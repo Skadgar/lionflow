@@ -1,5 +1,6 @@
 package no.lionflow.app.ui
 
+import no.lionflow.app.ui.components.softShadow
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -145,7 +146,7 @@ fun LionFlowRoot(vm: AppViewModel, platform: Platform) {
                 ui.commandInProgress?.let { label ->
                     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).padding(top = 12.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.TopCenter) {
                         Row(
-                            Modifier.widthIn(max = 520.dp).clip(RoundedCornerShape(16.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(16.dp))
+                            Modifier.widthIn(max = 520.dp).softShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(16.dp))
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -159,7 +160,7 @@ fun LionFlowRoot(vm: AppViewModel, platform: Platform) {
                     LaunchedEffect(msg) { delay(if (msg.length > 60) 9000 else 4000); vm.clearMessage() }
                     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 100.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.BottomCenter) {
                         Box(
-                            Modifier.widthIn(max = 520.dp).clip(RoundedCornerShape(16.dp)).background(if (c.isDark) Color(0xFFF2F3F5) else Color(0xFF16181B))
+                            Modifier.widthIn(max = 520.dp).softShadow(RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(if (c.isDark) Color(0xFFF2F3F5) else Color(0xFF16181B))
                                 .clickable { vm.clearMessage() }.padding(horizontal = 16.dp, vertical = 12.dp)
                         ) { Text(msg, style = Type.small, color = if (c.isDark) Color(0xFF111214) else Color(0xFFF2F3F5)) }
                     }
@@ -205,7 +206,7 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                 Box(Modifier.weight(1f).fillMaxHeight()) { TabContent(vm, ui, settings, wide = true, expanded = expanded) }
                 Box(Modifier.width(1.dp).fillMaxHeight().background(c.navLine))
                 Column(
-                    Modifier.width(88.dp).fillMaxHeight().background(c.nav).windowInsetsPadding(WindowInsets.systemBars).padding(vertical = 24.dp),
+                    Modifier.width(88.dp).fillMaxHeight().softShadow(androidx.compose.ui.graphics.RectangleShape, 8.dp).background(c.nav).windowInsetsPadding(WindowInsets.systemBars).padding(vertical = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     LionLogo(32.dp)
@@ -221,7 +222,7 @@ private fun MainShell(vm: AppViewModel, ui: UiState, settings: AppSettings) {
                 Row(
                     Modifier.fillMaxWidth().background(c.bg).windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(30.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(30.dp))
+                        .softShadow(RoundedCornerShape(30.dp), 12.dp).clip(RoundedCornerShape(30.dp)).background(c.card).border(1.dp, c.line, RoundedCornerShape(30.dp))
                         .padding(horizontal = 4.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                 ) {

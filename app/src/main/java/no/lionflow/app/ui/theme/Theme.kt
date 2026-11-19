@@ -61,14 +61,14 @@ val DarkLf = LfColors(
 
 val LightLf = LfColors(
     isDark = false,
-    // A cool grey page under white cards (with soft shadows), and darker text for easier reading.
-    bg = Color(0xFFEDF0F4), text = Color(0xFF0E1013), text2 = Color(0xFF2C3138), chipText = Color(0xFF22262C),
-    muted = Color(0xFF4F555E), card = Color(0xFFFFFFFF), line = Color(0xFFE2E6EB), line2 = Color(0xFFCDD3DA),
-    track = Color(0xFFE1E5EB), nav = Color(0xFFFFFFFF), navLine = Color(0xFFDDE2E8), raised = Color(0xFFF2F4F7),
-    raisedBlue = Color(0xFFE7EFFC), divider = Color(0xFFEAEDF1), bar = Color(0xFFBFC5CD), icon = Color(0xFF6A717B),
-    slot = Color(0xFFEFF2F5), accent = Color(0xFFC6F36B), accentInk = Color(0xFF3F6600), meter = Color(0xFF558F00),
-    orange = Color(0xFFFFB547), orangeInk = Color(0xFFA35F00), blueInk = Color(0xFF2563D0),
-    okBg = Color(0xFFEDF7D6), okLine = Color(0xFFCFE69A), okText = Color(0xFF2A4300), danger = Color(0xFFC62B30),
+    // A warm off-white page under near-white cards (with soft shadows), and dark warm-grey text for easy reading.
+    bg = Color(0xFFEFEBE4), text = Color(0xFF14120F), text2 = Color(0xFF322E29), chipText = Color(0xFF262320),
+    muted = Color(0xFF58534B), card = Color(0xFFFFFDFA), line = Color(0xFFE6E0D7), line2 = Color(0xFFD3CCC1),
+    track = Color(0xFFE5DFD5), nav = Color(0xFFFFFDFA), navLine = Color(0xFFE2DBD1), raised = Color(0xFFF5F1EB),
+    raisedBlue = Color(0xFFE9EEF8), divider = Color(0xFFEFEAE3), bar = Color(0xFFC6BEB2), icon = Color(0xFF746E65),
+    slot = Color(0xFFF2EEE8), accent = Color(0xFFC6F36B), accentInk = Color(0xFF3F6600), meter = Color(0xFF558F00),
+    orange = Color(0xFFFFB547), orangeInk = Color(0xFFA35F00), blueInk = Color(0xFF2560C8),
+    okBg = Color(0xFFEEF5D8), okLine = Color(0xFFD0E39C), okText = Color(0xFF2A4300), danger = Color(0xFFC62B30),
     onAccent = Color(0xFF0D0E10),
 )
 

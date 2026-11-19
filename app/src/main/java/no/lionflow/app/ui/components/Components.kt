@@ -166,7 +166,7 @@ fun Segmented(options: List<Pair<String, String>>, selected: String, modifier: M
                 Modifier
                     .heightIn(min = 38.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .then(if (active) Modifier.softShadow(RoundedCornerShape(10.dp), 2.dp) else Modifier)
+                    .then(if (active) Modifier.softShadow(RoundedCornerShape(10.dp), 3.dp) else Modifier)
                     .background(if (active) c.card else Color.Transparent)
                     .clickable(role = Role.RadioButton) { onSelect(id) }
                     .padding(horizontal = 12.dp),
@@ -189,13 +189,13 @@ fun GroupCard(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().softShadow(shape).clip(shape).background(c.card).border(1.dp, c.line, shape), content = content)
 }
 
-/** A soft, cool-tinted shadow under cards in light mode, for a little depth. Nothing in dark mode. */
+/** A soft, warm-tinted shadow under cards in light mode, for a little depth. Nothing in dark mode. */
 @Composable
-fun Modifier.softShadow(shape: androidx.compose.ui.graphics.Shape, elevation: Dp = 6.dp): Modifier {
+fun Modifier.softShadow(shape: androidx.compose.ui.graphics.Shape, elevation: Dp = 10.dp): Modifier {
     val c = LocalLf.current
     if (c.isDark) return this
-    val tint = Color(0xFF1A2B4A)
-    return this.shadow(elevation, shape, clip = false, ambientColor = tint.copy(alpha = 0.10f), spotColor = tint.copy(alpha = 0.14f))
+    val tint = Color(0xFF3B2A16)   // warm brown, so shadows match the warm page
+    return this.shadow(elevation, shape, clip = false, ambientColor = tint.copy(alpha = 0.14f), spotColor = tint.copy(alpha = 0.22f))
 }
 
 @Composable
