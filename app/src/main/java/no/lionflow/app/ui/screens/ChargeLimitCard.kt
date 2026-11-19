@@ -15,6 +15,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import no.lionflow.app.ui.l10n.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -118,13 +119,13 @@ fun ChargeLimitCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
         // 3) Only charge between two times
         Divider()
-        ChargeWindowSection(vm, s)
+        ChargeWindowSection(vm, s, st)
     }
 }
 
 /** "Only charge between" with a start and an end time, picked on a clock. */
 @Composable
-private fun ChargeWindowSection(vm: AppViewModel, s: AppSettings) {
+private fun ChargeWindowSection(vm: AppViewModel, s: AppSettings, st: no.lionflow.app.model.VehicleStatus?) {
     val c = LocalLf.current
     var editing by remember { mutableStateOf<String?>(null) }   // "from" | "to"
     fun hm(m: Int) = no.lionflow.app.ui.l10n.TimeFmt.hm(m / 60, m % 60)
@@ -148,6 +149,7 @@ private fun ChargeWindowSection(vm: AppViewModel, s: AppSettings) {
             }
         }
     }
+    if (st != null) WindowEstimate(s, st)
     if (s.chargeWindowOn) Text(
         "The car waits until %s and starts by itself. LionFlow stops charging at %s, and starts it if you plug in between these times. Needs internet on the phone and remote control.".let {
             no.lionflow.app.ui.l10n.L10n.tr(it).replaceFirst("%s", hm(s.chargeWindowFrom)).replaceFirst("%s", hm(s.chargeWindowTo))
@@ -188,4 +190,50 @@ private fun ClockDialog(title: String, minutes: Int, onClose: () -> Unit, onSet:
         confirmButton = { androidx.compose.material3.TextButton(onClick = { onSet(time.hour * 60 + time.minute) }) { Text("Set", color = c.accentInk) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onClose) { Text("Cancel", color = c.muted) } },
     )
+}
+
+/**
+ * Home charging speed: measured right now when charging on AC, else the typical speed of the last AC sessions
+ * in the charging log, else 7.4 kW. Second value: true when it comes from the car's own charging.
+ */
+private fun homeKw(st: no.lionflow.app.model.VehicleStatus, sessions: List<no.lionflow.app.model.ChargeSession>): Pair<Double, Boolean> {
+    if (st.isCharging && st.chargingMode != "Quick") no.lionflow.app.model.ChargePower.reading(st)?.let { return it.kw to true }
+    val rates = sessions.filter { it.mode != "Quick" && it.end - it.start > 30 * 60_000L && it.kwh > 1 }
+        .sortedByDescending { it.start }.take(10)
+        .map { it.kwh / ((it.end - it.start) / 3_600_000.0) }.filter { it in 1.0..23.0 }.sorted()
+    return if (rates.size >= 2) rates[rates.size / 2] to true else 7.4 to false
+}
+
+/** What the battery will be at when the charging times end. */
+@Composable
+private fun WindowEstimate(s: AppSettings, st: no.lionflow.app.model.VehicleStatus) {
+    val c = LocalLf.current
+    val pct = st.batteryPct ?: return
+    val sessions by no.lionflow.app.model.ChargeLog.sessions.collectAsState()
+    val (kw, known) = homeKw(st, sessions)
+    val now = no.lionflow.app.work.ChargeWindow.minutesNow()
+    val from = s.chargeWindowFrom; val to = s.chargeWindowTo
+    val inside = no.lionflow.app.work.ChargeWindow.inside(now, from, to)
+    val minutes = (if (inside) (to - now + 1440) % 1440 else (to - from + 1440) % 1440).let { if (it == 0) 1440 else it }
+    val cap = if (s.chargeLimitOn) s.chargeLimitPct.toDouble() else 100.0
+    val perMin = kw * 0.9 / no.lionflow.app.model.ChargePower.usableKwh(st) * 100 / 60.0   // ~10 % lost on the way into the battery
+    val end = (pct + perMin * minutes).coerceAtMost(cap)
+    fun hm(m: Int) = no.lionflow.app.ui.l10n.TimeFmt.hm((m / 60) % 24, m % 60)
+    val reachAt = if (pct < cap && pct + perMin * minutes >= cap) ((if (inside) now else from) + ((cap - pct) / perMin).toInt()) % 1440 else null
+    val speed = String.format(java.util.Locale.US, "%.1f kW", kw)
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.raisedBlue).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text("About ${end.toInt()} % at ${hm(to)}", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+        Text(
+            listOfNotNull(
+                "From ${pct.toInt()} % now",
+                reachAt?.let { "your limit is reached around ${hm(it)}" },
+                if (known) "at about $speed (your home charging)" else "at $speed (a typical home charger)",
+            ).joinToString(", ") + if (st.plugged) "" else ". The car isn't plugged in.",
+            style = Type.tiny, color = c.muted,
+        )
+        if (!s.chargeLimitOn) Text("The car may stop earlier at its own daily limit.", style = Type.tiny, color = c.muted)
+    }
 }

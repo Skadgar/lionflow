@@ -884,3 +884,10 @@ Couldn't send the charging times to the car	Impossible d'envoyer les heures de r
 Charging times	Heures de recharge	Ladezeiten	Horas de carga	Ladetider
 Charging started: you plugged in during your charging times.	Recharge lancée : vous avez branché pendant vos heures de recharge.	Laden gestartet: Sie haben während Ihrer Ladezeiten eingesteckt.	Carga iniciada: enchufaste durante tus horas de carga.	Lading startet: du koblet til innenfor ladetidene dine.
 Charging stopped: outside your charging times. It starts again at {0}.	Recharge arrêtée : en dehors de vos heures de recharge. Elle reprend à {0}.	Laden gestoppt: außerhalb Ihrer Ladezeiten. Es startet wieder um {0}.	Carga detenida: fuera de tus horas de carga. Vuelve a empezar a las {0}.	Lading stoppet: utenfor ladetidene dine. Den starter igjen kl. {0}.
+About {0} % at {1}	Environ {0} % à {1}	Etwa {0} % um {1}	Aproximadamente {0} % a las {1}	Omtrent {0} % kl. {1}
+From {0} % now	Depuis {0} % maintenant	Ab jetzt {0} %	Desde el {0} % actual	Fra {0} % nå
+your limit is reached around {0}	votre limite est atteinte vers {0}	Ihr Limit ist gegen {0} erreicht	tu límite se alcanza hacia las {0}	grensen nås rundt kl. {0}
+at about {0} (your home charging)	à environ {0} (votre recharge à domicile)	mit etwa {0} (Ihr Laden zu Hause)	a unos {0} (tu carga en casa)	med omtrent {0} (ladingen din hjemme)
+at {0} (a typical home charger)	à {0} (une borne domestique typique)	mit {0} (eine typische Wallbox)	a {0} (un cargador doméstico típico)	med {0} (en vanlig hjemmelader)
+. The car isn't plugged in.	. La voiture n'est pas branchée.	. Das Auto ist nicht eingesteckt.	. El coche no está enchufado.	. Bilen er ikke koblet til.
+The car may stop earlier at its own daily limit.	La voiture peut s'arrêter plus tôt à sa propre limite quotidienne.	Das Auto kann früher an seinem eigenen Tageslimit stoppen.	El coche puede parar antes en su propio límite diario.	Bilen kan stoppe tidligere på sin egen daglige grense.
