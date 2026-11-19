@@ -182,9 +182,6 @@ private fun Hero(vm: AppViewModel, ui: UiState, s: AppSettings) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(Modifier.rotate(angle)) { GlassButton(LfIcons.Refresh, "Refresh car data now") { spins++; vm.refresh() } }
-                GlassButton(if (c.isDark) LfIcons.Sun else LfIcons.Moon, if (c.isDark) "Switch to light mode" else "Switch to dark mode") {
-                    vm.settings.update { it.copy(theme = if (c.isDark) "light" else "dark") }
-                }
             }
         }
 
@@ -540,9 +537,6 @@ private fun HomeMain(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolea
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.rotate(angle)) { CircleIconButton(LfIcons.Refresh, "Refresh car data now") { spins++; vm.refresh() } }
-            CircleIconButton(if (c.isDark) LfIcons.Sun else LfIcons.Moon, if (c.isDark) "Switch to light mode" else "Switch to dark mode") {
-                vm.settings.update { it.copy(theme = if (c.isDark) "light" else "dark") }
-            }
         }
     }
 

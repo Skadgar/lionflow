@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -58,7 +59,7 @@ fun LfCard(
 ) {
     val c = LocalLf.current
     val shape = RoundedCornerShape(radius)
-    var m = modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.line, shape)
+    var m = modifier.fillMaxWidth().softShadow(shape).clip(shape).background(c.card).border(1.dp, c.line, shape)
     if (onClick != null) m = m.clickable(onClick = onClick)
     Column(m.padding(padding), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
@@ -165,6 +166,7 @@ fun Segmented(options: List<Pair<String, String>>, selected: String, modifier: M
                 Modifier
                     .heightIn(min = 38.dp)
                     .clip(RoundedCornerShape(10.dp))
+                    .then(if (active) Modifier.softShadow(RoundedCornerShape(10.dp), 2.dp) else Modifier)
                     .background(if (active) c.card else Color.Transparent)
                     .clickable(role = Role.RadioButton) { onSelect(id) }
                     .padding(horizontal = 12.dp),
@@ -184,7 +186,16 @@ fun SectionTitle(text: String) {
 fun GroupCard(content: @Composable ColumnScope.() -> Unit) {
     val c = LocalLf.current
     val shape = RoundedCornerShape(20.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(c.card).border(1.dp, c.line, shape), content = content)
+    Column(Modifier.fillMaxWidth().softShadow(shape).clip(shape).background(c.card).border(1.dp, c.line, shape), content = content)
+}
+
+/** A soft, cool-tinted shadow under cards in light mode, for a little depth. Nothing in dark mode. */
+@Composable
+fun Modifier.softShadow(shape: androidx.compose.ui.graphics.Shape, elevation: Dp = 6.dp): Modifier {
+    val c = LocalLf.current
+    if (c.isDark) return this
+    val tint = Color(0xFF1A2B4A)
+    return this.shadow(elevation, shape, clip = false, ambientColor = tint.copy(alpha = 0.10f), spotColor = tint.copy(alpha = 0.14f))
 }
 
 @Composable

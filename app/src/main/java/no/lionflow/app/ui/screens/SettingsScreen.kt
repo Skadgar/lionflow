@@ -77,6 +77,14 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         BackLink("Home") { vm.setTab(Tab.Home) }
         Text("Settings", style = Type.title, color = c.text)
 
+        GroupCard {
+            val system = s.theme == "system"
+            ToggleRow("Dark mode", if (system) "Follows the phone right now" else null, c.isDark) { v -> set { it.copy(theme = if (v) "dark" else "light") } }
+            ToggleRow("Follow the phone's setting", "Switches between light and dark with the phone", system, showDivider = false) { v ->
+                set { it.copy(theme = if (v) "system" else if (c.isDark) "dark" else "light") }
+            }
+        }
+
         SectionTitle("Profile")
         GroupCard {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -215,8 +223,6 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
         SectionTitle("Appearance")
         GroupCard {
-            SegRow("Theme", listOf("dark" to "Dark", "light" to "Light", "system" to "System"), s.theme) { v -> set { it.copy(theme = v) } }
-            Divider()
             LinkRow("Language", no.lionflow.app.ui.l10n.L10n.OPTIONS.firstOrNull { it.first == s.language }?.second ?: "System default", LfIcons.Globe, last = true) { pickLanguage = true }
         }
         if (pickLanguage) {
