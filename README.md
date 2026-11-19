@@ -6,7 +6,7 @@
 
 ## What is LionFlow?
 
-LionFlow is a free, open-source Android app for your own connected Peugeot, Citroën, DS, Opel or Vauxhall. It's an unofficial alternative to the MyPeugeot, MyCitroën, MyDS, myOpel and MyVauxhall apps, built for the Peugeot E-5008 but meant for any connected car from these brands. It signs in with your normal account for your car's brand and talks to the same Stellantis servers, so it shows the same car data and sends the same remote commands. The difference is how it's built and what it does with that data.
+LionFlow is a free, open-source Android app for your own connected Peugeot, Citroën, DS, Opel or Vauxhall. It's an unofficial alternative to the MyPeugeot, MyCitroën, MyDS, myOpel and MyVauxhall apps. It signs in with your normal account for your car's brand and talks to the same Stellantis servers, so it shows the same car data and sends the same remote commands. The difference is how it's built and what it does with that data.
 
 **Subscriptions (decided by the carmaker, not by LionFlow)**
 Status, battery, range, trips and service data come with your brand account. Charging control and pre-heating on electric and plug-in hybrid cars need the brand's e-Remote Control service (included in the Connect ONE pack on many new cars, otherwise Connect PLUS or a separate subscription). Lock, unlock, lights and horn need the Remote Control service (Connect PLUS). What is included, and for how long, depends on model, country and order date. Activate it in the brand's own app first; LionFlow can't do that for you. The app shows this for your brand before sign-in and next to the functions that need it.
