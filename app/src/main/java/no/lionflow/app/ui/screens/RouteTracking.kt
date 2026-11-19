@@ -42,6 +42,7 @@ import no.lionflow.app.ui.theme.LocalLf
 import no.lionflow.app.ui.theme.Type
 
 /** Settings: record routes with the phone's GPS while connected to the car over Bluetooth. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun RouteTrackingSettings(vm: AppViewModel, s: AppSettings) {
     val c = LocalLf.current
