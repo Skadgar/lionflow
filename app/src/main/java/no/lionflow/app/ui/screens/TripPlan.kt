@@ -539,18 +539,22 @@ private fun AltChooser(p: Planner, s: AppSettings) {
     val fastest = done.minByOrNull { it.plan!!.totalMin }
     val shortest = done.minByOrNull { it.route.totalKm }
     val cheapest = done.filter { it.plan!!.cost != null }.minByOrNull { it.plan!!.cost!! }
+    fun stops(a: Planner.AltRoute) = a.plan!!.stops.count { it.kwh > 0.01 }
+    val fewest = done.minOfOrNull { stops(it) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Routes", style = Type.label, color = c.text2)
+        if (p.autoPicked && p.altIndex != 0) Text("Switched to the route with the fewest charging stops.", style = Type.tiny, color = c.muted)
         alts.forEachIndexed { i, a ->
             val sel = i == p.altIndex
             val pl = a.plan
             val tags = listOfNotNull(
+                if (pl?.ok == true && done.size > 1 && stops(a) == fewest && done.count { stops(it) == fewest } < done.size) L10n.tr("Fewest stops") else null,
                 if (a === fastest) L10n.tr("Fastest") else null,
                 if (a === shortest) L10n.tr("Shortest") else null,
                 if (a === cheapest && done.size > 1) L10n.tr("Cheapest") else null,
             ).joinToString(" · ")
             val info = if (pl == null) L10n.tr("Working it out…")
-                else listOfNotNull(dur(pl.totalMin), fmtDistance(a.route.totalKm, s), pl.cost?.let { "≈ " + money(it, pl.currency) }).joinToString(" · ")
+                else listOfNotNull(dur(pl.totalMin), pl.stops.count { it.kwh > 0.01 }.let { n -> if (n == 1) L10n.tr("1 stop") else L10n.tr("$n stops") }, fmtDistance(a.route.totalKm, s), pl.cost?.let { "≈ " + money(it, pl.currency) }).joinToString(" · ")
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .border(1.dp, if (sel) c.accentInk else c.line2, RoundedCornerShape(14.dp))

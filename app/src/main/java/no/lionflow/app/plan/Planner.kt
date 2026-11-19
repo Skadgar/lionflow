@@ -85,6 +85,10 @@ class Planner(
     var alts by mutableStateOf<List<AltRoute>>(emptyList())
         private set
     var altIndex by mutableStateOf(0)
+    /** True once the user has chosen a route themselves: then the planner no longer switches on its own. */
+    private var userPicked = false
+    /** Set when the planner switched to the route with the fewest charging stops. */
+    var autoPicked by mutableStateOf(false)
         private set
     private var altJob: Job? = null
 
@@ -194,7 +198,7 @@ class Planner(
                 val stay = vias.indices.filter { vias[it] != null }.take(3).map { stays.getOrElse(it) { 0 } }
                 val rs = PlanApi.routes(a, b, via)
                 val r = rs[0]
-                altJob?.cancel(); alts = rs.map { AltRoute(it, null, null) }; altIndex = 0; ferryInfo = emptyList()
+                altJob?.cancel(); alts = rs.map { AltRoute(it, null, null) }; altIndex = 0; ferryInfo = emptyList(); userPicked = false; autoPicked = false
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList()
                 route = r; planFrom = a; planTo = b; planVias = via; planStays = stay
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
@@ -339,18 +343,34 @@ class Planner(
                     val (o, m) = context()
                     val raw = a.raw ?: kotlinx.coroutines.withTimeoutOrNull(25_000L) { PlanApi.chargers(a.route, nobilKey()) }
                     val ch = withContext(Dispatchers.Default) { place(raw.orEmpty(), a.route) }
-                    val res = solve(a.route, o, m, ch, emptyList(), emptySet(), emptySet(), emptyList(), emptyList())
+                    val res = solve(a.route, o, m, ch, emptyList(), emptySet(), emptySet(), planVias, planStays)
                     alts = alts.mapIndexed { k, x -> if (k == i) AltRoute(a.route, res.first, raw) else x }
                 } catch (e: CancellationException) { throw e } catch (e: Exception) { }
             }
+            pickFewestStops()
         }
     }
 
     /** The other routes' plans are out of date after a change to the numbers. */
     private fun staleAlts() { alts = alts.mapIndexed { i, a -> if (i == altIndex) a else AltRoute(a.route, null, a.raw) } }
 
-    /** Switches to another of the routes found. */
-    fun selectRoute(i: Int) {
+    /** Right after planning, moves to the route that needs the fewest charging stops (then the quickest). */
+    private fun pickFewestStops() {
+        if (userPicked || autoPicked) return
+        val cur = plan ?: return
+        fun stops(p: Plan) = p.stops.count { it.kwh > 0.01 }
+        val best = alts.indices.filter { it != altIndex }.mapNotNull { i -> alts[i].plan?.takeIf { it.ok }?.let { i to it } }
+            .minWithOrNull(compareBy<Pair<Int, Plan>>({ stops(it.second) }, { it.second.totalMin })) ?: return
+        val better = !cur.ok || stops(best.second) < stops(cur) ||
+            (stops(best.second) == stops(cur) && best.second.totalMin < cur.totalMin - 1)
+        autoPicked = true
+        if (better) switchRoute(best.first)
+    }
+
+    /** Switches to another of the routes found (the user's choice). */
+    fun selectRoute(i: Int) { userPicked = true; switchRoute(i) }
+
+    private fun switchRoute(i: Int) {
         if (i == altIndex || i !in alts.indices) return
         val a = alts[i]
         planJob?.cancel(); altJob?.cancel()

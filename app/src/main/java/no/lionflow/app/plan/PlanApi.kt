@@ -48,7 +48,77 @@ object PlanApi {
      * The fastest driving route (OSRM) and, when there are no stops on the way, up to two alternatives,
      * with distance and time for every stretch and the car ferries.
      */
+    /**
+     * Up to three different ways to drive the trip. The router's own alternatives come first; when it has
+     * fewer than three (often, and always with via stops), the trip is also routed through a point to each
+     * side of the middle of the main route, and real alternatives among those are kept.
+     */
     suspend fun routes(a: Place, b: Place, via: List<Place> = emptyList()): List<RouteData> {
+        val rs = osrmRoutes(a, b, via).toMutableList()
+        val r0 = rs[0]
+        if (rs.size >= 3 || r0.totalKm < 15 || r0.size < 10) return rs
+        val viaKm = via.map { r0.km[Geo.project(r0, it.lat, it.lon).first] }
+        val found = kotlinx.coroutines.coroutineScope {
+            detourPoints(r0).map { (la, lo, km) ->
+                async {
+                    try {
+                        kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+                            val v = via.toMutableList().apply { add(viaKm.count { it < km }, Place("", "", la, lo)) }
+                            osrmRoutes(a, b, v).firstOrNull()?.let { it to (la to lo) }
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                }
+            }.awaitAll()
+        }
+        for (c in found) {
+            if (rs.size >= 3) break
+            val (r, p) = c ?: continue
+            if (r.totalKm > r0.totalKm * 1.4 || r.totalMin > r0.totalMin * 1.4) continue
+            if (spur(r, p.first, p.second)) continue
+            if (rs.any { overlap(r, it) > 0.8 }) continue
+            rs += r
+        }
+        return rs
+    }
+
+    /** Points to each side of the main route, about a tenth of its length away from it. */
+    private fun detourPoints(r: RouteData): List<Triple<Double, Double, Double>> {
+        val total = r.totalKm
+        val d = (total * 0.10).coerceIn(4.0, 60.0)
+        fun at(km: Double): Int = r.km.indexOfFirst { it >= km }.let { if (it < 0) r.size - 1 else it }
+        fun side(frac: Double, dir: Int): Triple<Double, Double, Double> {
+            val mid = at(total * frac); val i0 = at(total * frac - total * 0.05); val i1 = at(total * frac + total * 0.05)
+            val brg = Math.atan2((r.lon[i1] - r.lon[i0]) * Math.cos(Math.toRadians(r.lat[mid])), r.lat[i1] - r.lat[i0]) + dir * Math.PI / 2
+            val la = r.lat[mid] + d * Math.cos(brg) / 110.57
+            val lo = r.lon[mid] + d * Math.sin(brg) / (111.32 * Math.cos(Math.toRadians(r.lat[mid])))
+            return Triple(la, lo, total * frac)
+        }
+        return listOf(side(0.5, 1), side(0.5, -1), side(0.35, 1), side(0.65, -1))
+    }
+
+    /** Share of route [r] (sampled about every km) that runs along route [o]. */
+    private fun overlap(r: RouteData, o: RouteData): Double {
+        var n = 0; var on = 0; var next = 0.0
+        for (i in 0 until r.size) {
+            if (r.km[i] < next) continue
+            next = r.km[i] + maxOf(1.0, r.totalKm / 300)
+            n++
+            if (Geo.project(o, r.lat[i], r.lon[i]).second < 0.3) on++
+        }
+        return if (n == 0) 1.0 else on.toDouble() / n
+    }
+
+    /** True when the route only drives out to the detour point and back the same way. */
+    private fun spur(r: RouteData, lat: Double, lon: Double): Boolean {
+        val j = Geo.project(r, lat, lon).first
+        fun pt(km: Double): Int = r.km.indexOfFirst { it >= km }.let { if (it < 0) r.size - 1 else it }
+        return listOf(0.5, 1.0, 2.0, 4.0).any { s ->
+            val i0 = pt(r.km[j] - s).coerceAtLeast(0); val i1 = pt(r.km[j] + s)
+            i0 != i1 && Geo.km(r.lat[i0], r.lon[i0], r.lat[i1], r.lon[i1]) < 0.3
+        }
+    }
+
+    private suspend fun osrmRoutes(a: Place, b: Place, via: List<Place>): List<RouteData> {
         val noRoute = "No road route found between these places"
         val way = (listOf(a) + via + listOf(b)).joinToString(";") { "${num(it.lon)},${num(it.lat)}" }
         // Servers differ in what they accept: ask for 2 alternatives, then 1, then none.
