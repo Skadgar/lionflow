@@ -35,7 +35,7 @@ jobs:
           # the newest entry that is at least 24 h old (if there is none yet, the badge says so)
           old=$(awk -F, -v t=$((now-86400)) '$1<=t {v=$2} END {print v}' pings.csv)
           if [ -n "$old" ]; then d=$((pings-old)); [ $d -lt 0 ] && d=0; msg="$d"; else msg="counting…"; fi
-          printf '{"schemaVersion":1,"label":"active devices (24 h)","message":"%s","color":"0b7a75"}\n' "$msg" > devices.json
+          printf '{"schemaVersion":1,"label":"active users (last 24h)","message":"%s","color":"0b7a75"}\n' "$msg" > devices.json
           printf '{"schemaVersion":1,"label":"downloads","message":"%s","color":"8bc34a"}\n' "$n" > downloads.json
           git init -q -b stats
           git config user.name "github-actions"
