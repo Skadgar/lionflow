@@ -299,8 +299,7 @@ fun AutoRouteOption(vm: AppViewModel, s: AppSettings, onLeave: () -> Unit = {}) 
     }
     if (s.autoTagRoute && !s.routeTracking) {
         Text("Route tracking is off, so trips are matched by distance and speed for now. Turn it on for this to work.", style = Type.tiny, color = c.orangeInk)
-        Text("Open Route tracking in Settings", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onLeave(); vm.openSetting("routeTracking") }.padding(vertical = 6.dp))
+        no.lionflow.app.ui.components.SecondaryButton("Open Route tracking in Settings", Modifier.fillMaxWidth()) { onLeave(); vm.openSetting("routeTracking") }
     }
 }
 

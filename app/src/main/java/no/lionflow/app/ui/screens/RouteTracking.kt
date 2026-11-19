@@ -80,9 +80,9 @@ fun RouteTrackingSettings(vm: AppViewModel, s: AppSettings) {
         val flash = remember { androidx.compose.animation.core.Animatable(0f) }
         var rowSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
         val density = androidx.compose.ui.platform.LocalDensity.current
-        LaunchedEffect(vm.focusSetting) {
-            if (vm.focusSetting != "routeTracking") return@LaunchedEffect
-            vm.focusSetting = null
+        val target = vm.focusSetting
+        LaunchedEffect(target) {
+            if (target != "routeTracking") return@LaunchedEffect
             kotlinx.coroutines.delay(350)   // let the screen finish drawing first
             val pad = with(density) { 140.dp.toPx() }
             bring.bringIntoView(androidx.compose.ui.geometry.Rect(0f, -pad, rowSize.width.toFloat(), rowSize.height + pad))
@@ -90,6 +90,8 @@ fun RouteTrackingSettings(vm: AppViewModel, s: AppSettings) {
             flash.snapTo(0f)
             flash.animateTo(1f, androidx.compose.animation.core.tween(250))
             flash.animateTo(0f, androidx.compose.animation.core.tween(1750))
+            // Cleared last: clearing it changes the key above, which would cancel this effect half way.
+            vm.focusSetting = null
         }
         Box(Modifier.fillMaxWidth().bringIntoViewRequester(bring).onSizeChanged { rowSize = it }
             .drawBehind { drawRect(c.accent.copy(alpha = 0.45f * flash.value)) }) {
