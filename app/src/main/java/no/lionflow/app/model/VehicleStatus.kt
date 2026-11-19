@@ -68,6 +68,18 @@ data class VehicleStatus(
             return out
         }
 
+        /**
+         * The battery level of the electric part. Some plug-in hybrids (seen on a 2017 DS 7) report "100 %" with
+         * 0 km of electric range while the battery is actually empty: a full plug-in battery always gives some
+         * range, so 100 % with 0 km (and not charging) is shown as empty.
+         */
+        private fun hybridLevel(electric: JSONObject, fuel: JSONObject?, charging: JSONObject?): Double? {
+            val level = electric.num("level") ?: return if (fuel != null) 0.0 else null
+            val plugged = charging?.optBoolean("plugged") == true || charging?.str("status") == "InProgress"
+            if (fuel != null && !plugged && level >= 95 && electric.num("autonomy") == 0.0) return 0.0
+            return level
+        }
+
         fun parse(j: JSONObject, maintenance: JSONObject?): VehicleStatus {
             val energies = j.optJSONArray("energies")?.objects().orEmpty()
             val electric = energies.firstOrNull { it.optString("type") == "Electric" }
@@ -97,7 +109,7 @@ data class VehicleStatus(
                 raw = j,
                 // Petrol/diesel cars: the fuel tank stands in for the battery. A plug-in hybrid never shows the
                 // tank as its battery: some (older DS7 / 3008 Hybrid4) leave out the battery level when it is empty.
-                batteryPct = if (electric != null) electric.num("level") ?: (if (fuel != null) 0.0 else null) else fuel?.num("level"),
+                batteryPct = if (electric != null) hybridLevel(electric, fuel, charging) else fuel?.num("level"),
                 rangeKm = if (electric != null) electric.num("autonomy") ?: (if (fuel != null && electric.num("level") == null) 0.0 else null) else fuel?.num("autonomy"),
                 energyType = when { electric != null && fuel != null -> "Hybrid"; electric == null && fuel != null -> "Fuel"; else -> "Electric" },
                 fuelPct = fuel?.num("level"),
