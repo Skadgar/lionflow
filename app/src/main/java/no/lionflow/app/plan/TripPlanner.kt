@@ -32,8 +32,8 @@ class RouteData(
         val c = conditions
         for (i in 1 until size) {
             val base = (km[i] - km[i - 1]) * Consumption.shape(speed[i]) / 100.0 * factor
-            // Cold (or heat) scales the use; hills and wind add or take off. A stretch never gives energy back overall.
-            val seg = if (c == null) base else max(0.0, base * c.tempMul[i] + c.extraKwh[i])
+            // Cold (or heat) scales the use; hills and wind add or take off. A steep downhill can give energy back (regeneration).
+            val seg = if (c == null) base else base * c.tempMul[i] + c.extraKwh[i]
             e[i] = e[i - 1] + seg
         }
         return e
@@ -310,11 +310,13 @@ object TripPlanner {
             val budget = posKwh + (soc - floor) / 100 * b
             val goalKwh = if (next != null) energy[next.first.idx] + detourKwh(next.first) else totalKwh
             val goalKm = next?.first?.km ?: route.totalKm
-            val within = chargers.filter { it.km > posKm + 8 && it.id !in excluded && it.id !in used && energy[it.idx] + detourKwh(it) <= budget + 1e-9 }
+            // The last point the battery reaches: energy can go down again after a climb, so stop at the first point out of reach.
+            val reach = run { var i = pos; while (i < n - 1 && energy[i + 1] <= budget + 1e-9) i++; i }
+            val within = chargers.filter { it.km > posKm + 8 && it.idx <= reach && it.id !in excluded && it.id !in used && energy[it.idx] + detourKwh(it) <= budget + 1e-9 }
 
             val c: PlanCharger
             val edit: StopEdit?
-            if (goalKwh <= budget + 1e-9) {
+            if (goalKwh <= budget + 1e-9 && (next?.first?.idx ?: (n - 1)) <= reach) {
                 if (next == null) break            // the destination is within reach
                 c = next.first; edit = next.second; pin++
             } else {
@@ -334,7 +336,7 @@ object TripPlanner {
                 edit = null
             }
 
-            val arr = (soc - (energy[c.idx] + detourKwh(c) - posKwh) / b * 100).coerceAtLeast(0.0)
+            val arr = (soc - (energy[c.idx] + detourKwh(c) - posKwh) / b * 100).coerceIn(0.0, 100.0)
             // What the next leg needs: to the next chosen stop, or to the destination, with the minimum left.
             val after = pins.getOrNull(pin)
             val nextKwh = if (after != null) energy[after.first.idx] + detourKwh(after.first) else totalKwh
@@ -365,7 +367,7 @@ object TripPlanner {
 
         val last = route.totalMin - route.min[pos]
         clock += last; drive += last
-        val arrive = soc - (totalKwh - energy[pos]) / b * 100
+        val arrive = (soc - (totalKwh - energy[pos]) / b * 100).coerceAtMost(100.0)
         val charging = stops.filter { it.kwh > 0.01 }
         val cur = charging.firstOrNull { it.cost != null }?.charger?.currency.orEmpty()
         val priced = charging.filter { it.cost != null && it.charger.currency == cur }

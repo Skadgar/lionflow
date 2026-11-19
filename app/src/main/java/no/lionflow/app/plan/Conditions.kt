@@ -5,6 +5,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
+import kotlinx.coroutines.async
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -143,7 +144,7 @@ object ConditionsApi {
 
     /** The forecast at about every 50 km, for the hour the car gets there. Empty when the trip is too far ahead. */
     suspend fun weather(r: RouteData, departMs: Long): List<WeatherSample> {
-        if (departMs > System.currentTimeMillis() + 6L * 86_400_000L) return emptyList()
+        if (!forecastPossible(departMs)) return emptyList()
         val step = max(50.0, r.totalKm / 12.0)
         val idx = ArrayList<Int>()
         var last = -1e9
@@ -182,11 +183,29 @@ object ConditionsApi {
         return out
     }
 
-    /** Heights and forecast for a route; null when neither could be had. */
-    suspend fun load(r: RouteData, departMs: Long): Conditions? {
-        val el = r.elevation ?: try { elevation(r) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
+    /**
+     * Heights and forecast for a route, fetched side by side; null when neither could be had.
+     * The forecast is asked twice if the first try fails (Open-Meteo sometimes drops the first call).
+     */
+    suspend fun load(r: RouteData, departMs: Long): Conditions? = kotlinx.coroutines.coroutineScope {
+        val elJob = async {
+            r.elevation ?: try { kotlinx.coroutines.withTimeoutOrNull(14_000L) { elevation(r) } }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
+        }
+        val wJob = async {
+            var w: List<WeatherSample>? = null
+            for (attempt in 0..1) {
+                w = try { kotlinx.coroutines.withTimeoutOrNull(7_000L) { weather(r, departMs) } }
+                    catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { null }
+                if (!w.isNullOrEmpty() || !forecastPossible(departMs)) break
+                kotlinx.coroutines.delay(1_200L)
+            }
+            w.orEmpty()
+        }
+        val el = elJob.await()
         if (el != null) r.elevation = el
-        val w = try { weather(r, departMs) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
-        return ConditionsModel.build(r, el?.first, el?.second, w)
+        ConditionsModel.build(r, el?.first, el?.second, wJob.await())
     }
+
+    fun forecastPossible(departMs: Long): Boolean = departMs <= System.currentTimeMillis() + 6L * 86_400_000L
 }

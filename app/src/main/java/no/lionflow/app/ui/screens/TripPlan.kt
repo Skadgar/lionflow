@@ -420,10 +420,10 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
             val lines = when {
                 cd == null -> listOf("Hills, wind and temperature are not counted (the forecast could not be fetched).")
                 cd.hasHills && cd.hasWeather -> listOf(
-                    "Hills (${cd.climbM.roundToInt()} m of climbing), wind and temperature along the route are included.",
+                    "Hills (${cd.climbM.roundToInt()} m up, ${cd.descentM.roundToInt()} m down, with regeneration downhill), wind and temperature along the route are included.",
                     "Forecast along the route: ${cd.tMin!!.roundToInt()} to ${cd.tMax!!.roundToInt()} °C, wind up to ${cd.windMax!!.roundToInt()} m/s.",
                 )
-                cd.hasHills -> listOf("Hills (${cd.climbM.roundToInt()} m of climbing) are included. No forecast for wind and temperature (too far ahead, or not available).")
+                cd.hasHills -> listOf("Hills (${cd.climbM.roundToInt()} m up, ${cd.descentM.roundToInt()} m down, with regeneration downhill) are included. No forecast for wind and temperature (too far ahead, or not available).")
                 else -> listOf("Forecast along the route: ${cd.tMin!!.roundToInt()} to ${cd.tMax!!.roundToInt()} °C, wind up to ${cd.windMax!!.roundToInt()} m/s.")
             }
             for (l in lines) Text(L10n.tr(l), style = Type.tiny, color = c.muted)

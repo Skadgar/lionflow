@@ -207,6 +207,8 @@ class Planner(
                 remember(b); from?.let { remember(it) }; via.forEach { remember(it) }
                 compute()
                 editing = false
+                // The forecast sometimes fails on the first try: ask once more in the background and redo the plan.
+                if (missingWeather(r)) { kotlinx.coroutines.delay(1_500L); compute() }
                 startAlts()
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 error = "Couldn't plan the trip — ${Http.describe(e)}"
@@ -294,10 +296,15 @@ class Planner(
     private suspend fun ensureConditions(r: RouteData) {
         val key = departMillis() / 3_600_000L
         if (r.conditionsKey == key) return
-        r.conditionsKey = key
-        r.conditions = try { kotlinx.coroutines.withTimeoutOrNull(10_000L) { ConditionsApi.load(r, departMillis()) } }
+        val c = try { kotlinx.coroutines.withTimeoutOrNull(20_000L) { ConditionsApi.load(r, departMillis()) } }
             catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+        // Keep what we got (heights are kept on the route), but ask again next time while the forecast is missing.
+        if (c != null || r.conditions == null) r.conditions = c
+        if (missingWeather(r)) r.conditionsKey = Long.MIN_VALUE else r.conditionsKey = key
     }
+
+    private fun missingWeather(r: RouteData): Boolean =
+        r.conditions?.hasWeather != true && ConditionsApi.forecastPossible(departMillis())
 
     private suspend fun solveHere(r: RouteData, o: Options, m: Consumption.Model): Pair<Plan, List<FerryInfo>> {
         val (implicit, prefer) = viaPlan()
