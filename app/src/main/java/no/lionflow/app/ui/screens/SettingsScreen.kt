@@ -170,6 +170,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             LinkRow("Import driving data", "From a LionFlow CSV export", LfIcons.Upload) {
                 importer.launch(arrayOf("text/*", "text/csv", "application/csv", "*/*"))
             }
+            ToggleRow("Tag similar trips automatically", "A trip with about the same distance and average speed as one you tagged gets the same tag", s.autoTagTrips) { v -> vm.setAutoTag(v) }
             ToggleRow("Auto-refresh when open", "When the app opens or is in use — at most every 5 min", s.autoRefresh) { v -> set { it.copy(autoRefresh = v) } }
             ToggleRow("Wake car when app opens", "Commands go through faster. Uses a little of the 12 V battery; at most every 10 min", s.wakeOnOpen) { v -> set { it.copy(wakeOnOpen = v) } }
             val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext as no.lionflow.app.LionFlowApp

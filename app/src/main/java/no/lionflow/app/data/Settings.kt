@@ -10,6 +10,8 @@ data class AppSettings(
     val distanceUnit: String = "km",     // km | mi
     val tempUnit: String = "c",          // c | f
     val autoRefresh: Boolean = true,
+    /** Tag trips like ones the user tagged before (same distance and speed). */
+    val autoTagTrips: Boolean = false,
     val bioUnlock: Boolean = true,
     val remoteConfirm: Boolean = true,
     val remoteBioOnly: Boolean = true,
@@ -64,6 +66,7 @@ class SettingsStore(context: Context) {
         distanceUnit = p.getString("dist", "km") ?: "km",
         tempUnit = p.getString("temp", "c") ?: "c",
         autoRefresh = p.getBoolean("auto", true),
+        autoTagTrips = p.getBoolean("autoTagTrips", false),
         bioUnlock = p.getBoolean("bio", true),
         remoteConfirm = p.getBoolean("remoteConfirm", true),
         remoteBioOnly = p.getBoolean("remoteBio", true),
@@ -109,6 +112,7 @@ class SettingsStore(context: Context) {
             .putString("dist", s.distanceUnit)
             .putString("temp", s.tempUnit)
             .putBoolean("auto", s.autoRefresh)
+            .putBoolean("autoTagTrips", s.autoTagTrips)
             .putBoolean("bio", s.bioUnlock)
             .putBoolean("remoteConfirm", s.remoteConfirm)
             .putBoolean("remoteBio", s.remoteBioOnly)
@@ -178,6 +182,11 @@ class SettingsStore(context: Context) {
     var serviceHistoryJson: String
         get() = p.getString("serviceHistory", "[]") ?: "[]"
         set(v) { p.edit().putString("serviceHistory", v).apply() }
+
+    /** Trip tags and which trip has which (see TripTags). */
+    var tripTagsJson: String
+        get() = p.getString("tripTags", "") ?: ""
+        set(v) { p.edit().putString("tripTags", v).apply() }
 
     /** Trips imported from a CSV file. */
     var importedTripsJson: String

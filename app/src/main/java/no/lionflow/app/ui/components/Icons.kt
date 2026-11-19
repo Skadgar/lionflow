@@ -60,6 +60,8 @@ object LfIcons {
     val Camera = stroke("camera", "M4 7h3l2-3h6l2 3h3v13H4z", circle(12f, 13f, 3.5f))
     val Back = stroke("back", "M15 6l-6 6 6 6")
     val Chevron = stroke("chev", "M9 6l6 6-6 6")
+    val Calendar = stroke("calendar", "M4 6h16v14H4z", "M4 10h16", "M8 3v4M16 3v4")
+    val Tag = stroke("tag", "M3 12V4h8l10 10-8 8z", circle(7.5f, 7.5f, 1.2f))
     val Plus = stroke("plus", "M5 12h14M12 5v14", width = 2.2f)
     val Minus = stroke("minus", "M5 12h14", width = 2.2f)
     val Search = stroke("search", circle(11f, 11f, 7f), "M20 20l-4-4")

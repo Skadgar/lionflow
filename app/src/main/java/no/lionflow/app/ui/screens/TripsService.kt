@@ -124,6 +124,7 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
             }
         }
         if (ui.status?.energyType == "Hybrid" && list.isNotEmpty()) HybridStats(vm, list, ui.trips, s)
+        TagStats(vm, ui, s)
         if (ui.tripsLoading) Row(verticalAlignment = Alignment.CenterVertically) { Busy(); Text("  Loading trips…", style = Type.small, color = c.muted) }
         if (list.isEmpty() && !ui.tripsLoading) Text("No trips in this period.", style = Type.small, color = c.muted)
         if (list.isNotEmpty()) {
@@ -132,12 +133,13 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
                 list.take(50).forEachIndexed { i, t ->
                     if (i > 0) Divider()
                     val route = no.lionflow.app.route.Routes.forTrip(ui.routes, t.startMillis, t.endMillis)
-                    Row(Modifier.fillMaxWidth().clickable { openTrip = t; openRoute = route }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(Modifier.fillMaxWidth().clickable { openTrip = t; openRoute = route }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(c.raisedBlue), contentAlignment = Alignment.Center) { LfIcon(if (route != null) LfIcons.Map else LfIcons.Route, c.blueInk, 20.dp) }
                         Column(Modifier.weight(1f)) {
                             Text(t.startMillis?.let { fmt.format(Date(it)) } ?: "Trip", style = Type.label, color = c.text)
                             Text(listOfNotNull(t.durationSec?.let { "${(it / 60).toInt()} min" }, t.avgSpeedKmh?.let { "${it.toInt()} km/h avg" }).joinToString(" · "), style = Type.small, color = c.muted)
                         }
+                        TripTagSlot(vm, s, t)
                         Column(horizontalAlignment = Alignment.End) {
                             Text(fmtDistance(t.distanceKm, s), style = Type.label.copy(fontSize = 17.sp), color = c.text)
                             t.avgKwhPer100?.let { Text(String.format(Locale.US, "%.1f kWh/100", it), style = Type.tiny, color = c.muted) }

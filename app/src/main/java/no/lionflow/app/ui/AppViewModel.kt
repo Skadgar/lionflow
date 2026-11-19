@@ -100,7 +100,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var hideDemoBanner by androidx.compose.runtime.mutableStateOf(false)
     /** False when Peugeot has no remote-services link for this car — then don't offer setup at all. */
     val remotePossible: Boolean get() = api.customerId != null || remote.isSetUp || isDemo
-    fun commandLog(): String = remote.log.joinToString("\n").ifEmpty { "No commands sent since the app was opened." }
+    fun commandLog(): String = energyLog() + remote.log.joinToString("\n").ifEmpty { "No commands sent since the app was opened." }
+
+    /** What the car reports about battery and fuel, word for word: for finding out why a level shows wrong. */
+    private fun energyLog(): String {
+        val raw = _ui.value.status?.raw ?: return ""
+        val sb = StringBuilder("LionFlow ${no.lionflow.app.BuildConfig.VERSION_NAME} · car energy data\n")
+        raw.optJSONArray("energies")?.objects()?.forEach { e ->
+            val ch = e.optJSONObject("extension")?.optJSONObject("electric")?.optJSONObject("charging")
+            val load = e.optJSONObject("extension")?.optJSONObject("electric")?.optJSONObject("battery")?.optJSONObject("load")
+            sb.append("${e.optString("type")}: level=${e.opt("level")} autonomy=${e.opt("autonomy")} updated=${e.optString("updatedAt")}")
+            if (ch != null) sb.append(" plugged=${ch.opt("plugged")} status=${ch.optString("status")}")
+            if (load != null) sb.append(" capacity=${load.opt("capacity")} residual=${load.opt("residual")}")
+            sb.append("\n")
+        } ?: sb.append("no energies in the answer\n")
+        return sb.append("\n").toString()
+    }
+
+    /** Trip tags (kept on the phone). */
+    val tags = no.lionflow.app.model.TripTags({ settings.tripTagsJson }, { settings.tripTagsJson = it })
+
+    fun tagTrip(t: Trip, tagId: String?) {
+        tags.set(t, tagId)
+        if (settings.value.autoTagTrips && tagId != null) tags.autoTag(_ui.value.trips)
+    }
+
+    fun setAutoTag(on: Boolean) {
+        settings.update { it.copy(autoTagTrips = on) }
+        if (on) tags.autoTag(_ui.value.trips) else tags.clearAuto()
+    }
+
+    /** Makes sure trips this far back are loaded (for statistics over a longer time). */
+    fun ensureTrips(days: Int) { if (days > tripsDays && !_ui.value.tripsLoading) loadTrips(days) }
+    private var tripsDays = 30
     val hasPin: Boolean get() = remote.hasPin
 
     init {
@@ -819,7 +851,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteRoute(r: no.lionflow.app.route.Route) { no.lionflow.app.route.Routes.delete(r); reloadRoutes() }
 
-    fun loadTrips(days: Int = 30) {
+    fun loadTrips(daysAsked: Int = 30) {
+        val days = maxOf(daysAsked, tripsDays).coerceAtMost(1100)
+        tripsDays = days
         reloadRoutes()
         if (isDemo) { _ui.update { it.copy(trips = no.lionflow.app.demo.Demo.trips(), tripsLoading = false) }; return }
         val v = _ui.value.vehicle ?: return
@@ -845,6 +879,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val imported = loadImportedTrips()
                 val merged = (all + imported).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }
                 _ui.update { it.copy(trips = merged, tripsLoading = false) }
+                if (settings.value.autoTagTrips) tags.autoTag(merged)
             } catch (e: Exception) {
                 _ui.update { it.copy(tripsLoading = false, trips = loadImportedTrips()) }
                 toast("Couldn't load trips — ${no.lionflow.app.api.Http.describe(e)}")
@@ -856,7 +891,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
         val f = File(dir, "lionflow-trips.csv")
         val iso = SimpleDateFormat("yyyy-MM-dd HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
-        val sb = StringBuilder("id,start,end,distance_km,duration_min,energy_kwh,avg_kwh_per_100km,avg_speed_kmh\n")
+        val sb = StringBuilder("id,start,end,distance_km,duration_min,energy_kwh,avg_kwh_per_100km,avg_speed_kmh,tag\n")
         for (t in _ui.value.trips) {
             sb.append(listOf(
                 t.id,
@@ -867,6 +902,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 t.kwh?.let { String.format(Locale.US, "%.2f", it) } ?: "",
                 t.avgKwhPer100?.let { String.format(Locale.US, "%.1f", it) } ?: "",
                 t.avgSpeedKmh?.let { String.format(Locale.US, "%.0f", it) } ?: "",
+                tags.tagOf(t.id)?.name?.replace(Regex("[,\\r\\n\"]"), " ").orEmpty(),
             ).joinToString(",")).append('\n')
         }
         f.writeText(sb.toString())
@@ -878,9 +914,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val rows = text.lines().drop(1).filter { it.isNotBlank() }
         val arr = JSONArray(settings.importedTripsJson)
         var count = 0
+        val tagged = HashMap<String, String>()
         for (r in rows) {
             val c = r.split(",")
             if (c.size < 4) continue
+            c.getOrNull(8)?.trim()?.takeIf { it.isNotEmpty() && c[0].isNotEmpty() }?.let { tagged[c[0]] = it }
             arr.put(JSONObject()
                 .put("id", c[0].ifEmpty { "imp-" + System.nanoTime() })
                 .put("start", c.getOrNull(1)?.let { s -> try { iso.parse(s)?.time } catch (_: Exception) { null } } ?: 0L)
@@ -893,6 +931,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             count++
         }
         settings.importedTripsJson = arr.toString()
+        if (tagged.isNotEmpty()) loadImportedTrips().forEach { t ->
+            tagged[t.id]?.let { name -> tags.set(t, (tags.byName(name) ?: tags.create(name, tags.data.tags.size % no.lionflow.app.model.TripTags.COLORS)).id) }
+        }
         toast("Imported $count trips")
         _ui.update { s -> s.copy(trips = (s.trips + loadImportedTrips()).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }) }
     }
