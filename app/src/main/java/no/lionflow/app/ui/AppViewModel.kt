@@ -180,6 +180,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (_ui.value.phase == Phase.Ready) onUnlocked()
     }
 
+    /** A setting to scroll to and flash when the Settings tab opens (set by [openSetting]). */
+    var focusSetting by androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    fun openSetting(key: String) { focusSetting = key; setTab(Tab.Settings) }
+
     fun setTab(t: Tab) { if (Caps.tab(t, _ui.value.status)) _ui.update { it.copy(tab = t) } }
 
     /** Switch to another car on the account. Each car keeps its own name, charging log and range learning. */

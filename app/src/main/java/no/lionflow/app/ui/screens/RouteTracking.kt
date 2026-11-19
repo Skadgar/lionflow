@@ -10,7 +10,12 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -69,9 +74,28 @@ fun RouteTrackingSettings(vm: AppViewModel, s: AppSettings) {
 
     SectionTitle("Route tracking")
     GroupCard {
-        ToggleRow("Record routes", "Uses your phone's GPS while it's connected to the car over Bluetooth. Routes stay on this phone.", s.routeTracking) { on ->
-            set { it.copy(routeTracking = on) }
-            if (on) askAll() else RouteService.stop(ctx)
+        // Scrolled into view and flashed when another screen sends you here ("Open Route tracking in Settings").
+        val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+        val flash = remember { androidx.compose.animation.core.Animatable(0f) }
+        var rowSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        LaunchedEffect(vm.focusSetting) {
+            if (vm.focusSetting != "routeTracking") return@LaunchedEffect
+            vm.focusSetting = null
+            kotlinx.coroutines.delay(350)   // let the screen finish drawing first
+            val pad = with(density) { 140.dp.toPx() }
+            bring.bringIntoView(androidx.compose.ui.geometry.Rect(0f, -pad, rowSize.width.toFloat(), rowSize.height + pad))
+            // Highlight for 2 seconds: quick fade in, then a slow fade out.
+            flash.snapTo(0f)
+            flash.animateTo(1f, androidx.compose.animation.core.tween(250))
+            flash.animateTo(0f, androidx.compose.animation.core.tween(1750))
+        }
+        Box(Modifier.fillMaxWidth().bringIntoViewRequester(bring).onSizeChanged { rowSize = it }
+            .drawBehind { drawRect(c.accent.copy(alpha = 0.45f * flash.value)) }) {
+            ToggleRow("Record routes", "Uses your phone's GPS while it's connected to the car over Bluetooth. Routes stay on this phone.", s.routeTracking) { on ->
+                set { it.copy(routeTracking = on) }
+                if (on) askAll() else RouteService.stop(ctx)
+            }
         }
         if (s.routeTracking) {
             Column(Modifier.fillMaxWidth().clickable { if (bt) pick = true else askAll() }.padding(horizontal = 16.dp, vertical = 12.dp)) {
