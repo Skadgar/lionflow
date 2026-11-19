@@ -1,5 +1,11 @@
 package no.lionflow.app.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -108,5 +114,77 @@ fun ChargeLimitCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 dismissButton = { androidx.compose.material3.TextButton(onClick = { warn = false }) { Text("Cancel") } },
             )
         }
+
+        // 3) Only charge between two times
+        Divider()
+        ChargeWindowSection(vm, s)
     }
+}
+
+/** "Only charge between" with a start and an end time, picked on a clock. */
+@Composable
+private fun ChargeWindowSection(vm: AppViewModel, s: AppSettings) {
+    val c = LocalLf.current
+    var editing by remember { mutableStateOf<String?>(null) }   // "from" | "to"
+    fun hm(m: Int) = no.lionflow.app.ui.l10n.TimeFmt.hm(m / 60, m % 60)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Only charge between set times", style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = if (s.chargeWindowOn) c.text else c.muted)
+            Text("For example when power is cheapest", style = Type.tiny, color = c.muted)
+        }
+        Toggle(s.chargeWindowOn, "Only charge between set times") { on -> vm.setChargeWindow(on, s.chargeWindowFrom, s.chargeWindowTo) }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf("from" to ("From" to s.chargeWindowFrom), "to" to ("To" to s.chargeWindowTo)).forEach { (key, v) ->
+            val (label, min) = v
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(c.raised)
+                    .border(1.dp, if (s.chargeWindowOn) c.line2 else c.line, RoundedCornerShape(16.dp))
+                    .clickable { editing = key }.padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(label, style = Type.tiny, color = c.muted)
+                androidx.compose.material3.Text(hm(min), style = Type.title.copy(fontSize = 26.sp), color = if (s.chargeWindowOn) c.text else c.muted)
+            }
+        }
+    }
+    if (s.chargeWindowOn) Text(
+        "The car waits until %s and starts by itself. LionFlow stops charging at %s, and starts it if you plug in between these times. Needs internet on the phone and remote control.".let {
+            no.lionflow.app.ui.l10n.L10n.tr(it).replaceFirst("%s", hm(s.chargeWindowFrom)).replaceFirst("%s", hm(s.chargeWindowTo))
+        },
+        style = Type.tiny, color = c.muted,
+    )
+    editing?.let { key ->
+        val start = if (key == "from") s.chargeWindowFrom else s.chargeWindowTo
+        ClockDialog(if (key == "from") "Start charging at" else "Stop charging at", start, onClose = { editing = null }) { m ->
+            editing = null
+            val from = if (key == "from") m else s.chargeWindowFrom
+            val to = if (key == "to") m else s.chargeWindowTo
+            // Picking a time also turns the option on.
+            vm.setChargeWindow(true, from, to)
+        }
+    }
+}
+
+/** The clock picker (same look as "Leave at" in the trip planner). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ClockDialog(title: String, minutes: Int, onClose: () -> Unit, onSet: (Int) -> Unit) {
+    val c = LocalLf.current
+    val time = androidx.compose.material3.rememberTimePickerState(initialHour = minutes / 60, initialMinute = minutes % 60, is24Hour = no.lionflow.app.ui.l10n.TimeFmt.use24)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose, containerColor = c.card,
+        title = { Text(title, color = c.text) },
+        text = {
+            androidx.compose.material3.TimePicker(state = time, colors = androidx.compose.material3.TimePickerDefaults.colors(
+                clockDialColor = c.raised, clockDialSelectedContentColor = c.onAccent, clockDialUnselectedContentColor = c.text,
+                selectorColor = c.accent, containerColor = c.card,
+                timeSelectorSelectedContainerColor = c.accent, timeSelectorUnselectedContainerColor = c.raised,
+                timeSelectorSelectedContentColor = c.onAccent, timeSelectorUnselectedContentColor = c.text,
+                periodSelectorSelectedContainerColor = c.accent, periodSelectorUnselectedContainerColor = c.raised,
+                periodSelectorSelectedContentColor = c.onAccent, periodSelectorUnselectedContentColor = c.text,
+            ))
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSet(time.hour * 60 + time.minute) }) { Text("Set", color = c.accentInk) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onClose) { Text("Cancel", color = c.muted) } },
+    )
 }

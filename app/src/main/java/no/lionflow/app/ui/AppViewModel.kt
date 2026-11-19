@@ -717,6 +717,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         remote.charging(startNow, st?.nextDelayedHour ?: 1, st?.nextDelayedMinute ?: 0, p)
     }
 
+    /** Turns "only charge between" on or off, or changes its times, and tells the car when to start. */
+    fun setChargeWindow(on: Boolean, from: Int, to: Int) {
+        settings.update { it.copy(chargeWindowOn = on, chargeWindowFrom = from, chargeWindowTo = to) }
+        if (isDemo) return
+        viewModelScope.launch {
+            val r = no.lionflow.app.work.ChargeWindow.applyToCar(getApplication())
+            if (r is CommandResult.Failed) toast(no.lionflow.app.ui.l10n.L10n.tr("Couldn't send the charging times to the car") + ": " + r.reason)
+        }
+    }
+
     fun wakeUp() = runCommand("Wake car") { p -> remote.wakeUp(p) }
 
     // ---------------- app updates ----------------

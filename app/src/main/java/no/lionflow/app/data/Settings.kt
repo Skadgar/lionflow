@@ -47,6 +47,10 @@ data class AppSettings(
     val chargeLimitPct: Int = 80,
     /** Car is set to charge to 100 % while LionFlow stops it at chargeLimitPct (lets it go past the car's own daily limit). */
     val chargeForce: Boolean = false,
+    /** Only charge between two times (minutes after midnight). */
+    val chargeWindowOn: Boolean = false,
+    val chargeWindowFrom: Int = 22 * 60,
+    val chargeWindowTo: Int = 6 * 60,
     val oilChangeMillis: Long = 0L,     // when the engine oil was last changed (plug-in hybrids): counts engine km since
     val serviceKm: Int = 0,             // service interval in km; 0 = default for the car type
     val serviceMonths: Int = 0,         // service interval in months; 0 = default
@@ -100,6 +104,9 @@ class SettingsStore(context: Context) {
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
         chargeLimitPct = p.getInt("chargeLimitPct", 80),
         chargeForce = p.getBoolean("chargeForce", false),
+        chargeWindowOn = p.getBoolean("chargeWindowOn", false),
+        chargeWindowFrom = p.getInt("chargeWindowFrom", 22 * 60),
+        chargeWindowTo = p.getInt("chargeWindowTo", 6 * 60),
         routeTracking = p.getBoolean("routeTracking", false),
         oilChangeMillis = p.getLong("oilChangeMillis", 0L),
         serviceKm = p.getInt("serviceKm", 0),
@@ -147,6 +154,9 @@ class SettingsStore(context: Context) {
             .putBoolean("chargeLimitOn", s.chargeLimitOn)
             .putInt("chargeLimitPct", s.chargeLimitPct)
             .putBoolean("chargeForce", s.chargeForce)
+            .putBoolean("chargeWindowOn", s.chargeWindowOn)
+            .putInt("chargeWindowFrom", s.chargeWindowFrom)
+            .putInt("chargeWindowTo", s.chargeWindowTo)
             .putBoolean("routeTracking", s.routeTracking)
             .putLong("oilChangeMillis", s.oilChangeMillis)
             .putInt("serviceKm", s.serviceKm)
