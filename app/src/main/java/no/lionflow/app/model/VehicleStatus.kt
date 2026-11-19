@@ -95,9 +95,10 @@ data class VehicleStatus(
 
             return VehicleStatus(
                 raw = j,
-                // Petrol/diesel cars: the fuel tank stands in for the battery.
-                batteryPct = electric?.num("level") ?: fuel?.num("level"),
-                rangeKm = electric?.num("autonomy") ?: fuel?.num("autonomy"),
+                // Petrol/diesel cars: the fuel tank stands in for the battery. A plug-in hybrid never shows the
+                // tank as its battery: some (older DS7 / 3008 Hybrid4) leave out the battery level when it is empty.
+                batteryPct = if (electric != null) electric.num("level") ?: (if (fuel != null) 0.0 else null) else fuel?.num("level"),
+                rangeKm = if (electric != null) electric.num("autonomy") ?: (if (fuel != null && electric.num("level") == null) 0.0 else null) else fuel?.num("autonomy"),
                 energyType = when { electric != null && fuel != null -> "Hybrid"; electric == null && fuel != null -> "Fuel"; else -> "Electric" },
                 fuelPct = fuel?.num("level"),
                 fuelRangeKm = fuel?.num("autonomy"),

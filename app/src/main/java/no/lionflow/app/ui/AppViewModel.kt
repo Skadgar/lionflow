@@ -562,7 +562,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun lockCar(lock: Boolean) = runCommand(if (lock) "Lock" else "Unlock", { holdLock = lock to System.currentTimeMillis() + 300_000; it.copy(locked = lock) }) { p -> remote.lock(lock, p) }
     fun horn() = runCommand("Horn") { p -> remote.horn(p) }
     fun lights() = runCommand("Flash lights") { p -> remote.lights(p) }
-    fun preconditioning(on: Boolean) = runCommand(if (on) "Pre-heating" else "Stop pre-heating", { holdPrecond = on to System.currentTimeMillis() + 300_000; it.copy(preconditioningOn = on) }) { p ->
+    fun preconditioning(on: Boolean) {
+        val st = _ui.value.status
+        // Plug-in hybrids only pre-heat on the battery, and the car ignores the request below 50 % (as in the official app).
+        if (on && !isDemo && st != null && st.energyType == "Hybrid" && (st.batteryPct ?: 100.0) < 50 && !st.plugged) {
+            toast(no.lionflow.app.ui.l10n.L10n.tr("Plug-in hybrids can only pre-heat with at least 50 % battery. Charge the car first."))
+            return
+        }
+        preconditioningSend(on)
+    }
+
+    private fun preconditioningSend(on: Boolean) = runCommand(if (on) "Pre-heating" else "Stop pre-heating", { holdPrecond = on to System.currentTimeMillis() + 300_000; it.copy(preconditioningOn = on) }) { p ->
         val st = _ui.value.status ?: return@runCommand CommandResult.Failed("No status yet")
         remote.preconditioning(on, st.programsJson(), p)
     }
