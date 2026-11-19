@@ -231,7 +231,7 @@ private fun WindowEstimate(s: AppSettings, st: no.lionflow.app.model.VehicleStat
                 "From ${pct.toInt()} % now",
                 reachAt?.let { "your limit is reached around ${hm(it)}" },
                 if (known) "at about $speed (your home charging)" else "at $speed (a typical home charger)",
-            ).joinToString(", ") + if (st.plugged) "" else ". The car isn't plugged in.",
+            ).joinToString(", ") { no.lionflow.app.ui.l10n.L10n.tr(it) } + if (st.plugged) "" else no.lionflow.app.ui.l10n.L10n.tr(". The car isn't plugged in."),
             style = Type.tiny, color = c.muted,
         )
         if (!s.chargeLimitOn) Text("The car may stop earlier at its own daily limit.", style = Type.tiny, color = c.muted)
