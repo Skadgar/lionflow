@@ -12,6 +12,8 @@ data class AppSettings(
     val autoRefresh: Boolean = true,
     /** Tag trips like ones the user tagged before (same distance and speed). */
     val autoTagTrips: Boolean = false,
+    /** Auto-tagging goes by where a trip started and ended (needs route tracking). */
+    val autoTagRoute: Boolean = false,
     val bioUnlock: Boolean = true,
     val remoteConfirm: Boolean = true,
     val remoteBioOnly: Boolean = true,
@@ -67,6 +69,7 @@ class SettingsStore(context: Context) {
         tempUnit = p.getString("temp", "c") ?: "c",
         autoRefresh = p.getBoolean("auto", true),
         autoTagTrips = p.getBoolean("autoTagTrips", false),
+        autoTagRoute = p.getBoolean("autoTagRoute", false),
         bioUnlock = p.getBoolean("bio", true),
         remoteConfirm = p.getBoolean("remoteConfirm", true),
         remoteBioOnly = p.getBoolean("remoteBio", true),
@@ -113,6 +116,7 @@ class SettingsStore(context: Context) {
             .putString("temp", s.tempUnit)
             .putBoolean("auto", s.autoRefresh)
             .putBoolean("autoTagTrips", s.autoTagTrips)
+            .putBoolean("autoTagRoute", s.autoTagRoute)
             .putBoolean("bio", s.bioUnlock)
             .putBoolean("remoteConfirm", s.remoteConfirm)
             .putBoolean("remoteBio", s.remoteBioOnly)

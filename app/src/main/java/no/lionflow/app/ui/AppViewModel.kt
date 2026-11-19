@@ -121,14 +121,40 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val tags = no.lionflow.app.model.TripTags({ settings.tripTagsJson }, { settings.tripTagsJson = it })
 
     fun tagTrip(t: Trip, tagId: String?) {
-        tags.set(t, tagId)
-        if (settings.value.autoTagTrips && tagId != null) tags.autoTag(_ui.value.trips)
+        tags.set(t, tagId, tripEnds(t))
+        if (tagId != null) autoTagNow()
+    }
+
+    fun editTag(id: String, name: String, color: Int, from: no.lionflow.app.model.TagPlace?, to: no.lionflow.app.model.TagPlace?) {
+        tags.edit(id, name, color, from, to); autoTagNow()
     }
 
     fun setAutoTag(on: Boolean) {
         settings.update { it.copy(autoTagTrips = on) }
-        if (on) tags.autoTag(_ui.value.trips) else tags.clearAuto()
+        if (on) autoTagNow() else tags.clearAuto()
     }
+
+    fun setAutoTagRoute(on: Boolean) { settings.update { it.copy(autoTagRoute = on) }; autoTagNow() }
+
+    /** Auto-tagging goes by place only when the user asked for it and routes are being recorded. */
+    private fun autoTagNow() {
+        val s = settings.value
+        if (!s.autoTagTrips) return
+        tags.autoTag(_ui.value.trips, if (s.autoTagRoute && s.routeTracking) ::tripEnds else null)
+    }
+
+    /** Where a trip started and ended, from the route recorded on the phone; null when it wasn't recorded. */
+    private val endsCache = HashMap<String, no.lionflow.app.model.TripEnds?>()
+    private fun tripEnds(t: Trip): no.lionflow.app.model.TripEnds? {
+        val r = no.lionflow.app.route.Routes.forTrip(_ui.value.routes, t.startMillis, t.endMillis) ?: return null
+        return endsCache.getOrPut(r.file.path) {
+            val p = no.lionflow.app.route.Routes.points(r.file)
+            if (p.size < 2) null else no.lionflow.app.model.TripEnds(p.first().first, p.first().second, p.last().first, p.last().second)
+        }
+    }
+
+    suspend fun searchPlace(q: String): List<no.lionflow.app.plan.Place> =
+        no.lionflow.app.plan.PlanApi.search(q.trim(), _ui.value.status?.lat, _ui.value.status?.lon, no.lionflow.app.ui.l10n.L10n.lang)
 
     /** Makes sure trips this far back are loaded (for statistics over a longer time). */
     fun ensureTrips(days: Int) { if (days > tripsDays && !_ui.value.tripsLoading) loadTrips(days) }
@@ -879,7 +905,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val imported = loadImportedTrips()
                 val merged = (all + imported).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }
                 _ui.update { it.copy(trips = merged, tripsLoading = false) }
-                if (settings.value.autoTagTrips) tags.autoTag(merged)
+                autoTagNow()
             } catch (e: Exception) {
                 _ui.update { it.copy(tripsLoading = false, trips = loadImportedTrips()) }
                 toast("Couldn't load trips — ${no.lionflow.app.api.Http.describe(e)}")

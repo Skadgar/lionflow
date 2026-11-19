@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import no.lionflow.app.data.AppSettings
+import no.lionflow.app.model.TagPlace
 import no.lionflow.app.model.Trip
 import no.lionflow.app.model.TripTag
 import no.lionflow.app.model.TripTags
@@ -145,22 +146,38 @@ fun TagPicker(vm: AppViewModel, s: AppSettings, trip: Trip, onDismiss: () -> Uni
     var name by remember { mutableStateOf("") }
     var color by remember { mutableStateOf(data.tags.size % TagColors.size) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var from by remember { mutableStateOf<TagPlace?>(null) }
+    var to by remember { mutableStateOf<TagPlace?>(null) }
+    var placeFor by remember { mutableStateOf<String?>(null) }
 
     val ed = editing
+    if (ed != null && placeFor != null) {
+        PlaceSearch(vm, if (placeFor == "from") "Start address" else "End address", onDismiss = { placeFor = null }) { p ->
+            if (placeFor == "from") from = p else to = p
+            placeFor = null
+        }
+        return
+    }
     if (ed != null) {
         AlertDialog(
             onDismissRequest = { editing = null }, containerColor = c.card,
             title = { Text("Change tag", color = c.text) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     OutlinedTextField(name, { name = it.take(TripTags.MAX_NAME) }, singleLine = true, label = { Text("Name") }, colors = tagFieldColors())
                     ColorDots(color) { color = it }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Route for this tag (optional)", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+                        Text("Recorded trips between these two addresses get this tag, in either direction. Works when auto-tagging by route is on.", style = Type.tiny, color = c.muted)
+                        PlaceRow("From", from, { placeFor = "from" }) { from = null }
+                        PlaceRow("To", to, { placeFor = "to" }) { to = null }
+                    }
                     if (confirmDelete) Text("Delete this tag from all trips?", style = Type.small, color = c.danger)
                     Text(if (confirmDelete) "Yes, delete" else "Delete tag", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.danger,
                         modifier = Modifier.clickable { if (confirmDelete) { vm.tags.delete(ed.id); editing = null; confirmDelete = false } else confirmDelete = true }.padding(vertical = 6.dp))
                 }
             },
-            confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { vm.tags.edit(ed.id, name, color); editing = null }) { Text("Save", color = c.accentInk) } },
+            confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { vm.editTag(ed.id, name, color, from, to); editing = null }) { Text("Save", color = c.accentInk) } },
             dismissButton = { TextButton(onClick = { editing = null; confirmDelete = false }) { Text("Cancel", color = c.muted) } },
         )
         return
@@ -177,7 +194,7 @@ fun TagPicker(vm: AppViewModel, s: AppSettings, trip: Trip, onDismiss: () -> Uni
                         Spacer(Modifier.width(8.dp))
                         if (t.id == current) LfIcon(LfIcons.Check, c.accentInk, 18.dp)
                         Spacer(Modifier.weight(1f))
-                        Text("Edit", style = Type.small, color = c.muted, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { name = t.name; color = t.color; editing = t }.padding(8.dp))
+                        Text("Edit", style = Type.small, color = c.muted, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { name = t.name; color = t.color; from = t.from; to = t.to; editing = t }.padding(8.dp))
                     }
                 }
                 if (current != null) Text("Remove the tag from this trip", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.danger,
@@ -205,21 +222,16 @@ fun TagPicker(vm: AppViewModel, s: AppSettings, trip: Trip, onDismiss: () -> Uni
                     Spacer(Modifier.width(10.dp))
                     Toggle(s.autoTagTrips, "Tag similar trips automatically") { vm.setAutoTag(it) }
                 }
+                if (s.autoTagTrips) AutoRouteOption(vm, s, onDismiss)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close", color = c.muted) } },
     )
 }
 
-private fun dayStart(ms: Long): Long = Calendar.getInstance().apply {
-    timeInMillis = ms; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-}.timeInMillis
-
-private const val DAY = 86_400_000L
-
-/** Driving split by tag over a period the user picks. */
+/** Driving split by tag, for the trips of the period shown on the Trips screen. */
 @Composable
-fun TagStats(vm: AppViewModel, ui: UiState, s: AppSettings) {
+fun TagStats(vm: AppViewModel, ui: UiState, s: AppSettings, trips: List<Trip>) {
     val c = LocalLf.current
     val data = vm.tags.data
     if (data.tags.isEmpty()) {
@@ -229,13 +241,7 @@ fun TagStats(vm: AppViewModel, ui: UiState, s: AppSettings) {
         }
         return
     }
-    var from by remember { mutableStateOf(dayStart(System.currentTimeMillis()) - 29 * DAY) }
-    var to by remember { mutableStateOf(dayStart(System.currentTimeMillis())) }
     var metric by remember { mutableStateOf("km") }
-    var pick by remember { mutableStateOf(false) }
-    LaunchedEffect(from, ui.tripsLoading) { vm.ensureTrips(((System.currentTimeMillis() - from) / DAY).toInt() + 2) }
-
-    val trips = ui.trips.filter { (it.startMillis ?: 0L) in from until to + DAY }
     fun value(t: Trip): Double = when (metric) { "trips" -> 1.0; "time" -> (t.durationSec ?: 0.0) / 3600.0; else -> t.distanceKm }
     fun show(v: Double): String = when (metric) {
         "trips" -> "${v.toInt()}"
@@ -247,21 +253,9 @@ fun TagStats(vm: AppViewModel, ui: UiState, s: AppSettings) {
         .map { (tag, list) -> Triple(tag, list.sumOf { value(it) }, list.size) }
         .filter { it.third > 0 || it.first != null }.sortedByDescending { it.second }
     val total = rows.sumOf { it.second }
-    val fmt = SimpleDateFormat("d MMM yyyy", L10n.locale)
 
     LfCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Trip statistics", style = Type.label, color = c.text, modifier = Modifier.weight(1f))
-            if (ui.tripsLoading) Text("Loading trips…", style = Type.tiny, color = c.muted)
-        }
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, c.line2, RoundedCornerShape(14.dp)).clickable { pick = true }.padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            LfIcon(LfIcons.Calendar, c.accentInk, 18.dp)
-            Raw(fmt.format(Date(from)) + "  –  " + fmt.format(Date(to)), Type.body.copy(fontWeight = FontWeight.SemiBold), c.text, Modifier.weight(1f))
-            Text("Change", style = Type.small, color = c.accentInk)
-        }
+        Text("Trip statistics", style = Type.label, color = c.text)
         Segmented(listOf("km" to "Distance", "trips" to "Trips", "time" to "Time"), metric, Modifier.fillMaxWidth()) { metric = it }
         if (total <= 0) Text("No trips in this period.", style = Type.small, color = c.muted)
         else {
@@ -289,92 +283,77 @@ fun TagStats(vm: AppViewModel, ui: UiState, s: AppSettings) {
             }
         }
     }
-    if (pick) RangePicker(from, to, onDismiss = { pick = false }) { a, b -> from = a; to = b; pick = false }
 }
 
-/** A month calendar: tap the first day, then the last. */
+/** The "same route" choice for auto-tagging, with a link to Route tracking when that is off. */
 @Composable
-private fun RangePicker(from: Long, to: Long, onDismiss: () -> Unit, onDone: (Long, Long) -> Unit) {
+fun AutoRouteOption(vm: AppViewModel, s: AppSettings, onLeave: () -> Unit = {}) {
     val c = LocalLf.current
-    val today = dayStart(System.currentTimeMillis())
-    var start by remember { mutableStateOf<Long?>(from) }
-    var end by remember { mutableStateOf<Long?>(to) }
-    var month by remember { mutableStateOf(Calendar.getInstance().apply { timeInMillis = to; set(Calendar.DAY_OF_MONTH, 1) }.let { dayStart(it.timeInMillis) }) }
-    fun shift(n: Int) { month = Calendar.getInstance().apply { timeInMillis = month; add(Calendar.MONTH, n) }.timeInMillis }
-    fun show(a: Long, b: Long) { start = a; end = b; month = dayStart(Calendar.getInstance().apply { timeInMillis = b; set(Calendar.DAY_OF_MONTH, 1) }.timeInMillis) }
-    val cal = Calendar.getInstance(L10n.locale).apply { timeInMillis = month }
-    val first = cal.firstDayOfWeek
-    val lead = (cal.get(Calendar.DAY_OF_WEEK) - first + 7) % 7
-    val days = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val nextAllowed = Calendar.getInstance().apply { timeInMillis = month; add(Calendar.MONTH, 1) }.timeInMillis <= today
-    val dayFmt = SimpleDateFormat("d MMM", L10n.locale)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Go by the route driven", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+            Text("Uses where the trip started and ended, from the route recorded on your phone, or the addresses you set on a tag (under Edit).", style = Type.tiny, color = c.muted)
+        }
+        Spacer(Modifier.width(10.dp))
+        Toggle(s.autoTagRoute, "Go by the route driven") { vm.setAutoTagRoute(it) }
+    }
+    if (s.autoTagRoute && !s.routeTracking) {
+        Text("Route tracking is off, so trips are matched by distance and speed for now. Turn it on for this to work.", style = Type.tiny, color = c.orangeInk)
+        Text("Open Route tracking in Settings", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onLeave(); vm.setTab(no.lionflow.app.ui.Tab.Settings) }.padding(vertical = 6.dp))
+    }
+}
 
+@Composable
+private fun PlaceRow(label: String, place: TagPlace?, onPick: () -> Unit, onClear: () -> Unit) {
+    val c = LocalLf.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, c.line2, RoundedCornerShape(12.dp)).clickable(onClick = onPick).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, style = Type.tiny, color = c.muted, modifier = Modifier.width(40.dp))
+        if (place == null) Text("Add address", style = Type.small, color = c.accentInk, modifier = Modifier.weight(1f))
+        else {
+            Raw(place.name, Type.small, c.text, Modifier.weight(1f))
+            Box(Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onClear), contentAlignment = Alignment.Center) { LfIcon(LfIcons.Close, c.muted, 14.dp) }
+        }
+    }
+}
+
+/** Type an address, pick one of the matches. */
+@Composable
+private fun PlaceSearch(vm: AppViewModel, title: String, onDismiss: () -> Unit, onPick: (TagPlace) -> Unit) {
+    val c = LocalLf.current
+    var q by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<no.lionflow.app.plan.Place>>(emptyList()) }
+    var state by remember { mutableStateOf("") }   // "", busy, none, error
+    LaunchedEffect(q) {
+        if (q.trim().length < 3) { results = emptyList(); state = ""; return@LaunchedEffect }
+        kotlinx.coroutines.delay(450)
+        state = "busy"
+        try { results = vm.searchPlace(q); state = if (results.isEmpty()) "none" else "" }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { results = emptyList(); state = "error" }
+    }
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = c.card,
-        title = { Text("Choose period", color = c.text) },
+        title = { Text(title, color = c.text) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    @Composable fun quick(label: String, a: Long) = Text(label, style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = c.chipText,
-                        modifier = Modifier.clip(CircleShape).background(c.raised).clickable { show(a, today) }.padding(horizontal = 12.dp, vertical = 8.dp))
-                    quick("7 days", today - 6 * DAY)
-                    quick("30 days", today - 29 * DAY)
-                    quick("This month", dayStart(Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1) }.timeInMillis))
-                    quick("This year", dayStart(Calendar.getInstance().apply { set(Calendar.DAY_OF_YEAR, 1) }.timeInMillis))
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(q, { q = it }, singleLine = true, label = { Text("Search address or place") }, colors = tagFieldColors(), modifier = Modifier.fillMaxWidth())
+                when (state) {
+                    "busy" -> Text("Searching…", style = Type.tiny, color = c.muted)
+                    "none" -> Text("No matches.", style = Type.tiny, color = c.muted)
+                    "error" -> Text("Couldn't search right now. Check your connection.", style = Type.tiny, color = c.danger)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(CircleShape).clickable { shift(-1) }, contentAlignment = Alignment.Center) { LfIcon(LfIcons.Back, c.text2, 18.dp) }
-                    Raw(SimpleDateFormat("LLLL yyyy", L10n.locale).format(Date(month)).replaceFirstChar { it.uppercase() }, Type.label, c.text,
-                        Modifier.weight(1f).padding(horizontal = 8.dp))
-                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = nextAllowed) { shift(1) }, contentAlignment = Alignment.Center) { LfIcon(LfIcons.Chevron, if (nextAllowed) c.text2 else c.line2, 18.dp) }
-                }
-                Row(Modifier.fillMaxWidth()) {
-                    val wf = SimpleDateFormat("EEE", L10n.locale)
-                    for (i in 0 until 7) {
-                        val d = Calendar.getInstance().apply { set(Calendar.DAY_OF_WEEK, (first - 1 + i) % 7 + 1) }
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { Raw(wf.format(d.time).take(2), Type.tiny.copy(fontSize = 11.sp), c.muted) }
+                results.forEach { p ->
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable {
+                        onPick(TagPlace(listOf(p.name, p.detail).filter { it.isNotBlank() }.joinToString(", ").take(80), p.lat, p.lon))
+                    }.padding(vertical = 8.dp)) {
+                        Raw(p.name, Type.small.copy(fontWeight = FontWeight.SemiBold), c.text)
+                        if (p.detail.isNotBlank()) Raw(p.detail, Type.tiny, c.muted)
                     }
                 }
-                val a = start; val b = end ?: start
-                for (week in 0 until (lead + days + 6) / 7) {
-                    Row(Modifier.fillMaxWidth()) {
-                        for (col in 0 until 7) {
-                            val n = week * 7 + col - lead + 1
-                            if (n < 1 || n > days) { Box(Modifier.weight(1f).height(40.dp)); continue }
-                            val day = dayStart(Calendar.getInstance().apply { timeInMillis = month; set(Calendar.DAY_OF_MONTH, n) }.timeInMillis)
-                            val future = day > today
-                            val edge = day == a || day == b
-                            val inside = a != null && b != null && day in a..b
-                            // The band between the two days runs edge to edge; the two ends are filled circles.
-                            val band = when {
-                                !inside || a == b -> Modifier
-                                day == a -> Modifier.padding(start = 20.dp).background(c.raised)
-                                day == b -> Modifier.padding(end = 20.dp).background(c.raised)
-                                else -> Modifier.background(c.raised)
-                            }
-                            Box(Modifier.weight(1f).height(40.dp).padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
-                                Box(Modifier.fillMaxWidth().height(36.dp).then(band))
-                                Box(
-                                    Modifier.size(36.dp).clip(CircleShape).background(if (edge) c.accent else Color.Transparent)
-                                        .then(if (day == today && !edge) Modifier.border(1.dp, c.line2, CircleShape) else Modifier)
-                                        .clickable(enabled = !future) {
-                                            val s0 = start
-                                            if (s0 == null || end != null) { start = day; end = null }
-                                            else if (day < s0) { start = day; end = s0 } else end = day
-                                        },
-                                    contentAlignment = Alignment.Center,
-                                ) { Raw("$n", Type.small.copy(fontWeight = if (edge) FontWeight.SemiBold else FontWeight.Normal), if (edge) c.onAccent else if (future) c.line2 else c.text) }
-                            }
-                        }
-                    }
-                }
-                val a2 = start
-                if (a2 == null) Text("Tap the first day.", style = Type.tiny, color = c.muted)
-                else if (end == null) Text("Now tap the last day.", style = Type.tiny, color = c.muted)
-                else Raw(dayFmt.format(Date(a2)) + "  –  " + dayFmt.format(Date(end!!)) + "  ·  " + L10n.tr("${((end!! - a2) / DAY + 1)} days"), Type.tiny, c.muted)
             }
         },
-        confirmButton = { TextButton(enabled = start != null, onClick = { val a = start ?: return@TextButton; onDone(a, end ?: a) }) { Text("Done", color = c.accentInk) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.muted) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.muted) } },
     )
 }
