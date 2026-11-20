@@ -100,7 +100,7 @@ fun Modifier.blockTouches(): Modifier = this.pointerInput(Unit) { detectTapGestu
 
 fun placeName(p: Place): String = if (p.detail.isEmpty() && (p.name == "Car's position" || p.name == "My position")) L10n.tr(p.name) else p.name
 
-private fun viaTag(stay: Int): String = if (stay > 0) L10n.tr("Via") + " · $stay min" else L10n.tr("Via")
+private fun viaTag(stay: Int, dest: Boolean = false): String = L10n.tr(if (dest) "Destination" else "Via") + if (stay > 0) " · $stay min" else ""
 
 private fun dur(minutes: Double): String {
     val m = minutes.roundToInt().coerceAtLeast(0)
@@ -250,6 +250,19 @@ private fun BatteryOptions(p: Planner) {
     val c = LocalLf.current
     val start = p.startNow()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(vertical = 4.dp)) {
+        // Round trip: plan the drive back to the start too.
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp).height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Round trip", style = Type.body, color = c.text2)
+                Text("Drive back to the start afterwards", style = Type.tiny, color = c.muted)
+            }
+            no.lionflow.app.ui.components.Toggle(p.roundTrip, "Round trip") { p.setRound(it) }
+        }
+        if (p.roundTrip) {
+            val m = p.destStay
+            OptionRow(p.to?.let { "Stay at ${placeName(it)}" } ?: "Stay at the destination", "$m min",
+                { p.setDestStay(m - if (m > 30) 15 else 5) }, { p.setDestStay(m + if (m >= 30) 15 else 5) })
+        }
         val dep = p.departAt?.takeIf { it > System.currentTimeMillis() }
         val leaveText = if (dep == null) L10n.tr("Now") else {
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = dep }
@@ -277,7 +290,8 @@ private fun BatteryOptions(p: Planner) {
 @Composable
 private fun ViaRow(p: Planner, v: Place, stay: Int, s: AppSettings, onShow: (Double, Double) -> Unit) {
     val c = LocalLf.current
-    EndRow(c.muted, placeName(v), v.detail, viaTag(stay)) { onShow(v.lat, v.lon) }
+    val dest = p.planRound && v === p.planVias.lastOrNull()
+    EndRow(if (dest) c.accentInk else c.muted, placeName(v), v.detail, viaTag(stay, dest)) { onShow(v.lat, v.lon) }
     if (stay <= 0) return
     val near = p.chargers.map { it to no.lionflow.app.plan.Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }.minByOrNull { it.second } ?: return
     val ch = near.first

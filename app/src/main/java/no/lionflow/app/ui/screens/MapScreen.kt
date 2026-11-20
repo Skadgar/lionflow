@@ -252,7 +252,8 @@ fun MapScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             ) {
                 LfIcon(LfIcons.Route, c.accentInk, 18.dp)
                 androidx.compose.material3.Text(
-                    listOfNotNull(p.planFrom?.let { placeName(it) }, p.planTo?.let { placeName(it) }).joinToString(" → "),
+                    if (p.planRound) listOfNotNull(p.planFrom?.let { placeName(it) }, p.planVias.lastOrNull()?.let { placeName(it) }).joinToString(" ⇄ ")
+                    else listOfNotNull(p.planFrom?.let { placeName(it) }, p.planTo?.let { placeName(it) }).joinToString(" → "),
                     modifier = Modifier.weight(1f), style = Type.label, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 LfIcon(LfIcons.Close, c.muted, 20.dp, "Close the trip", Modifier.clip(CircleShape).clickable { p.close() }.padding(8.dp))

@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 data class Place(val name: String, val detail: String, val lat: Double, val lon: Double, val country: String = "")
 
 /** A car ferry on the route: the quay it leaves from and arrives at, the crossing time, and where along the route it starts. */
-data class Ferry(val name: String, val aLat: Double, val aLon: Double, val bLat: Double, val bLon: Double, val minutes: Double, val idx: Int)
+data class Ferry(val name: String, val aLat: Double, val aLon: Double, val bLat: Double, val bLon: Double, val minutes: Double, val idx: Int, val endIdx: Int = -1)
 
 /** A driving route: every point with the distance and driving time up to it, and the speed on the stretch before it. */
 class RouteData(
@@ -30,7 +30,11 @@ class RouteData(
     fun energy(factor: Double): DoubleArray {
         val e = DoubleArray(size)
         val c = conditions
+        // On a ferry the car is parked: no driving energy.
+        val onBoat = BooleanArray(size)
+        for (f in ferries) if (f.endIdx > f.idx) for (i in (f.idx + 1)..f.endIdx.coerceAtMost(size - 1)) onBoat[i] = true
         for (i in 1 until size) {
+            if (onBoat[i]) { e[i] = e[i - 1]; continue }
             val base = (km[i] - km[i - 1]) * Consumption.shape(speed[i]) / 100.0 * factor
             // Cold (or heat) scales the use; hills and wind add or take off. A steep downhill can give energy back (regeneration).
             val seg = if (c == null) base else base * c.tempMul[i] + c.extraKwh[i]

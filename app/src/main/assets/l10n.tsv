@@ -892,3 +892,7 @@ at {0} (a typical home charger)	à {0} (une borne domestique typique)	mit {0} (e
 . The car isn't plugged in.	. La voiture n'est pas branchée.	. Das Auto ist nicht eingesteckt.	. El coche no está enchufado.	. Bilen er ikke koblet til.
 The car may stop earlier at its own daily limit.	La voiture peut s'arrêter plus tôt à sa propre limite quotidienne.	Das Auto kann früher an seinem eigenen Tageslimit stoppen.	El coche puede parar antes en su propio límite diario.	Bilen kan stoppe tidligere på sin egen daglige grense.
 Peugeot's servers are down or busy right now (error {0}). Your car is fine. LionFlow will try again in a minute.	Les serveurs de Peugeot sont en panne ou surchargés (erreur {0}). Votre voiture n'a rien. LionFlow réessaiera dans une minute.	Die Server von Peugeot sind gerade ausgefallen oder überlastet (Fehler {0}). Mit Ihrem Auto ist alles in Ordnung. LionFlow versucht es in einer Minute erneut.	Los servidores de Peugeot están caídos o saturados ahora mismo (error {0}). Tu coche está bien. LionFlow lo volverá a intentar en un minuto.	Peugeots servere er nede eller overbelastet akkurat nå (feil {0}). Bilen din er i orden. LionFlow prøver igjen om et minutt.
+Round trip	Aller-retour	Hin und zurück	Ida y vuelta	Tur/retur
+Drive back to the start afterwards	Revenir ensuite au point de départ	Danach zurück zum Start fahren	Volver después al punto de partida	Kjør tilbake til start etterpå
+Stay at the destination	Rester à destination	Aufenthalt am Ziel	Estancia en el destino	Opphold på målet
+Destination	Destination	Ziel	Destino	Mål

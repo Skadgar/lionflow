@@ -79,7 +79,7 @@ object PlanParse {
                 val (la, lo) = Geo.decodePolyline(g, 6)
                 if (la.size < 2) continue
                 out.add(Ferry(st.optString("name").ifBlank { "Ferry" }, la[0], lo[0], la[la.size - 1], lo[lo.size - 1],
-                    st.optDouble("duration", 0.0) / 60.0, Geo.project(rd, la[0], lo[0]).first))
+                    st.optDouble("duration", 0.0) / 60.0, Geo.project(rd, la[0], lo[0]).first, Geo.project(rd, la[la.size - 1], lo[lo.size - 1]).first))
             }
         }
         return out

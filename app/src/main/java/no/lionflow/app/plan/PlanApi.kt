@@ -53,7 +53,24 @@ object PlanApi {
      * fewer than three (often, and always with via stops), the trip is also routed through a point to each
      * side of the middle of the main route, and real alternatives among those are kept.
      */
-    suspend fun routes(a: Place, b: Place, via: List<Place> = emptyList()): List<RouteData> {
+    suspend fun routes(a: Place, b: Place, via: List<Place> = emptyList()): List<RouteData> = kotlinx.coroutines.coroutineScope {
+        // The shortest way (often over a car ferry the fastest route drives around), asked of Valhalla alongside.
+        val shortJob = async {
+            try { kotlinx.coroutines.withTimeoutOrNull(15_000L) { valhallaRoute(a, b, via, shortest = true) } }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+        }
+        val rs = moreRoutes(a, b, via)
+        val r0 = rs[0]
+        val short = shortJob.await()
+        if (short != null && r0.totalKm >= 5 && short.totalMin <= r0.totalMin * 1.5 &&
+            short.totalKm < rs.minOf { it.totalKm } * 0.97 && rs.none { overlap(short, it) > 0.85 }) {
+            if (rs.size >= 3) rs.removeAt(rs.size - 1)
+            rs.add(1.coerceAtMost(rs.size), short)
+        }
+        rs
+    }
+
+    private suspend fun moreRoutes(a: Place, b: Place, via: List<Place>): MutableList<RouteData> {
         val rs = osrmRoutes(a, b, via).toMutableList()
         val r0 = rs[0]
         if (rs.size >= 3 || r0.totalKm < 15 || r0.size < 10) return rs
@@ -79,6 +96,54 @@ object PlanApi {
             rs += r
         }
         return rs
+    }
+
+    /**
+     * One route from Valhalla (FOSSGIS' public server). With [shortest] it goes for the fewest km, which
+     * takes car ferries the fastest route avoids. Null when it has no answer.
+     */
+    private suspend fun valhallaRoute(a: Place, b: Place, via: List<Place>, shortest: Boolean): RouteData? {
+        val locs = org.json.JSONArray()
+        (listOf(a) + via + listOf(b)).forEach { locs.put(JSONObject().put("lat", it.lat).put("lon", it.lon).put("type", "break")) }
+        val body = JSONObject().put("locations", locs).put("costing", "auto")
+            .put("costing_options", JSONObject().put("auto", JSONObject().put("shortest", shortest).put("use_ferry", 1.0)))
+            .put("directions_options", JSONObject().put("units", "kilometers"))
+        val req = Request.Builder().url("https://valhalla1.openstreetmap.de/route").header("User-Agent", Http.CONTACT_AGENT)
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+        val trip = (Http.json(req) as? JSONObject)?.optJSONObject("trip") ?: return null
+        val legs = trip.optJSONArray("legs") ?: return null
+        val lat = ArrayList<Double>(); val lon = ArrayList<Double>(); val segS = ArrayList<Double>()
+        val ferryParts = ArrayList<Triple<String, Int, Int>>()   // name, first point, last point (in the whole route)
+        for (li in 0 until legs.length()) {
+            val leg = legs.optJSONObject(li) ?: continue
+            val (la, lo) = Geo.decodePolyline(leg.optString("shape"), 6)
+            if (la.size < 2) continue
+            val skip = if (lat.isEmpty()) 0 else 1      // each leg starts where the last one ended
+            val base = lat.size - skip
+            for (k in skip until la.size) { lat.add(la[k]); lon.add(lo[k]) }
+            val sec = DoubleArray(la.size - 1)
+            val ms = leg.optJSONArray("maneuvers")
+            if (ms != null) for (mi in 0 until ms.length()) {
+                val m = ms.optJSONObject(mi) ?: continue
+                val s0 = m.optInt("begin_shape_index"); val s1 = m.optInt("end_shape_index").coerceAtMost(la.size - 1)
+                if (s1 <= s0) continue
+                // Spread the maneuver's time over its stretches by length.
+                val lens = (s0 until s1).map { Geo.km(la[it], lo[it], la[it + 1], lo[it + 1]) }
+                val tot = lens.sum().coerceAtLeast(1e-6)
+                for (k in s0 until s1) sec[k] += m.optDouble("time", 0.0) * lens[k - s0] / tot
+                if (m.optInt("type") == 28 || m.optBoolean("ferry") || m.optString("travel_type") == "ferry")
+                    ferryParts.add(Triple(m.optJSONArray("street_names")?.optString(0)?.ifBlank { null } ?: "Ferry", base + s0, base + s1))
+            }
+            for (k in sec.indices) segS.add(sec[k])
+        }
+        if (lat.size < 2 || segS.size != lat.size - 1) return null
+        val la = lat.toDoubleArray(); val lo = lon.toDoubleArray()
+        val segM = DoubleArray(la.size - 1) { Geo.km(la[it], lo[it], la[it + 1], lo[it + 1]) * 1000 }
+        val rd = RouteData.build(la, lo, segM, segS.toDoubleArray(), trip.optJSONObject("summary")?.optDouble("time", 0.0) ?: segS.sum())
+        rd.ferries = ferryParts.map { (n, i0, i1) ->
+            Ferry(n, la[i0], lo[i0], la[i1], lo[i1], (rd.min[i1] - rd.min[i0]).coerceAtLeast(1.0), i0, i1)
+        }
+        return rd
     }
 
     /** Points to each side of the main route, about a tenth of its length away from it. */

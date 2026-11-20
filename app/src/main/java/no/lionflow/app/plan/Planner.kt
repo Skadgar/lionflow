@@ -64,6 +64,13 @@ class Planner(
     var planFrom by mutableStateOf<Place?>(null)
         private set
     var planTo by mutableStateOf<Place?>(null)
+    /** Round trip: drive to the destination, stay [destStay] minutes, then back to the start. */
+    var roundTrip by mutableStateOf(false)
+        private set
+    var destStay by mutableStateOf(30)
+        private set
+    /** True when the plan showing is a round trip (the destination is then the last of [planVias]). */
+    var planRound by mutableStateOf(false)
         private set
     var planVias by mutableStateOf<List<Place>>(emptyList())
         private set
@@ -196,11 +203,13 @@ class Planner(
                 busy = "Finding the route…"
                 val via = vias.filterNotNull().take(3)
                 val stay = vias.indices.filter { vias[it] != null }.take(3).map { stays.getOrElse(it) { 0 } }
-                val rs = PlanApi.routes(a, b, via)
+                val round = roundTrip && Geo.km(a.lat, a.lon, b.lat, b.lon) > 0.3
+                val rs = if (round) PlanApi.routes(a, a, via + b) else PlanApi.routes(a, b, via)
                 val r = rs[0]
                 altJob?.cancel(); alts = rs.map { AltRoute(it, null, null) }; altIndex = 0; ferryInfo = emptyList(); userPicked = false; autoPicked = false
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList()
-                route = r; planFrom = a; planTo = b; planVias = via; planStays = stay
+                route = r; planFrom = a; planRound = round
+                if (round) { planTo = a; planVias = via + b; planStays = stay + destStay } else { planTo = b; planVias = via; planStays = stay }
                 prefetch?.cancel(); prefetch = null; prefetchFor = null
                 if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey()) } } }
                 priceCountry = if (a.country.isNotBlank() && a.country.equals(b.country, ignoreCase = true)) a.country else ""
@@ -410,15 +419,34 @@ class Planner(
         staleAlts(); recompute()
     }
 
+    /** Each time the route comes within 2.5 km of a point: the closest point of that pass and how far off. */
+    private fun passes(r: RouteData, lat: Double, lon: Double): List<Pair<Int, Double>> {
+        val out = ArrayList<Pair<Int, Double>>()
+        var best = -1; var bestD = Double.MAX_VALUE; var lastNear = -1.0
+        for (i in 0 until r.size) {
+            if (kotlin.math.abs(r.lat[i] - lat) > 0.03 || kotlin.math.abs(r.lon[i] - lon) > 0.06) continue
+            val d = Geo.km(lat, lon, r.lat[i], r.lon[i])
+            if (d > 2.5) continue
+            if (best >= 0 && r.km[i] - lastNear > 15) { out.add(best to bestD); best = -1; bestD = Double.MAX_VALUE }
+            if (d < bestD) { best = i; bestD = d }
+            lastNear = r.km[i]
+        }
+        if (best >= 0) out.add(best to bestD)
+        return out
+    }
+
     /** Puts chargers on the route, drops doubles and far-off ones, and looks up prices. */
     private fun place(raw: List<RawCharger>, r: RouteData): List<PlanCharger> {
         val out = ArrayList<PlanCharger>()
         for (c in raw.sortedByDescending { it.kw * 100 + it.points }) {
             if (out.any { Geo.km(it.lat, it.lon, c.lat, c.lon) < 0.15 }) continue
-            val (idx, off) = Geo.project(r, c.lat, c.lon)
-            if (off > 2.5) continue
+            val passes = passes(r, c.lat, c.lon)
+            if (passes.isEmpty()) continue
             val price = prices.find(priceCountry, c.name + " " + c.operator, c.chargeTag)
-            out.add(PlanCharger(c.id, c.name, c.operator, c.lat, c.lon, c.kw, c.points, idx, r.km[idx], off, price?.first, price?.second.orEmpty(), c.free))
+            // A route that passes the same charger twice (a round trip on the same road) can use it both ways.
+            passes.forEachIndexed { n, (idx, off) ->
+                out.add(PlanCharger(if (n == 0) c.id else "${c.id}@$n", c.name, c.operator, c.lat, c.lon, c.kw, c.points, idx, r.km[idx], off, price?.first, price?.second.orEmpty(), c.free))
+            }
         }
         return out.sortedBy { it.km }
     }
@@ -469,7 +497,22 @@ class Planner(
         val list = stays.toMutableList(); while (list.size < vias.size) list.add(0)
         list[i] = minutes.coerceIn(0, 480); stays = list
         val shown = vias.indices.filter { vias[it] != null }
-        if (route != null && shown.size == planVias.size) { planStays = shown.map { stays.getOrElse(it) { 0 } }; recompute() }
+        val extra = if (planRound) 1 else 0
+        if (route != null && shown.size + extra == planVias.size) {
+            planStays = shown.map { stays.getOrElse(it) { 0 } } + (if (planRound) listOf(destStay) else emptyList()); recompute()
+        }
+    }
+
+    /** Round trip on or off; a plan that is showing is worked out again. */
+    fun setRound(on: Boolean) {
+        roundTrip = on
+        if (route != null) go()
+    }
+
+    /** How long to stay at the destination on a round trip. */
+    fun setDestStay(minutes: Int) {
+        destStay = minutes.coerceIn(0, 720)
+        if (route != null && planRound && planStays.isNotEmpty()) { planStays = planStays.dropLast(1) + destStay; recompute() }
     }
 
     fun swapEnds() {
