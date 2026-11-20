@@ -131,6 +131,10 @@ object NobilApi {
                 }
             }
             if (maxKw < 50.0) return@mapNotNull null
+            // Only stations open to the public (NOBIL "Availability": 1 = public); bus depots and private ones are left out.
+            val avail = s.optJSONObject("attr")?.optJSONObject("st")?.optJSONObject("2")?.optString("attrvalid").orEmpty()
+            if (avail.isNotEmpty() && avail != "1") return@mapNotNull null
+            if (no.lionflow.app.plan.PlanParse.notForCars(c.optString("name") + " " + c.optString("Owned_by"))) return@mapNotNull null
             // Real-time: only trust a count when NOBIL says this station reports live status.
             var free: Int? = null
             val live = c.optString("Real_time_information").trim().lowercase()

@@ -294,9 +294,7 @@ class Planner(
         planVias.forEachIndexed { i, v ->
             val near = chargers.map { it to Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }
             near.forEach { prefer += it.first.id }
-            val stay = planStays.getOrElse(i) { 0 }
-            val best = near.filter { it.first.id !in excluded && edits.none { e -> e.chargerId == it.first.id } }.maxByOrNull { it.first.kw * 10 - it.second }
-            if (stay > 0 && best != null && implicit.none { it.chargerId == best.first.id }) implicit += StopEdit(best.first.id, minutes = stay)
+            // Only preferred when a stop is needed anyway: a stay never forces charging (the tip under the stop offers it).
         }
         return implicit to prefer
     }

@@ -20,7 +20,7 @@ COVER = {
     "africa": [-35, -26, 38, 52],
     "australia-oceania": [-50, 110, 0, 180],
 }
-KEEP = {"name", "operator", "brand", "network", "capacity", "socket:type2_combo", "charge", "maxpower"}
+KEEP = {"name", "operator", "brand", "network", "capacity", "socket:type2_combo", "charge", "maxpower", "access", "motorcar", "motor_vehicle", "bus", "hgv"}
 KIND = {"n": "node", "w": "way", "r": "relation", "a": "way"}
 
 

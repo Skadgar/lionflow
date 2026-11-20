@@ -85,6 +85,10 @@ object PlanParse {
         return out
     }
 
+    /** Names that point to a charger for buses or lorries (bus depots, truck charging), not for cars. */
+    private val notCarWords = Regex("(?i)(\\bbus(s|sen|depot|anlegg)?\\b|connectbus|unibuss|norgesbuss|tide buss|boreal|vy buss|nobina|\\bruter\\b|bussdepot|bussanlegg|truck|lastebil|milence|\\bhgv\\b)")
+    fun notForCars(text: String): Boolean = notCarWords.containsMatchIn(text)
+
     /** Overpass answer: charging stations with a CCS plug. */
     fun chargers(j: JSONObject): List<RawCharger> {
         val els = j.optJSONArray("elements") ?: return emptyList()
@@ -96,6 +100,11 @@ object PlanParse {
             val lo = if (e.has("lon")) e.optDouble("lon") else center?.optDouble("lon") ?: continue
             if (la.isNaN() || lo.isNaN()) continue
             val t = e.optJSONObject("tags") ?: JSONObject()
+            // Not open to ordinary cars: private, staff only, or for buses and lorries.
+            if (t.optString("access") in setOf("private", "no", "permit", "employees", "delivery") ||
+                t.optString("motorcar") == "no" || t.optString("motor_vehicle") == "no") continue
+            if ((t.optString("bus") == "designated" || t.optString("hgv") == "designated") && t.optString("motorcar") != "yes") continue
+            if (notForCars(listOf("name", "operator", "brand", "network").joinToString(" ") { t.optString(it) }) && t.optString("motorcar") != "yes") continue
             var maxKw = 0.0
             val keys = t.keys()
             while (keys.hasNext()) {

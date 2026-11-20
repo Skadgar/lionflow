@@ -448,7 +448,7 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
             style = Type.tiny, color = c.muted,
         )
         if (plan.stops.any { it.cost != null }) Text("Prices are the usual drop-in prices (checked ${p.pricesAsOf}), not live prices.", style = Type.tiny, color = c.muted)
-        Text("Map and chargers © OpenStreetMap contributors · Route: OSRM · Address search: Photon", style = Type.tiny.copy(fontSize = 10.sp), color = c.muted,
+        Text("Map and chargers © OpenStreetMap contributors · Route: OSRM, Valhalla (FOSSGIS) · Address search: Photon", style = Type.tiny.copy(fontSize = 10.sp), color = c.muted,
             modifier = Modifier.clickable { platform.openUrl("https://www.openstreetmap.org/copyright") })
     }
 }

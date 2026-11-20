@@ -342,7 +342,7 @@ fun MapScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 PlanForm(p, ui, s)
                 if (p.plan != null) {
                     Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
-                    PlanResult(p, s, options = false) { la, lo -> showOnMap(la, lo) }
+                    PlanResult(p, s, options = true) { la, lo -> showOnMap(la, lo) }
                 }
             }
         }

@@ -54,20 +54,29 @@ object PlanApi {
      * side of the middle of the main route, and real alternatives among those are kept.
      */
     suspend fun routes(a: Place, b: Place, via: List<Place> = emptyList()): List<RouteData> = kotlinx.coroutines.coroutineScope {
-        // The shortest way (often over a car ferry the fastest route drives around), asked of Valhalla alongside.
-        val shortJob = async {
-            try { kotlinx.coroutines.withTimeoutOrNull(15_000L) { valhallaRoute(a, b, via, shortest = true) } }
+        // A second router (Valhalla) alongside OSRM: it takes car ferries where they save time (e.g. Horten–Moss),
+        // which OSRM tends to drive around, and gives its own alternatives.
+        val vJob = async {
+            try { kotlinx.coroutines.withTimeoutOrNull(15_000L) { valhallaRoutes(a, b, via) } }
             catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         }
-        val rs = moreRoutes(a, b, via)
-        val r0 = rs[0]
-        val short = shortJob.await()
-        if (short != null && r0.totalKm >= 5 && short.totalMin <= r0.totalMin * 1.5 &&
-            short.totalKm < rs.minOf { it.totalKm } * 0.97 && rs.none { overlap(short, it) > 0.85 }) {
-            if (rs.size >= 3) rs.removeAt(rs.size - 1)
-            rs.add(1.coerceAtMost(rs.size), short)
+        val osrm = moreRoutes(a, b, via)
+        val r0 = osrm[0]
+        val v = vJob.await().orEmpty()
+        // All candidates, best guess of real time first (a ferry also means waiting for it), doubles dropped.
+        fun guess(r: RouteData) = r.totalMin + r.ferries.size * 12.0
+        val pool = (osrm + v).filter { it.totalMin <= r0.totalMin * 1.4 && it.totalKm <= r0.totalKm * 1.5 }.sortedBy { guess(it) }
+        val out = ArrayList<RouteData>()
+        for (r in pool) {
+            if (out.size >= 3) break
+            if (out.any { overlap(r, it) > 0.85 }) continue
+            out += r
         }
-        rs
+        // A route with a ferry is always offered when one was found, so the choice is there.
+        val ferry = pool.firstOrNull { it.ferries.isNotEmpty() }
+        if (ferry != null && out.none { it.ferries.isNotEmpty() } && out.none { overlap(ferry, it) > 0.85 }) { if (out.size >= 3) out.removeAt(2); out += ferry }
+        if (out.isEmpty()) out += r0
+        out
     }
 
     private suspend fun moreRoutes(a: Place, b: Place, via: List<Place>): MutableList<RouteData> {
@@ -102,15 +111,23 @@ object PlanApi {
      * One route from Valhalla (FOSSGIS' public server). With [shortest] it goes for the fewest km, which
      * takes car ferries the fastest route avoids. Null when it has no answer.
      */
-    private suspend fun valhallaRoute(a: Place, b: Place, via: List<Place>, shortest: Boolean): RouteData? {
+    private suspend fun valhallaRoutes(a: Place, b: Place, via: List<Place>): List<RouteData> {
         val locs = org.json.JSONArray()
         (listOf(a) + via + listOf(b)).forEach { locs.put(JSONObject().put("lat", it.lat).put("lon", it.lon).put("type", "break")) }
         val body = JSONObject().put("locations", locs).put("costing", "auto")
-            .put("costing_options", JSONObject().put("auto", JSONObject().put("shortest", shortest).put("use_ferry", 1.0)))
+            .put("costing_options", JSONObject().put("auto", JSONObject().put("use_ferry", 1.0)))
             .put("directions_options", JSONObject().put("units", "kilometers"))
+        if (via.isEmpty()) body.put("alternates", 2)
         val req = Request.Builder().url("https://valhalla1.openstreetmap.de/route").header("User-Agent", Http.CONTACT_AGENT)
             .post(body.toString().toRequestBody("application/json".toMediaType())).build()
-        val trip = (Http.json(req) as? JSONObject)?.optJSONObject("trip") ?: return null
+        val j = Http.json(req) as? JSONObject ?: return emptyList()
+        val trips = listOfNotNull(j.optJSONObject("trip")) +
+            (j.optJSONArray("alternates")?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optJSONObject("trip") } } ?: emptyList())
+        return trips.mapNotNull { try { valhallaTrip(it) } catch (_: Exception) { null } }
+    }
+
+    /** One Valhalla trip as a route. Its ferry time includes a guessed wait; that is cut to the crossing, as the planner adds the real wait. */
+    private fun valhallaTrip(trip: JSONObject): RouteData? {
         val legs = trip.optJSONArray("legs") ?: return null
         val lat = ArrayList<Double>(); val lon = ArrayList<Double>(); val segS = ArrayList<Double>()
         val ferryParts = ArrayList<Triple<String, Int, Int>>()   // name, first point, last point (in the whole route)
@@ -130,8 +147,11 @@ object PlanApi {
                 // Spread the maneuver's time over its stretches by length.
                 val lens = (s0 until s1).map { Geo.km(la[it], lo[it], la[it + 1], lo[it + 1]) }
                 val tot = lens.sum().coerceAtLeast(1e-6)
-                for (k in s0 until s1) sec[k] += m.optDouble("time", 0.0) * lens[k - s0] / tot
-                if (m.optInt("type") == 28 || m.optBoolean("ferry") || m.optString("travel_type") == "ferry")
+                val isFerry = m.optInt("type") == 28 || m.optBoolean("ferry") || m.optString("travel_type") == "ferry"
+                // A car ferry: about 22 km/h plus 5 minutes to drive on and off.
+                val t = if (isFerry) minOf(m.optDouble("time", 0.0), m.optDouble("length", tot) / 22.0 * 3600 + 300) else m.optDouble("time", 0.0)
+                for (k in s0 until s1) sec[k] += t * lens[k - s0] / tot
+                if (isFerry)
                     ferryParts.add(Triple(m.optJSONArray("street_names")?.optString(0)?.ifBlank { null } ?: "Ferry", base + s0, base + s1))
             }
             for (k in sec.indices) segS.add(sec[k])
@@ -139,7 +159,7 @@ object PlanApi {
         if (lat.size < 2 || segS.size != lat.size - 1) return null
         val la = lat.toDoubleArray(); val lo = lon.toDoubleArray()
         val segM = DoubleArray(la.size - 1) { Geo.km(la[it], lo[it], la[it + 1], lo[it + 1]) * 1000 }
-        val rd = RouteData.build(la, lo, segM, segS.toDoubleArray(), trip.optJSONObject("summary")?.optDouble("time", 0.0) ?: segS.sum())
+        val rd = RouteData.build(la, lo, segM, segS.toDoubleArray(), segS.sum())
         rd.ferries = ferryParts.map { (n, i0, i1) ->
             Ferry(n, la[i0], lo[i0], la[i1], lo[i1], (rd.min[i1] - rd.min[i0]).coerceAtLeast(1.0), i0, i1)
         }
