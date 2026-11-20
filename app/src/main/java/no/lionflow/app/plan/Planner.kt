@@ -521,6 +521,24 @@ class Planner(
         }
     }
 
+    /**
+     * Minutes from departure until the car gets to a point on the route: driving, charging stops, ferry waits
+     * and stays at earlier stops on the way. Null without a plan.
+     */
+    fun minutesTo(lat: Double, lon: Double): Double? {
+        val r = route ?: return null
+        val pl = plan ?: return null
+        val idx = Geo.project(r, lat, lon).first
+        val km = r.km[idx]
+        val charging = pl.stops.filter { it.kwh > 0.01 && it.charger.idx < idx }.sumOf { it.minutes.toDouble() }
+        val ferries = ferryInfo.filter { it.ferry.idx < idx }.sumOf { it.waitMin.toDouble() }
+        val stays = planVias.indices.sumOf { i ->
+            val k = r.km[Geo.project(r, planVias[i].lat, planVias[i].lon).first]
+            if (k < km - 0.05) planStays.getOrElse(i) { 0 }.toDouble() else 0.0
+        }
+        return r.min[idx] + charging + ferries + stays
+    }
+
     /** Round trip on or off; a plan that is showing is worked out again. */
     fun setRound(on: Boolean) {
         roundTrip = on

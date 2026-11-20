@@ -100,6 +100,16 @@ fun Modifier.blockTouches(): Modifier = this.pointerInput(Unit) { detectTapGestu
 
 fun placeName(p: Place): String = if (p.detail.isEmpty() && (p.name == "Car's position" || p.name == "My position")) L10n.tr(p.name) else p.name
 
+private fun clockAt(p: Planner, minutes: Double): String {
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = p.departMillis(); add(java.util.Calendar.MINUTE, minutes.roundToInt()) }
+    return TimeFmt.hm(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+}
+
+/** "1 h 5 min · arrive 12:05" for a stop on the way. */
+private fun arriveLine(p: Planner, minutes: Double?): String? = minutes?.let {
+    dur(it) + " · " + L10n.tr("arrive {0}").replace("{0}", clockAt(p, it))
+}
+
 private fun viaTag(stay: Int, dest: Boolean = false, pct: Double? = null): String =
     L10n.tr(if (dest) "Destination" else "Via") + (if (stay > 0) " · $stay min" else "") + (pct?.let { " · ${it.roundToInt()} %" } ?: "")
 
@@ -294,7 +304,7 @@ private fun ViaRow(p: Planner, v: Place, stay: Int, s: AppSettings, onShow: (Dou
     val dest = p.planRound && v === p.planVias.lastOrNull()
     // The battery when you get there.
     val pct = p.route?.let { r -> p.plan?.socAt?.getOrNull(no.lionflow.app.plan.Geo.project(r, v.lat, v.lon).first) }
-    EndRow(if (dest) c.accentInk else c.muted, placeName(v), v.detail, viaTag(stay, dest, pct)) { onShow(v.lat, v.lon) }
+    EndRow(if (dest) c.accentInk else c.muted, placeName(v), v.detail, viaTag(stay, dest, pct), arriveLine(p, p.minutesTo(v.lat, v.lon))) { onShow(v.lat, v.lon) }
     if (stay <= 0) return
     val near = p.chargers.map { it to no.lionflow.app.plan.Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }.minByOrNull { it.second } ?: return
     val ch = near.first
@@ -412,7 +422,12 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
             StopCard(i + 1, st, p, s, onShow)
         }
         while (vi < vias.size) { ViaRow(p, vias[vi].first, vias[vi].third, s, onShow); vi++ }
-        if (to != null) EndRow(c.accentInk, placeName(to), to.detail, if (plan.ok) "${plan.arrivePct.roundToInt()} %" else "—") { onShow(to.lat, to.lon) }
+        if (to != null) {
+            // On a round trip: how long the drive back takes (from leaving the destination).
+            val back = if (p.planRound) p.planVias.lastOrNull()?.let { d -> p.minutesTo(d.lat, d.lon)?.let { plan.totalMin - it - p.planStays.lastOrNull().let { s0 -> s0 ?: 0 } } } else null
+            EndRow(c.accentInk, placeName(to), to.detail, if (plan.ok) "${plan.arrivePct.roundToInt()} %" else "—",
+                back?.let { L10n.tr("Back: {0}").replace("{0}", dur(it)) + " · " + L10n.tr("arrive {0}").replace("{0}", clockAt(p, plan.totalMin)) }) { onShow(to.lat, to.lon) }
+        }
 
         if (options) { ViaStays(p); BatteryOptions(p) }
         if (plan.ok && from != null && to != null) PrimaryButton("Open in Google Maps", Modifier.fillMaxWidth(), icon = LfIcons.Locate) {
@@ -465,7 +480,7 @@ private fun Tag(text: String, bg: Color, fg: Color, line: Color? = null) {
 }
 
 @Composable
-private fun EndRow(dot: Color, name: String, detail: String, pct: String, onClick: () -> Unit) {
+private fun EndRow(dot: Color, name: String, detail: String, pct: String, time: String? = null, onClick: () -> Unit) {
     val c = LocalLf.current
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp),
@@ -474,6 +489,7 @@ private fun EndRow(dot: Color, name: String, detail: String, pct: String, onClic
         Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { Box(Modifier.size(12.dp).clip(CircleShape).background(dot)) }
         Column(Modifier.weight(1f)) {
             Plain(name, Type.label, c.text)
+            if (time != null) Plain(time, Type.tiny.copy(fontWeight = FontWeight.SemiBold), c.accentInk)
             if (detail.isNotBlank()) Plain(detail, Type.tiny, c.muted)
         }
         Plain(pct, Type.label, c.text2)

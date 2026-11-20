@@ -899,3 +899,5 @@ Destination	Destination	Ziel	Destino	Mål
 Switched to the route with the fewest charging stops and the least driving.	Itinéraire choisi : le moins d'arrêts de recharge et le moins de route.	Zur Route mit den wenigsten Ladestopps und der kürzesten Fahrt gewechselt.	Se ha elegido la ruta con menos paradas de carga y menos conducción.	Byttet til ruta med færrest ladestopp og minst kjøring.
 Ferry	Ferry	Fähre	Ferry	Ferje
 arrive {0} %	arrivée {0} %	Ankunft {0} %	llegada {0} %	fram med {0} %
+Back: {0}	Retour : {0}	Rückweg: {0}	Vuelta: {0}	Tilbake: {0}
+arrive {0}	arrivée {0}	Ankunft {0}	llegada {0}	fram {0}
