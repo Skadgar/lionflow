@@ -502,6 +502,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (force || (settings.value.autoRefresh && since >= 5 * 60_000)) refresh()
     }
 
+    private var serverRetries = 0
+
     fun refresh() {
         if (_ui.value.refreshing) return
         if (isDemo) {
@@ -529,6 +531,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (settings.value.smartMode.isNotEmpty() && !programsPending()) try { no.lionflow.app.work.SmartSchedule.syncFromCar(app(), st.programs) } catch (_: Exception) {}
                 val now = System.currentTimeMillis()
                 settings.lastRefresh = now
+                serverRetries = 0
                 no.lionflow.app.widget.WidgetData.save(getApplication<Application>(), st)
                 _ui.update { it.copy(vehicle = v, status = st, statusMissing = missing, refreshing = false, lastRefresh = now, now = now) }
                 if (_ui.value.trips.isEmpty() && !_ui.value.tripsLoading) loadTrips()
@@ -543,7 +546,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _ui.update { it.copy(refreshing = false) }
                 val msg = no.lionflow.app.api.Http.describe(e)
                 remote.addLog("refresh failed: $msg")
-                toast("Couldn't update — $msg")
+                val down = e is no.lionflow.app.api.ApiException && e.code in 502..504
+                if (down) {
+                    // The brand's servers are down or busy: say so once in plain words and try again by itself.
+                    if (serverRetries == 0) toast(no.lionflow.app.ui.l10n.L10n.tr("Peugeot's servers are down or busy right now (error ${e.code}). Your car is fine. LionFlow will try again in a minute."))
+                    if (serverRetries < 3) {
+                        serverRetries++
+                        viewModelScope.launch { kotlinx.coroutines.delay(60_000L * serverRetries); refresh() }
+                    }
+                } else toast("Couldn't update — $msg")
             }
         }
     }

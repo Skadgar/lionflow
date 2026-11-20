@@ -54,6 +54,8 @@ object Http {
             504 -> "gateway timeout"
             else -> "error"
         }
+        // A web server's error page (e.g. nginx "503 Service Temporarily Unavailable") says nothing more than the code.
+        if (code >= 500 && body.trimStart().startsWith("<")) return "$who error $code ($meaning)"
         val detail = try {
             val j = org.json.JSONObject(body)
             listOfNotNull(
