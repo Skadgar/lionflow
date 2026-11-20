@@ -261,7 +261,7 @@ private fun BatteryOptions(p: Planner) {
         if (p.roundTrip) {
             val m = p.destStay
             OptionRow(p.to?.let { "Stay at ${placeName(it)}" } ?: "Stay at the destination", "$m min",
-                { p.setDestStay(m - if (m > 30) 15 else 5) }, { p.setDestStay(m + if (m >= 30) 15 else 5) })
+                { p.changeDestStay(m - if (m > 30) 15 else 5) }, { p.changeDestStay(m + if (m >= 30) 15 else 5) })
         }
         val dep = p.departAt?.takeIf { it > System.currentTimeMillis() }
         val leaveText = if (dep == null) L10n.tr("Now") else {

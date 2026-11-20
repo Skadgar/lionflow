@@ -510,7 +510,7 @@ class Planner(
     }
 
     /** How long to stay at the destination on a round trip. */
-    fun setDestStay(minutes: Int) {
+    fun changeDestStay(minutes: Int) {
         destStay = minutes.coerceIn(0, 720)
         if (route != null && planRound && planStays.isNotEmpty()) { planStays = planStays.dropLast(1) + destStay; recompute() }
     }
