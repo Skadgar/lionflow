@@ -254,6 +254,10 @@ data class Plan(
     val cost: Double?,
     val currency: String,
     val unpriced: Int,
+    /** Battery % at every point of the route (filled in by the Planner). */
+    val socAt: DoubleArray = DoubleArray(0),
+    /** Energy the driving takes (kWh), stops left out. */
+    val usedKwh: Double = 0.0,
 )
 
 data class Options(

@@ -100,7 +100,8 @@ fun Modifier.blockTouches(): Modifier = this.pointerInput(Unit) { detectTapGestu
 
 fun placeName(p: Place): String = if (p.detail.isEmpty() && (p.name == "Car's position" || p.name == "My position")) L10n.tr(p.name) else p.name
 
-private fun viaTag(stay: Int, dest: Boolean = false): String = L10n.tr(if (dest) "Destination" else "Via") + if (stay > 0) " · $stay min" else ""
+private fun viaTag(stay: Int, dest: Boolean = false, pct: Double? = null): String =
+    L10n.tr(if (dest) "Destination" else "Via") + (if (stay > 0) " · $stay min" else "") + (pct?.let { " · ${it.roundToInt()} %" } ?: "")
 
 private fun dur(minutes: Double): String {
     val m = minutes.roundToInt().coerceAtLeast(0)
@@ -291,7 +292,9 @@ private fun BatteryOptions(p: Planner) {
 private fun ViaRow(p: Planner, v: Place, stay: Int, s: AppSettings, onShow: (Double, Double) -> Unit) {
     val c = LocalLf.current
     val dest = p.planRound && v === p.planVias.lastOrNull()
-    EndRow(if (dest) c.accentInk else c.muted, placeName(v), v.detail, viaTag(stay, dest)) { onShow(v.lat, v.lon) }
+    // The battery when you get there.
+    val pct = p.route?.let { r -> p.plan?.socAt?.getOrNull(no.lionflow.app.plan.Geo.project(r, v.lat, v.lon).first) }
+    EndRow(if (dest) c.accentInk else c.muted, placeName(v), v.detail, viaTag(stay, dest, pct)) { onShow(v.lat, v.lon) }
     if (stay <= 0) return
     val near = p.chargers.map { it to no.lionflow.app.plan.Geo.km(v.lat, v.lon, it.lat, it.lon) }.filter { it.second < 1.0 }.minByOrNull { it.second } ?: return
     val ch = near.first
@@ -557,18 +560,19 @@ private fun AltChooser(p: Planner, s: AppSettings) {
     val fewest = done.minOfOrNull { stops(it) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Routes", style = Type.label, color = c.text2)
-        if (p.autoPicked && p.altIndex != 0) Text("Switched to the route with the fewest charging stops.", style = Type.tiny, color = c.muted)
+        if (p.autoPicked && p.altIndex != 0) Text("Switched to the route with the fewest charging stops and the least driving.", style = Type.tiny, color = c.muted)
         alts.forEachIndexed { i, a ->
             val sel = i == p.altIndex
             val pl = a.plan
             val tags = listOfNotNull(
+                if (a.route.ferries.isNotEmpty()) "⛴ " + L10n.tr("Ferry") else null,
                 if (pl?.ok == true && done.size > 1 && stops(a) == fewest && done.count { stops(it) == fewest } < done.size) L10n.tr("Fewest stops") else null,
                 if (a === fastest) L10n.tr("Fastest") else null,
                 if (a === shortest) L10n.tr("Shortest") else null,
                 if (a === cheapest && done.size > 1) L10n.tr("Cheapest") else null,
             ).joinToString(" · ")
             val info = if (pl == null) L10n.tr("Working it out…")
-                else listOfNotNull(dur(pl.totalMin), pl.stops.count { it.kwh > 0.01 }.let { n -> if (n == 1) L10n.tr("1 stop") else L10n.tr("$n stops") }, fmtDistance(a.route.totalKm, s), pl.cost?.let { "≈ " + money(it, pl.currency) }).joinToString(" · ")
+                else listOfNotNull(dur(pl.totalMin), pl.stops.count { it.kwh > 0.01 }.let { n -> if (n == 1) L10n.tr("1 stop") else L10n.tr("$n stops") }, fmtDistance(a.route.totalKm, s), if (pl.ok) L10n.tr("arrive ${pl.arrivePct.roundToInt()} %") else null, pl.cost?.let { "≈ " + money(it, pl.currency) }).joinToString(" · ")
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                     .border(1.dp, if (sel) c.accentInk else c.line2, RoundedCornerShape(14.dp))

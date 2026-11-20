@@ -284,7 +284,15 @@ class Planner(
             infos += FerryInfo(f, wait.roundToInt(), dep)
             extra += wait
         }
-        return p.copy(totalMin = p.totalMin + stays.sum() - overlap + extra) to infos
+        // Battery % along the way: what driving takes, plus what each charging stop puts back.
+        val soc = DoubleArray(r.size)
+        val byIdx = p.stops.filter { it.kwh > 0.01 }.sortedBy { it.charger.idx }
+        var added = 0.0; var si = 0
+        for (i in 0 until r.size) {
+            while (si < byIdx.size && byIdx[si].charger.idx <= i) { added += byIdx[si].leavePct - byIdx[si].arrivePct; si++ }
+            soc[i] = (o.startPct - (energy[i] - energy[0]) / o.batteryKwh * 100 + added).coerceIn(0.0, 100.0)
+        }
+        return p.copy(totalMin = p.totalMin + stays.sum() - overlap + extra, socAt = soc, usedKwh = energy.last() - energy[0]) to infos
     }
 
     /** The stops the via places call for: a charger within 1 km of a via stop with a stay is used for that stay, and any charger that close is preferred. */
@@ -373,12 +381,24 @@ class Planner(
         if (userPicked || autoPicked) return
         val cur = plan ?: return
         fun stops(p: Plan) = p.stops.count { it.kwh > 0.01 }
-        val best = alts.indices.filter { it != altIndex }.mapNotNull { i -> alts[i].plan?.takeIf { it.ok }?.let { i to it } }
-            .minWithOrNull(compareBy<Pair<Int, Plan>>({ stops(it.second) }, { it.second.totalMin })) ?: return
-        val better = !cur.ok || stops(best.second) < stops(cur) ||
-            (stops(best.second) == stops(cur) && best.second.totalMin < cur.totalMin - 1)
+        // Fewest charging stops first. Then the one that uses clearly less energy (less driving, less charging),
+        // and only when that is about even, the quicker one.
+        fun beats(a: Plan, b: Plan): Boolean = when {
+            !b.ok -> a.ok
+            !a.ok -> false
+            stops(a) != stops(b) -> stops(a) < stops(b)
+            a.usedKwh < b.usedKwh * 0.92 -> true
+            b.usedKwh < a.usedKwh * 0.92 -> false
+            else -> a.totalMin < b.totalMin - 1
+        }
+        var best: Int? = null; var bestPlan = cur
+        for (i in alts.indices) {
+            if (i == altIndex) continue
+            val pl = alts[i].plan ?: continue
+            if (beats(pl, bestPlan)) { best = i; bestPlan = pl }
+        }
         autoPicked = true
-        if (better) switchRoute(best.first)
+        best?.let { switchRoute(it) }
     }
 
     /** Switches to another of the routes found (the user's choice). */
