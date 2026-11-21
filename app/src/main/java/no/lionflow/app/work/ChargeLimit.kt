@@ -74,10 +74,10 @@ object ChargeLimit {
     private const val K_FORCE = "chargeForceState"   // "<what>,<time of last try>,<tries>"
     private const val K_STOPPED = "chargeLimitStopped" // "<% when stopped>,<time>,<restarts>"
 
-    /** Checks the car again 15 and 45 minutes after LionFlow stopped a charge. */
+    /** Checks the car again 15, 45, 80 and 115 minutes after LionFlow stopped a charge (the re-check lasts 2 hours). */
     private fun verifyLater(app: LionFlowApp) {
         val wm = androidx.work.WorkManager.getInstance(app)
-        listOf("limit_verify_1" to 15L, "limit_verify_2" to 45L).forEach { (name, min) ->
+        listOf("limit_verify_1" to 15L, "limit_verify_2" to 45L, "limit_verify_3" to 80L, "limit_verify_4" to 115L).forEach { (name, min) ->
             wm.enqueueUniqueWork(name, androidx.work.ExistingWorkPolicy.REPLACE,
                 androidx.work.OneTimeWorkRequestBuilder<StatusWorker>().setInitialDelay(min, java.util.concurrent.TimeUnit.MINUTES)
                     .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build()).build())
@@ -95,7 +95,7 @@ object ChargeLimit {
         val stoppedPct = p.getOrNull(0)?.toDoubleOrNull() ?: return null
         val at = p.getOrNull(1)?.toLongOrNull() ?: return null
         val restarts = p.getOrNull(2)?.toIntOrNull() ?: 0
-        if (System.currentTimeMillis() - at > 14 * 3_600_000L || !s.chargeLimitOn || !app.remote.isSetUp || sending) { app.settings.setRaw(K_STOPPED, ""); return null }
+        if (System.currentTimeMillis() - at > 2 * 3_600_000L || !s.chargeLimitOn || !app.remote.isSetUp || sending) { app.settings.setRaw(K_STOPPED, ""); return null }
         val pct = st.batteryPct ?: return null
         if (!st.plugged) { app.settings.setRaw(K_STOPPED, ""); return null }
         if (st.isCharging || pct >= s.chargeLimitPct - 3 || pct > stoppedPct - 3 || restarts >= 2) return null
