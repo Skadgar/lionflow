@@ -99,7 +99,9 @@ jobs:
       - name: Release notes
         env:
           MSG: ${{ github.event.head_commit.message }}
-        run: printf '%s\n' "$MSG" | grep -viE '^(co-authored-by|claude-session|signed-off-by):' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > notes.md
+        run: |
+          [ -n "$MSG" ] || MSG="$(git log -1 --format=%B)"
+          printf '%s\n' "$MSG" | grep -viE '^(co-authored-by|claude-session|signed-off-by):' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > notes.md
 
       # Tiny file the GitHub installs fetch once a day; GitHub's download counter for it is the "active devices" badge.
       - name: Ping file
