@@ -38,6 +38,7 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             // Only one charging action per check, so commands don't run into each other.
             if (!st.preconditioningOn) run {
                 ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charge limit", msg); return@run }
+                if (ChargeLimit.restoreWhenUnplugged(app, st)) return@run
                 ChargeLimit.force(app, st)?.let { msg -> if (msg.isNotBlank()) notify(7, "Charge limit", msg); return@run }
                 ChargeLimit.recheck(app, st)?.let { msg -> notify(7, "Charge limit", msg); return@run }
                 ChargeWindow.check(app, st)?.let { msg -> notify(8, "Charging times", msg) }

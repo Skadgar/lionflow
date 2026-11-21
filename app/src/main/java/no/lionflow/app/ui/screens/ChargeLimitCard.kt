@@ -103,7 +103,7 @@ fun ChargeLimitCard(vm: AppViewModel, ui: UiState, s: AppSettings) {
                     else { vm.settings.update { it.copy(chargeForce = false) }; if (st?.chargeType == "Full") vm.setCarChargeLimit(true) }
                 }
             }
-            if (s.chargeForce) Text("Active: the car is set to charge to 100 %. If your phone is offline or LionFlow can't run in the background, it will not stop at ${s.chargeLimitPct} %.", style = Type.tiny, color = c.orangeInk)
+            if (s.chargeForce) Text("Active: the car is set to charge to 100 %. If your phone is offline or LionFlow can't run in the background, it will not stop at ${s.chargeLimitPct} %. After a stop, the car stays like this until you unplug, then goes back to its daily limit.", style = Type.tiny, color = c.orangeInk)
             if (warn) androidx.compose.material3.AlertDialog(
                 onDismissRequest = { warn = false },
                 title = { Text("Charge past the car's limit?") },

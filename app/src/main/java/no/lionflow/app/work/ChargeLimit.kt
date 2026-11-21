@@ -73,6 +73,24 @@ object ChargeLimit {
 
     private const val K_FORCE = "chargeForceState"   // "<what>,<time of last try>,<tries>"
     private const val K_STOPPED = "chargeLimitStopped" // "<% when stopped>,<time>,<restarts>"
+    private const val K_RESTORE = "chargeLimitRestore" // "1" or "1,<time of last try>,<tries>": put the car back on its daily limit once unplugged
+
+    /** After LionFlow stopped a forced charge: once the car is unplugged, put it back on its daily limit. Returns true when it acted. */
+    suspend fun restoreWhenUnplugged(app: LionFlowApp, st: VehicleStatus): Boolean {
+        val p = app.settings.raw(K_RESTORE).split(",")
+        if (p.firstOrNull() != "1" || st.plugged || !app.remote.isSetUp || sending) return false
+        if (st.chargeType == "Partial") { app.settings.setRaw(K_RESTORE, ""); return false }
+        val last = p.getOrNull(1)?.toLongOrNull() ?: 0L
+        val tries = p.getOrNull(2)?.toIntOrNull() ?: 0
+        if (tries >= MAX_TRIES || System.currentTimeMillis() - last < RETRY_MS) return false
+        sending = true
+        try {
+            val r = app.remote.chargeLimit(true)
+            app.settings.setRaw(K_RESTORE, if (r is CommandResult.Failed) "1,${System.currentTimeMillis()},${tries + 1}" else "")
+            app.remote.addLog("charge limit: unplugged, back to the car's daily limit → ${if (r is CommandResult.Failed) r.reason else "sent"}")
+            return true
+        } finally { sending = false }
+    }
 
     /** Checks the car again 15, 45, 80 and 115 minutes after LionFlow stopped a charge (the re-check lasts 2 hours). */
     private fun verifyLater(app: LionFlowApp) {
@@ -176,11 +194,9 @@ object ChargeLimit {
                 app.settings.setRaw(K_STOPPED, "${st.batteryPct ?: 0.0},${System.currentTimeMillis()},0")
                 verifyLater(app)
             }
-            // Forced mode: the car was set to charge to 100 %, so put it back on its daily limit now that we've stopped it.
-            if (ok && app.settings.value.chargeForce) {
-                val back = app.remote.chargeLimit(true)
-                app.remote.addLog("charge limit: back to the car's daily limit → ${if (back is CommandResult.Failed) back.reason else "sent"}")
-            }
+            // Forced mode: the car stays on "charge to 100 %" until it's unplugged. Switching it back to its daily limit
+            // right away makes it show (and keep) the level from before the charge, e.g. 80 % with 90 % in the battery.
+            if (ok && app.settings.value.chargeForce) app.settings.setRaw(K_RESTORE, "1")
             return if (s.tries == 0) "Asking the car to stop charging at $pct % (your limit is $limit %)" else null
         } finally {
             sending = false
