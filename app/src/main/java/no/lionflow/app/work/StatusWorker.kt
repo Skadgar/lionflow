@@ -36,6 +36,7 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             // LionFlow's own charge limit.
             ChargeLimit.force(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
             ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
+            ChargeLimit.recheck(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
             // Only charge between set times.
             ChargeWindow.check(app, st)?.let { msg -> notify(8, "Charging times", msg) }
             ChargeWindow.schedule(app)

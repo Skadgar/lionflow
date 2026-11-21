@@ -74,7 +74,8 @@ object Http {
     /** Human text for any exception from a network call. */
     fun describe(e: Throwable): String = when (e) {
         is ApiException -> e.message ?: "Server error ${e.code}"
-        is java.net.UnknownHostException -> "No internet connection (couldn't find ${e.message ?: "the server"})"
+        is java.net.UnknownHostException -> "No internet connection" +
+            (Regex("\"([^\"]+)\"").find(e.message.orEmpty())?.groupValues?.get(1)?.let { " (couldn't reach $it)" } ?: "")
         is java.net.SocketTimeoutException -> "The server didn't answer in time (timeout)"
         is java.net.ConnectException -> "Couldn't connect to the server"
         is javax.net.ssl.SSLException -> "Secure connection failed: ${e.message}"

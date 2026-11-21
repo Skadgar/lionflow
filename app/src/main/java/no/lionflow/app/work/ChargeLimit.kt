@@ -72,6 +72,44 @@ object ChargeLimit {
     }
 
     private const val K_FORCE = "chargeForceState"   // "<what>,<time of last try>,<tries>"
+    private const val K_STOPPED = "chargeLimitStopped" // "<% when stopped>,<time>,<restarts>"
+
+    /** Checks the car again 15 and 45 minutes after LionFlow stopped a charge. */
+    private fun verifyLater(app: LionFlowApp) {
+        val wm = androidx.work.WorkManager.getInstance(app)
+        listOf("limit_verify_1" to 15L, "limit_verify_2" to 45L).forEach { (name, min) ->
+            wm.enqueueUniqueWork(name, androidx.work.ExistingWorkPolicy.REPLACE,
+                androidx.work.OneTimeWorkRequestBuilder<StatusWorker>().setInitialDelay(min, java.util.concurrent.TimeUnit.MINUTES)
+                    .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build()).build())
+        }
+    }
+
+    /**
+     * After LionFlow stopped a charge at the limit, the car sometimes reports a much lower level later (seen: 89 % at the
+     * stop, 80 % in the morning, in both LionFlow and MyPeugeot). Then the stop came too early, or the level the car
+     * reported while charging was off. While still plugged in, charge on to the limit again (at most twice). Returns a text when it acted.
+     */
+    suspend fun recheck(app: LionFlowApp, st: VehicleStatus): String? {
+        val s = app.settings.value
+        val p = app.settings.raw(K_STOPPED).split(",")
+        val stoppedPct = p.getOrNull(0)?.toDoubleOrNull() ?: return null
+        val at = p.getOrNull(1)?.toLongOrNull() ?: return null
+        val restarts = p.getOrNull(2)?.toIntOrNull() ?: 0
+        if (System.currentTimeMillis() - at > 14 * 3_600_000L || !s.chargeLimitOn || !app.remote.isSetUp || sending) { app.settings.setRaw(K_STOPPED, ""); return null }
+        val pct = st.batteryPct ?: return null
+        if (!st.plugged) { app.settings.setRaw(K_STOPPED, ""); return null }
+        if (st.isCharging || pct >= s.chargeLimitPct - 3 || pct > stoppedPct - 3 || restarts >= 2) return null
+        if (s.chargeWindowOn && !ChargeWindow.inside(ChargeWindow.minutesNow(), s.chargeWindowFrom, s.chargeWindowTo)) return null
+        sending = true
+        try {
+            app.settings.setRaw(K_STOPPED, "$stoppedPct,$at,${restarts + 1}")
+            if (s.chargeForce) app.remote.chargeLimit(false)
+            val r = app.remote.charging(true, st.nextDelayedHour ?: 1, st.nextDelayedMinute ?: 0)
+            app.remote.addLog("charge limit: car now reports ${pct.toInt()} % (was ${stoppedPct.toInt()} % at the stop) → charge on: ${if (r is CommandResult.Failed) r.reason else "sent"}")
+            return if (r is CommandResult.Failed) null
+                else "The car now reports ${pct.toInt()} % (it said ${stoppedPct.toInt()} % when charging stopped). Charging on to your ${s.chargeLimitPct} %."
+        } finally { sending = false }
+    }
 
     /**
      * "Charge past the car's limit": after LionFlow stops a charge it puts the car back on its daily limit
@@ -134,6 +172,10 @@ object ChargeLimit {
             val ok = r !is CommandResult.Failed
             save(app, s.copy(tries = s.tries + 1, lastTry = System.currentTimeMillis()))
             app.remote.addLog("charge limit $limit % → try ${s.tries + 1}: ${if (ok) "sent (delay to %02d:%02d)".format(h, m) else (r as CommandResult.Failed).reason}")
+            if (ok) {
+                app.settings.setRaw(K_STOPPED, "${st.batteryPct ?: 0.0},${System.currentTimeMillis()},0")
+                verifyLater(app)
+            }
             // Forced mode: the car was set to charge to 100 %, so put it back on its daily limit now that we've stopped it.
             if (ok && app.settings.value.chargeForce) {
                 val back = app.remote.chargeLimit(true)
