@@ -80,6 +80,18 @@ data class VehicleStatus(
             return level
         }
 
+        /**
+         * The level the car reports can be stale: an E-5008 reported 89 % with the charge limit off ("Full") and 79 % the
+         * moment the daily limit ("Partial") was switched back on, with exactly the same energy in the battery (68.5 of
+         * 75.9 kWh). The energy is the reliable figure, so when the two disagree by more than 4 points, the level is
+         * worked out from it. Plug-in hybrids are left alone (their capacity figure is less reliable).
+         */
+        private fun checkedLevel(level: Double?, res: Double?, cap: Double?, hybrid: Boolean): Double? {
+            if (hybrid || res == null || cap == null || cap < 30) return level
+            val fromEnergy = (res / cap * 100).coerceIn(0.0, 100.0)
+            return if (level == null || kotlin.math.abs(fromEnergy - level) > 4) kotlin.math.round(fromEnergy) else level
+        }
+
         fun parse(j: JSONObject, maintenance: JSONObject?): VehicleStatus {
             val energies = j.optJSONArray("energies")?.objects().orEmpty()
             val electric = energies.firstOrNull { it.optString("type") == "Electric" }
@@ -109,7 +121,7 @@ data class VehicleStatus(
                 raw = j,
                 // Petrol/diesel cars: the fuel tank stands in for the battery. A plug-in hybrid never shows the
                 // tank as its battery: some (older DS7 / 3008 Hybrid4) leave out the battery level when it is empty.
-                batteryPct = if (electric != null) hybridLevel(electric, fuel, charging) else fuel?.num("level"),
+                batteryPct = if (electric != null) checkedLevel(hybridLevel(electric, fuel, charging), res, cap, fuel != null) else fuel?.num("level"),
                 rangeKm = if (electric != null) electric.num("autonomy") ?: (if (fuel != null && electric.num("level") == null) 0.0 else null) else fuel?.num("autonomy"),
                 energyType = when { electric != null && fuel != null -> "Hybrid"; electric == null && fuel != null -> "Fuel"; else -> "Electric" },
                 fuelPct = fuel?.num("level"),
