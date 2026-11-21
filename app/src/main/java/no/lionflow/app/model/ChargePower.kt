@@ -60,10 +60,23 @@ object ChargePower {
      * Call on every fresh car report. Fixes a missing/0 range and remembers charging samples.
      * Returns the status to use.
      */
+    /** The last car reports, one line each, for the log (to see how the battery level moved). */
+    fun history(): List<String> = prefs?.getString(k("hist"), "")?.split("\n")?.filter { it.isNotBlank() }.orEmpty()
+
+    private fun remember(p: android.content.SharedPreferences, st: VehicleStatus) {
+        val t = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.US).format(java.util.Date(st.updatedAtMillis ?: System.currentTimeMillis()))
+        val line = "$t level=${st.batteryPct?.toInt()} residual=${st.residualKwh?.let { String.format(java.util.Locale.US, "%.1f", it) }} " +
+            "status=${st.chargingStatus} type=${st.chargeType} plugged=${st.plugged} preheat=${st.preconditioningOn}"
+        val old = history()
+        if (old.firstOrNull()?.substringAfter(" ")?.substringAfter(" ") == line.substringAfter(" ").substringAfter(" ")) return
+        p.edit().putString(k("hist"), (listOf(line) + old).take(30).joinToString("\n")).apply()
+    }
+
     fun record(raw: VehicleStatus): VehicleStatus {
         val st = applyPendingPrograms(fixRange(raw))
         try { ChargeLog.observe(st) } catch (_: Exception) { }
         val p = prefs ?: return st
+        remember(p, st)
         if (!st.isCharging) { p.edit().remove(k("s")).apply(); return st }
         val t = st.energyAtMillis ?: st.updatedAtMillis ?: return st
         val e = energyIn(st) ?: return st

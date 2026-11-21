@@ -145,11 +145,11 @@ object ChargeLimit {
                     val r2 = app.remote.charging(true, h, m)
                     app.remote.addLog("charge past the car's limit: start charging again → ${if (r2 is CommandResult.Failed) r2.reason else "sent"}")
                 }
-                return if (tries == 0) "The car was on its daily limit at ${pct.toInt()} %. Set it to charge on to your ${s.chargeLimitPct} %." else null
+                return if (tries == 0) "The car was on its daily limit at ${pct.toInt()} %. Set it to charge on to your ${s.chargeLimitPct} %." else ""
             } else {
                 val r = app.remote.charging(true, st.nextDelayedHour ?: 1, st.nextDelayedMinute ?: 0)
                 app.remote.addLog("charge past the car's limit: start charging again at ${pct.toInt()} % → ${if (r is CommandResult.Failed) r.reason else "sent"}")
-                return null
+                return ""   // acted, nothing to tell
             }
         } finally { sending = false }
     }

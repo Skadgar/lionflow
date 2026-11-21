@@ -34,11 +34,14 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             no.lionflow.app.widget.WidgetData.save(applicationContext, st)
             // While charging, check again in ~10 minutes so the charging log gets a good start/end.
             // LionFlow's own charge limit.
-            ChargeLimit.force(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
-            ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
-            ChargeLimit.recheck(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
-            // Only charge between set times.
-            ChargeWindow.check(app, st)?.let { msg -> notify(8, "Charging times", msg) }
+            // While pre-heating, a plugged-in car shows "charging" (the grid powers the heater): leave charging alone then.
+            // Only one charging action per check, so commands don't run into each other.
+            if (!st.preconditioningOn) run {
+                ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charge limit", msg); return@run }
+                ChargeLimit.force(app, st)?.let { msg -> if (msg.isNotBlank()) notify(7, "Charge limit", msg); return@run }
+                ChargeLimit.recheck(app, st)?.let { msg -> notify(7, "Charge limit", msg); return@run }
+                ChargeWindow.check(app, st)?.let { msg -> notify(8, "Charging times", msg) }
+            }
             ChargeWindow.schedule(app)
             if (st.isCharging) {
                 val near = s.chargeLimitOn && (st.batteryPct ?: 0.0) >= s.chargeLimitPct - 6

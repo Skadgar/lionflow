@@ -114,6 +114,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (load != null) sb.append(" capacity=${load.opt("capacity")} residual=${load.opt("residual")}")
             sb.append("\n")
         } ?: sb.append("no energies in the answer\n")
+        val hist = no.lionflow.app.model.ChargePower.history()
+        if (hist.isNotEmpty()) { sb.append("\nlast car reports (newest first):\n"); hist.forEach { sb.append(it).append('\n') } }
         return sb.append("\n").toString()
     }
 
@@ -535,7 +537,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 no.lionflow.app.widget.WidgetData.save(getApplication<Application>(), st)
                 _ui.update { it.copy(vehicle = v, status = st, statusMissing = missing, refreshing = false, lastRefresh = now, now = now) }
                 if (_ui.value.trips.isEmpty() && !_ui.value.tripsLoading) loadTrips()
-                if (no.lionflow.app.work.ChargeLimit.due(getApplication(), st)) viewModelScope.launch {
+                if (!st.preconditioningOn && no.lionflow.app.work.ChargeLimit.due(getApplication(), st)) viewModelScope.launch {
                     no.lionflow.app.work.ChargeLimit.check(getApplication(), st)?.let { toast(it); kotlinx.coroutines.delay(4000); refresh() }
                 }
             } catch (e: AuthExpiredException) {
