@@ -149,6 +149,11 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(fmtDistance(t.distanceKm, s), style = Type.label.copy(fontSize = 17.sp), color = c.text)
                             t.avgKwhPer100?.let { Text(String.format(Locale.US, "%.1f kWh/100", it), style = Type.tiny, color = c.muted) }
+                            // Battery used on the trip, in % and kWh.
+                            val used = t.kwh?.takeIf { it > 0 } ?: t.avgKwhPer100?.let { it * t.distanceKm / 100 }
+                            val battery = ui.status?.let { no.lionflow.app.model.ChargePower.usableKwh(it) }
+                            if (used != null && battery != null && battery > 0) androidx.compose.material3.Text(
+                                String.format(Locale.US, "−%.0f %% · %.1f kWh", used / battery * 100, used), style = Type.tiny, color = c.muted)
                             t.avgLPer100?.let { Text(String.format(Locale.US, "%.1f l/100", it), style = Type.tiny, color = c.muted) }
                         }
                     }
