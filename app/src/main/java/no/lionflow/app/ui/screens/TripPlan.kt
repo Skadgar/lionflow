@@ -398,7 +398,7 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
                 plan.cost?.let { Tag("≈ " + money(it, plan.currency) + if (plan.unpriced > 0) " +" else "", c.card, c.text2, c.line2) }
             }
         }
-        if (options && p.alts.size > 1) AltChooser(p, s)
+        if (p.alts.size > 1) AltChooser(p, s)
         if (p.ferryInfo.isNotEmpty()) FerryRows(p)
         if (!plan.ok) Text(
             if (p.startNow() <= p.minPct) "The start charge is at or below your minimum. Start with more, or lower the minimum."
