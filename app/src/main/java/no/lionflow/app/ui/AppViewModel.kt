@@ -725,6 +725,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun charging(startNow: Boolean) = runCommand(if (startNow) "Charge now" else "Stop charging", { it.copy(chargingStatus = if (startNow) "InProgress" else "Stopped") }) { p ->
         val st = _ui.value.status
+        // Charging past the car's limit: switch the car to 100 % first, or it stops again at its daily limit.
+        val s = settings.value
+        if (startNow && s.chargeLimitOn && s.chargeForce && st?.chargeType != "Full") {
+            val r = remote.chargeLimit(false)
+            remote.addLog("charge now: set the car to 100 % first → ${if (r is CommandResult.Failed) r.reason else "sent"}")
+        }
         remote.charging(startNow, st?.nextDelayedHour ?: 1, st?.nextDelayedMinute ?: 0, p)
     }
 

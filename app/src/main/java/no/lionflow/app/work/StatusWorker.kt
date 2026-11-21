@@ -34,6 +34,7 @@ class StatusWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             no.lionflow.app.widget.WidgetData.save(applicationContext, st)
             // While charging, check again in ~10 minutes so the charging log gets a good start/end.
             // LionFlow's own charge limit.
+            ChargeLimit.force(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
             ChargeLimit.check(app, st)?.let { msg -> notify(7, "Charge limit", msg) }
             // Only charge between set times.
             ChargeWindow.check(app, st)?.let { msg -> notify(8, "Charging times", msg) }

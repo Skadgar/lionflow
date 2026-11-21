@@ -71,6 +71,51 @@ object ChargeLimit {
         return (t / 60) to (t % 60)
     }
 
+    private const val K_FORCE = "chargeForceState"   // "<what>,<time of last try>,<tries>"
+
+    /**
+     * "Charge past the car's limit": after LionFlow stops a charge it puts the car back on its daily limit
+     * (safer if the phone is offline next time). So each new charge has to be switched to 100 % again, or the
+     * car stops at its daily limit (e.g. 80 %) without LionFlow's limit ever being reached. This does that, and
+     * restarts a charge the car already ended at its daily limit. Returns a short text when it acted.
+     */
+    suspend fun force(app: LionFlowApp, st: VehicleStatus): String? {
+        val s = app.settings.value
+        if (!s.chargeLimitOn || !s.chargeForce || !app.remote.isSetUp || sending) return null
+        val pct = st.batteryPct ?: return null
+        if (!st.plugged || pct >= s.chargeLimitPct - 1) { app.settings.setRaw(K_FORCE, ""); return null }
+        val windowOk = !s.chargeWindowOn || ChargeWindow.inside(ChargeWindow.minutesNow(), s.chargeWindowFrom, s.chargeWindowTo)
+        val what = when {
+            st.chargeType != "Full" && (st.isCharging || st.chargingStatus == "Finished") -> "full"
+            st.chargeType == "Full" && st.chargingStatus == "Finished" && !st.isCharging && windowOk -> "start"
+            else -> return null
+        }
+        val p = app.settings.raw(K_FORCE).split(",")
+        val tries = if (p.getOrNull(0) == what) p.getOrNull(2)?.toIntOrNull() ?: 0 else 0
+        val last = if (p.getOrNull(0) == what) p.getOrNull(1)?.toLongOrNull() ?: 0L else 0L
+        if (tries >= MAX_TRIES || System.currentTimeMillis() - last < RETRY_MS) return null
+        sending = true
+        try {
+            app.settings.setRaw(K_FORCE, "$what,${System.currentTimeMillis()},${tries + 1}")
+            if (what == "full") {
+                val r = app.remote.chargeLimit(false)
+                app.remote.addLog("charge past the car's limit: set the car to 100 % → ${if (r is CommandResult.Failed) r.reason else "sent"}")
+                if (r is CommandResult.Failed) return null
+                // A charge the car already ended at its daily limit also needs a new start.
+                if (!st.isCharging && windowOk) {
+                    val (h, m) = (st.nextDelayedHour ?: 1) to (st.nextDelayedMinute ?: 0)
+                    val r2 = app.remote.charging(true, h, m)
+                    app.remote.addLog("charge past the car's limit: start charging again → ${if (r2 is CommandResult.Failed) r2.reason else "sent"}")
+                }
+                return if (tries == 0) "The car was on its daily limit at ${pct.toInt()} %. Set it to charge on to your ${s.chargeLimitPct} %." else null
+            } else {
+                val r = app.remote.charging(true, st.nextDelayedHour ?: 1, st.nextDelayedMinute ?: 0)
+                app.remote.addLog("charge past the car's limit: start charging again at ${pct.toInt()} % → ${if (r is CommandResult.Failed) r.reason else "sent"}")
+                return null
+            }
+        } finally { sending = false }
+    }
+
     /** Returns a short text if it acted, else null. */
     suspend fun check(app: LionFlowApp, st: VehicleStatus): String? {
         if (sending || !due(app, st)) return null
