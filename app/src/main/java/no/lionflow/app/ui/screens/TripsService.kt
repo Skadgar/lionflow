@@ -126,7 +126,13 @@ fun TripsScreen(vm: AppViewModel, ui: UiState, s: AppSettings, wide: Boolean) {
         if (ui.status?.energyType == "Hybrid" && list.isNotEmpty()) HybridStats(vm, list, ui.trips, s)
         TagStats(vm, ui, s, list)
         if (ui.tripsLoading) Row(verticalAlignment = Alignment.CenterVertically) { Busy(); Text("  Loading trips…", style = Type.small, color = c.muted) }
-        if (list.isEmpty() && !ui.tripsLoading) Text("No trips in this period.", style = Type.small, color = c.muted)
+        if (list.isEmpty() && !ui.tripsLoading) {
+            Text("No trips in this period.", style = Type.small, color = c.muted)
+            // Peugeot's server answered "no trips found" (some cars, e.g. newer E-5008, don't share trips with other apps).
+            if (vm.tripsNone && ui.trips.isEmpty()) Text(
+                "Peugeot doesn't give trips for this car to other apps, even when the official app shows them. You can import them: in the official app export your trips as CSV (or the full .myp file), then use Settings → Import driving data here.",
+                style = Type.tiny, color = c.muted)
+        }
         if (list.isNotEmpty()) {
             LfCard(padding = PaddingValues(0.dp)) {
                 val fmt = SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("EEE d MMM · HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)

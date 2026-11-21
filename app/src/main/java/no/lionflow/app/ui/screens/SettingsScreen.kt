@@ -65,6 +65,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
     var pickLanguage by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     var showLog by remember { mutableStateOf(false) }
+    var showChanges by remember { mutableStateOf(false) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             val text = try { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
@@ -167,7 +168,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
                 if (ui.trips.isEmpty()) vm.loadTrips()
                 platform.share(vm.exportTripsCsv(), "text/csv")
             }
-            LinkRow("Import driving data", "From a LionFlow CSV export", LfIcons.Upload) {
+            LinkRow("Import driving data", "From LionFlow, or the official app's CSV or .myp export", LfIcons.Upload) {
                 importer.launch(arrayOf("text/*", "text/csv", "application/csv", "*/*"))
             }
             ToggleRow("Tag similar trips automatically", "A trip with about the same distance and average speed as one you tagged gets the same tag", s.autoTagTrips) { v -> vm.setAutoTag(v) }
@@ -197,6 +198,18 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         }
 
         SectionTitle("App updates")
+        GroupCard {
+            LinkRow("What's new", "Everything added and fixed, version by version", LfIcons.Bolt, last = true) { vm.loadReleases(); showChanges = true }
+        }
+        if (showChanges) androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showChanges = false }, containerColor = c.card,
+            title = { Text("What's new", color = c.text) },
+            text = {
+                if (vm.releases.isEmpty()) Text("Loading…", style = Type.small, color = c.muted)
+                else ChangeList(vm.releases, Modifier.heightIn(max = 480.dp))
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { showChanges = false }) { Text("Close", color = c.muted) } },
+        )
         if (vm.fromPlay) {
             GroupCard {
                 LinkRow("Updates come from Google Play", "You have ${BuildConfig.VERSION_NAME}. Installed from Play, so Android Auto trusts it", LfIcons.Download) { }
@@ -388,5 +401,23 @@ private fun LinkRow(title: String, subtitle: String, icon: ImageVector, last: Bo
             LfIcon(LfIcons.Chevron, c.muted, 16.dp)
         }
         if (!last) Divider()
+    }
+}
+
+/** Releases, newest first: version, date-free heading and the notes. The installed version is marked. */
+@Composable
+fun ChangeList(list: List<no.lionflow.app.update.Release>, modifier: Modifier = Modifier) {
+    val c = LocalLf.current
+    Column(modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        list.forEach { r ->
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                val mine = r.versionCode == BuildConfig.VERSION_CODE
+                androidx.compose.material3.Text(r.name + if (mine) "  ·  " + no.lionflow.app.ui.l10n.L10n.tr("installed") else "",
+                    style = Type.label, color = if (mine) c.accentInk else c.text)
+                r.notes.lines().filter { it.isNotBlank() }.forEach { line ->
+                    androidx.compose.material3.Text("• " + line.trimStart('-', '*', ' '), style = Type.small, color = c.text2)
+                }
+            }
+        }
     }
 }

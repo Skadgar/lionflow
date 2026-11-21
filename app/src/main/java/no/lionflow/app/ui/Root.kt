@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -104,6 +105,17 @@ fun LionFlowRoot(vm: AppViewModel, platform: Platform) {
                     Phase.Locked -> LockScreen(vm, settings)
                     Phase.Ready -> MainShell(vm, ui, settings)
                 }
+                // After an update: what changed since the version last opened.
+                val since = vm.whatsNewSince
+                if (since != null && ui.phase == Phase.Ready && (ui.update == null || ui.updateDismissed)) {
+                    val list = vm.releases.filter { it.versionCode > since && it.versionCode <= no.lionflow.app.BuildConfig.VERSION_CODE }
+                    if (list.isNotEmpty()) androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { vm.dismissWhatsNew() }, containerColor = c.card,
+                        title = { Text("What's new", color = c.text) },
+                        text = { no.lionflow.app.ui.screens.ChangeList(list, Modifier.heightIn(max = 420.dp)) },
+                        confirmButton = { androidx.compose.material3.TextButton(onClick = { vm.dismissWhatsNew() }) { Text("OK", color = c.accentInk) } },
+                    )
+                }
                 val upd = ui.update
                 if (upd != null && !ui.updateDismissed) {
                     val busy = ui.updateStatus?.let { it.startsWith("Downloading") || it.startsWith("Installing") } == true
@@ -115,8 +127,11 @@ fun LionFlowRoot(vm: AppViewModel, platform: Platform) {
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("LionFlow ${upd.name} is ready. You have ${no.lionflow.app.BuildConfig.VERSION_NAME}.", style = Type.body, color = c.text)
-                                val notes = upd.notes.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("Co-Authored-By") && !it.startsWith("Claude-Session") }.take(6)
-                                if (notes.isNotEmpty()) Text(notes.joinToString("\n"), style = Type.small, color = c.muted)
+                                // Everything since the installed version, not only the newest release.
+                                LaunchedEffect(Unit) { vm.loadReleases() }
+                                val since = vm.releases.filter { it.versionCode > no.lionflow.app.BuildConfig.VERSION_CODE }
+                                if (since.isNotEmpty()) no.lionflow.app.ui.screens.ChangeList(since, Modifier.heightIn(max = 280.dp))
+                                else no.lionflow.app.update.Updater.cleanNotes(upd.notes).takeIf { it.isNotBlank() }?.let { Text(it, style = Type.small, color = c.muted) }
                                 ui.updateStatus?.let { st ->
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (busy) Busy()

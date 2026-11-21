@@ -167,6 +167,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(lastRefresh = settings.lastRefresh, photoPath = curPhoto(), serviceHistory = loadHistory()) }
         decideStartPhase()
         checkForUpdate(force = false)
+        viewModelScope.launch { kotlinx.coroutines.yield(); checkWhatsNew() }
     }
 
     private fun decideStartPhase() {
@@ -911,6 +912,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteRoute(r: no.lionflow.app.route.Route) { no.lionflow.app.route.Routes.delete(r); reloadRoutes() }
 
+    /** Releases for the changelog (newest first), loaded when needed. */
+    var releases by androidx.compose.runtime.mutableStateOf<List<no.lionflow.app.update.Release>>(emptyList())
+        private set
+    /** Set after an update: the version that was last opened before it. The "What's new" popup shows what came since. */
+    var whatsNewSince by androidx.compose.runtime.mutableStateOf<Int?>(null)
+        private set
+
+    fun loadReleases() {
+        if (releases.isNotEmpty()) return
+        viewModelScope.launch {
+            releases = try { no.lionflow.app.update.Updater.releases() } catch (e: Exception) { emptyList() }
+        }
+    }
+
+    /** On start: after an update, show what changed since the version last opened (not on a first install). */
+    private fun checkWhatsNew() {
+        val now = no.lionflow.app.BuildConfig.VERSION_CODE
+        val last = settings.raw("lastSeenCode").toIntOrNull()
+        settings.setRaw("lastSeenCode", now.toString())
+        if (last != null && last < now) { whatsNewSince = last; loadReleases() }
+    }
+
+    fun dismissWhatsNew() { whatsNewSince = null }
+
+    /** True when the brand's server said "no trips" on the first call: then the trips list explains it. */
+    var tripsNone by androidx.compose.runtime.mutableStateOf(false)
+
     fun loadTrips(daysAsked: Int = 30) {
         val days = maxOf(daysAsked, tripsDays).coerceAtMost(1100)
         tripsDays = days
@@ -929,13 +957,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 do {
                     // "404 / 40400 No trip was found" just means the car has no trips in this period (some cars say so on every call).
                     val j = try { api.trips(v, since, page) } catch (e: no.lionflow.app.api.ApiException) {
-                        if (e.code == 404) break else throw e
+                        if (e.code == 404) { if (guard == 0) tripsNone = true; remote.addLog("trips: ${e.message}"); break } else throw e
                     }
+                    if (guard == 0) tripsNone = false
                     j.optJSONObject("_embedded")?.optJSONArray("trips")?.objects()?.forEach { all += Trip.parse(it) }
                     val next = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")
                     page = next?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
                     guard++
                 } while (page != null && guard < 50)
+                remote.addLog("trips: ${all.size} from the last $days days")
                 val imported = loadImportedTrips()
                 val merged = (all + imported).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }
                 _ui.update { it.copy(trips = merged, tripsLoading = false) }
@@ -969,26 +999,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return f
     }
 
+    /** Imports trips from a CSV or .myp file (LionFlow's own, or the official app's export). */
     fun importTripsCsv(text: String) {
-        val iso = SimpleDateFormat("yyyy-MM-dd HH:mm", no.lionflow.app.ui.l10n.L10n.locale)
-        val rows = text.lines().drop(1).filter { it.isNotBlank() }
+        val rows = try { no.lionflow.app.model.TripImport.parse(text) } catch (e: Exception) { emptyList() }
+        if (rows.isEmpty()) {
+            toast(no.lionflow.app.ui.l10n.L10n.tr("Couldn't read any trips from that file. Send it to me on GitHub and I'll add support for it."))
+            return
+        }
         val arr = JSONArray(settings.importedTripsJson)
+        val have = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id") }.toHashSet()
         var count = 0
         val tagged = HashMap<String, String>()
         for (r in rows) {
-            val c = r.split(",")
-            if (c.size < 4) continue
-            c.getOrNull(8)?.trim()?.takeIf { it.isNotEmpty() && c[0].isNotEmpty() }?.let { tagged[c[0]] = it }
-            arr.put(JSONObject()
-                .put("id", c[0].ifEmpty { "imp-" + System.nanoTime() })
-                .put("start", c.getOrNull(1)?.let { s -> try { iso.parse(s)?.time } catch (_: Exception) { null } } ?: 0L)
-                .put("end", c.getOrNull(2)?.let { s -> try { iso.parse(s)?.time } catch (_: Exception) { null } } ?: 0L)
-                .put("km", c.getOrNull(3)?.toDoubleOrNull() ?: 0.0)
-                .put("min", c.getOrNull(4)?.toDoubleOrNull() ?: 0.0)
-                .put("kwh", c.getOrNull(5)?.toDoubleOrNull() ?: 0.0)
-                .put("avg", c.getOrNull(6)?.toDoubleOrNull() ?: 0.0)
-                .put("speed", c.getOrNull(7)?.toDoubleOrNull() ?: 0.0))
-            count++
+            val id = r.json.optString("id")
+            if (id in have) continue
+            have += id; arr.put(r.json); count++
+            r.tag?.let { tagged[id] = it }
         }
         settings.importedTripsJson = arr.toString()
         if (tagged.isNotEmpty()) loadImportedTrips().forEach { t ->

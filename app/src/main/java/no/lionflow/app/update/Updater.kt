@@ -56,6 +56,22 @@ object Updater {
 
     fun isNewer(r: Release) = r.versionCode > BuildConfig.VERSION_CODE
 
+    /** The latest releases (newest first), for the changelog. Notes are the release text without trailer lines. */
+    suspend fun releases(): List<Release> {
+        val req = Request.Builder().url("https://api.github.com/repos/thocubeat/lionflow/releases?per_page=60")
+            .header("Accept", "application/vnd.github+json").header("User-Agent", Http.USER_AGENT).get().build()
+        val arr = Http.json(req) as? org.json.JSONArray ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.filter { !it.optBoolean("draft") }.mapNotNull { j ->
+            val tag = j.optString("tag_name")
+            val code = tag.substringAfterLast('.').toIntOrNull() ?: return@mapNotNull null
+            Release(tag, code, "", cleanNotes(j.optString("body")), j.optString("name").removePrefix("LionFlow ").ifBlank { tag.removePrefix("v") })
+        }.sortedByDescending { it.versionCode }
+    }
+
+    fun cleanNotes(body: String): String = body.lines().map { it.trim() }
+        .filter { it.isNotBlank() && !it.startsWith("Co-Authored-By", true) && !it.startsWith("Claude-Session", true) && !it.startsWith("Signed-off-by", true) }
+        .joinToString("\n")
+
     suspend fun download(ctx: Context, r: Release, onProgress: (Int) -> Unit): File = withContext(Dispatchers.IO) {
         val dir = File(ctx.cacheDir, "updates").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
