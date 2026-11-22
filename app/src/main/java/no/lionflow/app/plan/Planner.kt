@@ -513,11 +513,24 @@ class Planner(
         staleAlts(); recompute()
     }
 
+    private fun cellKey(cy: Long, cx: Long) = cy * 4_000_000L + cx
+
+    /** Route points by small grid cell (0.03 by 0.06 degrees), so a charger only looks at the points near it. */
+    private fun pointGrid(r: RouteData): HashMap<Long, ArrayList<Int>> {
+        val g = HashMap<Long, ArrayList<Int>>()
+        for (i in 0 until r.size) g.getOrPut(cellKey(Math.floor(r.lat[i] / 0.03).toLong(), Math.floor(r.lon[i] / 0.06).toLong())) { ArrayList() }.add(i)
+        return g
+    }
+
     /** Each time the route comes within 2.5 km of a point: the closest point of that pass and how far off. */
-    private fun passes(r: RouteData, lat: Double, lon: Double): List<Pair<Int, Double>> {
+    private fun passes(r: RouteData, grid: HashMap<Long, ArrayList<Int>>, lat: Double, lon: Double): List<Pair<Int, Double>> {
+        val cy = Math.floor(lat / 0.03).toLong(); val cx = Math.floor(lon / 0.06).toLong()
+        val near = ArrayList<Int>()
+        for (a in -1L..1L) for (b in -1L..1L) grid[cellKey(cy + a, cx + b)]?.let { near.addAll(it) }
+        near.sort()
         val out = ArrayList<Pair<Int, Double>>()
         var best = -1; var bestD = Double.MAX_VALUE; var lastNear = -1.0
-        for (i in 0 until r.size) {
+        for (i in near) {
             if (kotlin.math.abs(r.lat[i] - lat) > 0.03 || kotlin.math.abs(r.lon[i] - lon) > 0.06) continue
             val d = Geo.km(lat, lon, r.lat[i], r.lon[i])
             if (d > 2.5) continue
@@ -532,10 +545,19 @@ class Planner(
     /** Puts chargers on the route, drops doubles and far-off ones, and looks up prices. */
     private fun place(raw: List<RawCharger>, r: RouteData): List<PlanCharger> {
         val out = ArrayList<PlanCharger>()
+        val grid = pointGrid(r)
+        val seen = HashMap<Long, ArrayList<RawCharger>>()   // accepted chargers by cell, to drop doubles within 150 m
         for (c in raw.sortedByDescending { it.kw * 100 + it.points }) {
-            if (out.any { Geo.km(it.lat, it.lon, c.lat, c.lon) < 0.15 }) continue
-            val passes = passes(r, c.lat, c.lon)
+            val cy = Math.floor(c.lat / 0.01).toLong(); val cx = Math.floor(c.lon / 0.02).toLong()
+            var dup = false
+            loop@ for (a in -1L..1L) for (b in -1L..1L) {
+                val l = seen[cellKey(cy + a, cx + b)] ?: continue
+                for (o in l) if (Geo.km(o.lat, o.lon, c.lat, c.lon) < 0.15) { dup = true; break@loop }
+            }
+            if (dup) continue
+            val passes = passes(r, grid, c.lat, c.lon)
             if (passes.isEmpty()) continue
+            seen.getOrPut(cellKey(cy, cx)) { ArrayList() }.add(c)
             val price = prices.find(priceCountry, c.name + " " + c.operator, c.chargeTag)
             // A route that passes the same charger twice (a round trip on the same road) can use it both ways.
             passes.forEachIndexed { n, (idx, off) ->
