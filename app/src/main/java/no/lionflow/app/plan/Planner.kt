@@ -306,7 +306,9 @@ class Planner(
             while (si < byIdx.size && byIdx[si].charger.idx <= i) { added += byIdx[si].leavePct - byIdx[si].arrivePct; si++ }
             soc[i] = (o.startPct - (energy[i] - energy[0]) / o.batteryKwh * 100 + added).coerceIn(0.0, 100.0)
         }
-        return p.copy(totalMin = p.totalMin + stays.sum() - overlap + extra, socAt = soc, usedKwh = energy.last() - energy[0]) to infos
+        // A round trip's total is the driving, charging and ferries: the stay at the far end is left out.
+        val farStay = if (planRound) stays.lastOrNull() ?: 0 else 0
+        return p.copy(totalMin = p.totalMin + stays.sum() - farStay - overlap + extra, socAt = soc, usedKwh = energy.last() - energy[0]) to infos
     }
 
     /** The stops the via places call for: a charger within 1 km of a via stop with a stay is used for that stay, and any charger that close is preferred. */
@@ -450,6 +452,9 @@ class Planner(
             pickFewestStops()
         }
     }
+
+    /** Minutes spent at the far end of a round trip (not part of the trip's total time). */
+    val farStay: Int get() = if (planRound) planStays.lastOrNull() ?: 0 else 0
 
     /** The other routes' plans are out of date after a change to the numbers. */
     private fun staleAlts() { alts = alts.mapIndexed { i, a -> if (i == altIndex) a else AltRoute(a.route, null, a.raw, a.full) } }

@@ -333,10 +333,10 @@ private fun ViaStays(p: Planner) {
     }
 }
 
-/** Stay steps: 5 min up to 30, 10 min up to 1 h, then half hours (1 h 30 min, 2 h, 2 h 30 min …). */
-private fun stayMore(m: Int) = when { m < 30 -> (m / 5 + 1) * 5; m < 60 -> (m / 10 + 1) * 10; else -> (m / 30 + 1) * 30 }
-private fun stayLess(m: Int) = when { m <= 30 -> ((m - 1) / 5) * 5; m <= 60 -> ((m - 1) / 10) * 10; else -> ((m - 1) / 30) * 30 }.coerceAtLeast(0)
-private fun stayText(m: Int) = if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60} h" else "${m / 60} h ${m % 60} min"
+/** Stay steps: 5 min up to 30, 10 min up to 50, then 1 h 30 min and half hours (2 h, 2 h 30 min …). */
+private fun stayMore(m: Int) = when { m < 30 -> (m / 5 + 1) * 5; m < 50 -> (m / 10 + 1) * 10; m < 90 -> 90; else -> (m / 30 + 1) * 30 }
+private fun stayLess(m: Int) = when { m <= 30 -> ((m - 1) / 5) * 5; m <= 50 -> ((m - 1) / 10) * 10; m <= 90 -> 50; else -> ((m - 1) / 30) * 30 }.coerceAtLeast(0)
+private fun stayText(m: Int) = if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60}h" else "${m / 60}h ${m % 60}m"
 
 @Composable
 private fun OptionRow(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
@@ -386,7 +386,7 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(dur(plan.totalMin), style = Type.stat.copy(fontSize = 26.sp), color = c.text, modifier = Modifier.weight(1f))
                 if (plan.ok) {
-                    val cal = java.util.Calendar.getInstance().apply { timeInMillis = p.departMillis(); add(java.util.Calendar.MINUTE, plan.totalMin.roundToInt()) }
+                    val cal = java.util.Calendar.getInstance().apply { timeInMillis = p.departMillis(); add(java.util.Calendar.MINUTE, (plan.totalMin + p.farStay).roundToInt()) }
                     Text("Arrive " + TimeFmt.hm(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE)), style = Type.label, color = c.text2)
                 }
             }
@@ -429,9 +429,9 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         while (vi < vias.size) { ViaRow(p, vias[vi].first, vias[vi].third, s, onShow); vi++ }
         if (to != null) {
             // On a round trip: how long the drive back takes (from leaving the destination).
-            val back = if (p.planRound) p.planVias.lastOrNull()?.let { d -> p.minutesTo(d.lat, d.lon)?.let { plan.totalMin - it - p.planStays.lastOrNull().let { s0 -> s0 ?: 0 } } } else null
+            val back = if (p.planRound) p.planVias.lastOrNull()?.let { d -> p.minutesTo(d.lat, d.lon)?.let { plan.totalMin - it } } else null
             EndRow(c.accentInk, placeName(to), to.detail, if (plan.ok) "${plan.arrivePct.roundToInt()} %" else "—",
-                back?.let { L10n.tr("Back: {0}").replace("{0}", dur(it)) + " · " + L10n.tr("arrive {0}").replace("{0}", clockAt(p, plan.totalMin)) }) { onShow(to.lat, to.lon) }
+                back?.let { L10n.tr("Back: {0}").replace("{0}", dur(it)) + " · " + L10n.tr("arrive {0}").replace("{0}", clockAt(p, plan.totalMin + p.farStay)) }) { onShow(to.lat, to.lon) }
         }
 
         if (options) { ViaStays(p); BatteryOptions(p) }

@@ -83,6 +83,7 @@ object PlanApi {
         val rs = osrmRoutes(a, b, via).toMutableList()
         val r0 = rs[0]
         if (rs.size >= 3 || r0.totalKm < 15 || r0.size < 10) return rs
+        if (Geo.km(a.lat, a.lon, b.lat, b.lon) < 1.0) return rs   // a round trip: the detours would only be spurs at the far end
         val viaKm = via.map { r0.km[Geo.project(r0, it.lat, it.lon).first] }
         val found = kotlinx.coroutines.coroutineScope {
             detourPoints(r0).map { (la, lo, km) ->
