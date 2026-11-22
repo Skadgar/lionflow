@@ -209,7 +209,9 @@ class Planner(
                 val via = vias.filterNotNull().take(3)
                 val stay = vias.indices.filter { vias[it] != null }.take(3).map { stays.getOrElse(it) { 0 } }
                 val round = roundTrip && Geo.km(a.lat, a.lon, b.lat, b.lon) > 0.3
-                val rs = if (round) PlanApi.routes(a, a, via + b) else PlanApi.routes(a, b, via)
+                // A round trip with no stops on the way is the one-way route there and the same road back: half the work.
+                val rs = if (round && via.isEmpty()) PlanApi.routes(a, b, emptyList()).map { it.roundTrip() }
+                    else if (round) PlanApi.routes(a, a, via + b) else PlanApi.routes(a, b, via)
                 val r = rs[0]
                 altJob?.cancel(); alts = rs.map { AltRoute(it, null, null) }; altIndex = 0; ferryInfo = emptyList(); userPicked = false; autoPicked = false
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList()

@@ -271,8 +271,8 @@ private fun BatteryOptions(p: Planner) {
         }
         if (p.roundTrip) {
             val m = p.destStay
-            OptionRow(p.to?.let { "Stay at ${placeName(it)}" } ?: "Stay at the destination", "$m min",
-                { p.changeDestStay(m - if (m > 30) 15 else 5) }, { p.changeDestStay(m + if (m >= 30) 15 else 5) })
+            OptionRow(p.to?.let { "Stay at ${placeName(it)}" } ?: "Stay at the destination", stayText(m),
+                { p.changeDestStay(stayLess(m)) }, { p.changeDestStay(stayMore(m)) })
         }
         val dep = p.departAt?.takeIf { it > System.currentTimeMillis() }
         val leaveText = if (dep == null) L10n.tr("Now") else {
@@ -328,10 +328,15 @@ private fun ViaStays(p: Planner) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(vertical = 4.dp)) {
         for ((i, v) in rows) {
             val m = p.stays.getOrElse(i) { 0 }
-            OptionRow("Stay at ${placeName(v!!)}", "$m min", { p.setStay(i, m - if (m > 30) 15 else 5) }, { p.setStay(i, m + if (m >= 30) 15 else 5) })
+            OptionRow("Stay at ${placeName(v!!)}", stayText(m), { p.setStay(i, stayLess(m)) }, { p.setStay(i, stayMore(m)) })
         }
     }
 }
+
+/** Stay steps: 5 min up to 30, 10 min up to 1 h, then half hours (1 h 30 min, 2 h, 2 h 30 min …). */
+private fun stayMore(m: Int) = when { m < 30 -> (m / 5 + 1) * 5; m < 60 -> (m / 10 + 1) * 10; else -> (m / 30 + 1) * 30 }
+private fun stayLess(m: Int) = when { m <= 30 -> ((m - 1) / 5) * 5; m <= 60 -> ((m - 1) / 10) * 10; else -> ((m - 1) / 30) * 30 }.coerceAtLeast(0)
+private fun stayText(m: Int) = if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60} h" else "${m / 60} h ${m % 60} min"
 
 @Composable
 private fun OptionRow(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
