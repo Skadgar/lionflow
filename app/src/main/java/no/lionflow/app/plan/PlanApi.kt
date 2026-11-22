@@ -298,7 +298,13 @@ object PlanApi {
     }
 
     /** Fast chargers (with a CCS plug) near the route: ready-made map tiles first, the live search if those are not available. */
-    suspend fun chargers(r: RouteData, nobilKey: String = ""): List<RawCharger> {
+    suspend fun chargers(r: RouteData, nobilKey: String = "", zones: List<IntRange>? = null): List<RawCharger> {
+        // Only the stretches where a stop could be needed: each is looked up on its own, all at once.
+        if (zones != null) {
+            return kotlinx.coroutines.coroutineScope {
+                zones.map { z -> async { chargers(r.slice(z.first, z.last), nobilKey) } }.awaitAll().flatten().distinctBy { it.id }
+            }
+        }
         // Nordic routes with a NOBIL key: NOBIL is quick and says how many charge points are free right now.
         if (nobilKey.isNotBlank() && nordic(r)) {
             try {

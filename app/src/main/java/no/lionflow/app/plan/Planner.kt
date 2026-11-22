@@ -88,7 +88,7 @@ class Planner(
         private set
 
     /** One of the routes found: the road, and its plan once that is worked out (null until then). */
-    class AltRoute(val route: RouteData, val plan: Plan?, val raw: List<RawCharger>?)
+    class AltRoute(val route: RouteData, val plan: Plan?, val raw: List<RawCharger>?, val full: Boolean = true)
     var alts by mutableStateOf<List<AltRoute>>(emptyList())
         private set
     var altIndex by mutableStateOf(0)
@@ -122,6 +122,11 @@ class Planner(
     /** The charger lookup, started as soon as a long route is known so it runs while the first plan is worked out. */
     private var prefetch: kotlinx.coroutines.Deferred<Result<List<RawCharger>>>? = null
     private var prefetchFor: RouteData? = null
+    private var prefetchFull = true
+    /** True when the chargers loaded for this route cover all of it, false when only the stretches where a stop could be needed. */
+    private var corridorFull = true
+    private var condJob: kotlinx.coroutines.Deferred<Unit>? = null
+    private var condFor: RouteData? = null
     private var priceCountry = ""
     private val prices by lazy {
         Prices(try { app.assets.open("charge_prices.json").bufferedReader().use { it.readText() } } catch (_: Exception) { "{}" })
@@ -210,8 +215,15 @@ class Planner(
                 edits = emptyList(); excluded = emptySet(); chargers = emptyList(); corridorFor = null; corridorRaw = emptyList(); viaRawKey = ""; viaRaw = emptyList()
                 route = r; planFrom = a; planRound = round
                 if (round) { planTo = a; planVias = via + b; planStays = stay + destStay } else { planTo = b; planVias = via; planStays = stay }
-                prefetch?.cancel(); prefetch = null; prefetchFor = null
-                if (r.totalKm > 120) { prefetchFor = r; prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey()) } } }
+                prefetch?.cancel(); prefetch = null; prefetchFor = null; condJob?.cancel()
+                if (r.totalKm > 120) {
+                    val (o0, m0) = context()
+                    val zones = needZones(r, o0, m0)
+                    prefetchFor = r; prefetchFull = zones == null
+                    prefetch = scope.async(Dispatchers.IO) { runCatching { PlanApi.chargers(r, nobilKey(), zones) } }
+                }
+                // Hills and weather are fetched at the same time as the chargers, not one after the other.
+                condFor = r; condJob = scope.async { ensureConditions(r) }
                 priceCountry = if (a.country.isNotBlank() && a.country.equals(b.country, ignoreCase = true)) a.country else ""
                 remember(b); from?.let { remember(it) }; via.forEach { remember(it) }
                 compute()
@@ -307,6 +319,48 @@ class Planner(
         return implicit to prefer
     }
 
+    /**
+     * The stretches of [r] (point ranges) where a charging stop could be needed. Where the battery is surely above
+     * about half, no charger is looked up. Null = look at the whole route.
+     */
+    private fun needZones(r: RouteData, o: Options, m: Consumption.Model): List<IntRange>? {
+        val last = r.size - 1
+        if (last < 3 || o.targetPct <= 55) return null
+        val perPct = o.batteryKwh / 100.0
+        val hi = r.energy(m.factor * 1.3)   // uses more: the battery is down to half sooner
+        val lo = r.energy(m.factor * 0.8)   // uses less: the car gets furthest before it must stop
+        fun reach(e: DoubleArray, from: Int, soc: Double, limit: Double): Int {
+            var i = from
+            while (i < last && soc - (e[i] - e[from]) / perPct >= limit) i++
+            return i
+        }
+        val raw = ArrayList<IntRange>()
+        var a = 0; var b = 0; var sa = o.startPct; var sb = o.startPct
+        var n = 0
+        while (n++ < 12) {
+            val na = if (sa < 50.0) a else reach(hi, a, sa, 50.0)
+            if (na >= last) break
+            val nb = reach(lo, maxOf(b, na), sb, o.minPct + 2.0)
+            raw += na..nb
+            if (nb >= last) break
+            a = na; b = nb
+            sa = minOf(o.targetPct.toDouble(), 60.0); sb = o.targetPct.toDouble()
+        }
+        if (raw.isEmpty()) return emptyList()   // the battery stays high all the way
+        // Some room on each side, then join stretches that touch.
+        val padKm = 15.0
+        val padded = raw.map { z ->
+            var f = z.first; while (f > 0 && r.km[z.first] - r.km[f] < padKm) f--
+            var t = z.last; while (t < last && r.km[t] - r.km[z.last] < padKm) t++
+            f..t
+        }.sortedBy { it.first }
+        val out = ArrayList<IntRange>()
+        for (z in padded) {
+            if (out.isNotEmpty() && z.first <= out.last().last) out[out.size - 1] = out.last().first..maxOf(out.last().last, z.last) else out += z
+        }
+        return if (out.size == 1 && out[0].first <= 0 && out[0].last >= last) null else out
+    }
+
     /** Hills, wind and temperature along the route, for the hour of departure (looked up once per route and hour; a failed lookup is left out). */
     private suspend fun ensureConditions(r: RouteData) {
         val key = departMillis() / 3_600_000L
@@ -329,12 +383,14 @@ class Planner(
     private suspend fun compute() {
         val r = route ?: return
         val (o, m) = context()
+        if (condFor === r) condJob?.let { runCatching { it.await() } }
         var res = solveHere(r, o, m)
         var changed = false
         if (!res.first.ok && corridorFor !== r) {
             // The car can't make it in one go: look up the fast chargers along the way (once per route).
             busy = "Finding chargers along the route…"
-            corridorRaw = if (prefetchFor === r && prefetch != null) prefetch!!.await().getOrThrow() else PlanApi.chargers(r, nobilKey())
+            if (prefetchFor === r && prefetch != null) { corridorRaw = prefetch!!.await().getOrThrow(); corridorFull = prefetchFull }
+            else { val z = needZones(r, o, m); corridorRaw = PlanApi.chargers(r, nobilKey(), z); corridorFull = z == null }
             corridorFor = r; changed = true
         }
         // Chargers right by every stop on the way (best effort): fewer separate stops, and a place to charge during a stay.
@@ -349,8 +405,15 @@ class Planner(
             chargers = withContext(Dispatchers.Default) { place(corridorRaw + viaRaw, r) }
             res = solveHere(r, o, m)
         }
+        // Not enough with the chargers on the likely stretches: look at the whole route.
+        if (!res.first.ok && corridorFor === r && !corridorFull) {
+            busy = "Finding more chargers…"
+            corridorRaw = PlanApi.chargers(r, nobilKey()); corridorFull = true
+            chargers = withContext(Dispatchers.Default) { place(corridorRaw + viaRaw, r) }
+            res = solveHere(r, o, m)
+        }
         plan = res.first; ferryInfo = res.second
-        alts = alts.mapIndexed { i, a -> if (i == altIndex) AltRoute(a.route, res.first, if (corridorFor === r) corridorRaw else null) else a }
+        alts = alts.mapIndexed { i, a -> if (i == altIndex) AltRoute(a.route, res.first, if (corridorFor === r) corridorRaw else null, corridorFull) else a }
     }
 
     /** Works out the other routes in the background, so they can be compared with the chosen one. */
@@ -358,15 +421,28 @@ class Planner(
         altJob?.cancel()
         if (alts.size < 2) return
         altJob = scope.launch {
+            // The chargers for every route are asked for at once; the plans are worked out one by one.
+            val (o0, m0) = context()
+            val fetches = alts.mapIndexed { i, a ->
+                if (i == altIndex || a.plan != null || a.raw != null) null
+                else { val z = needZones(a.route, o0, m0); z to scope.async(Dispatchers.IO) { kotlinx.coroutines.withTimeoutOrNull(25_000L) { PlanApi.chargers(a.route, nobilKey(), z) } } }
+            }
             for (i in alts.indices) {
                 val a = alts[i]
                 if (i == altIndex || a.plan != null) continue
                 try {
                     val (o, m) = context()
-                    val raw = a.raw ?: kotlinx.coroutines.withTimeoutOrNull(25_000L) { PlanApi.chargers(a.route, nobilKey()) }
-                    val ch = withContext(Dispatchers.Default) { place(raw.orEmpty(), a.route) }
-                    val res = solve(a.route, o, m, ch, emptyList(), emptySet(), emptySet(), planVias, planStays)
-                    alts = alts.mapIndexed { k, x -> if (k == i) AltRoute(a.route, res.first, raw) else x }
+                    var full = a.raw == null || a.full
+                    var raw = a.raw ?: fetches[i]?.let { (z, d) -> full = z == null; d.await() }
+                    var ch = withContext(Dispatchers.Default) { place(raw.orEmpty(), a.route) }
+                    var res = solve(a.route, o, m, ch, emptyList(), emptySet(), emptySet(), planVias, planStays)
+                    if (!res.first.ok && !full) {
+                        raw = kotlinx.coroutines.withTimeoutOrNull(25_000L) { PlanApi.chargers(a.route, nobilKey()) }; full = true
+                        ch = withContext(Dispatchers.Default) { place(raw.orEmpty(), a.route) }
+                        res = solve(a.route, o, m, ch, emptyList(), emptySet(), emptySet(), planVias, planStays)
+                    }
+                    val fRaw = raw; val fFull = full
+                    alts = alts.mapIndexed { k, x -> if (k == i) AltRoute(a.route, res.first, fRaw, fFull) else x }
                 } catch (e: CancellationException) { throw e } catch (e: Exception) { }
             }
             pickFewestStops()
@@ -374,7 +450,7 @@ class Planner(
     }
 
     /** The other routes' plans are out of date after a change to the numbers. */
-    private fun staleAlts() { alts = alts.mapIndexed { i, a -> if (i == altIndex) a else AltRoute(a.route, null, a.raw) } }
+    private fun staleAlts() { alts = alts.mapIndexed { i, a -> if (i == altIndex) a else AltRoute(a.route, null, a.raw, a.full) } }
 
     /** Right after planning, moves to the route that needs the fewest charging stops (then the quickest). */
     private fun pickFewestStops() {
@@ -409,7 +485,7 @@ class Planner(
         val a = alts[i]
         planJob?.cancel(); altJob?.cancel()
         altIndex = i; route = a.route; edits = emptyList(); excluded = emptySet()
-        corridorRaw = a.raw ?: emptyList(); corridorFor = if (a.raw != null) a.route else null
+        corridorRaw = a.raw ?: emptyList(); corridorFor = if (a.raw != null) a.route else null; corridorFull = a.full
         viaRawKey = ""; viaRaw = emptyList(); ferryInfo = emptyList()
         prefetch?.cancel(); prefetch = null; prefetchFor = null
         chargers = place(corridorRaw, a.route)

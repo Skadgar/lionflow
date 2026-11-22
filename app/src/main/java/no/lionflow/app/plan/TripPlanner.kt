@@ -26,6 +26,12 @@ class RouteData(
     val totalKm: Double get() = if (size == 0) 0.0 else km[size - 1]
     val totalMin: Double get() = if (size == 0) 0.0 else min[size - 1]
 
+    /** The part of the route from point [from] to point [to] (inclusive), as a route of its own. */
+    fun slice(from: Int, to: Int) = RouteData(
+        lat.copyOfRange(from, to + 1), lon.copyOfRange(from, to + 1), km.copyOfRange(from, to + 1),
+        min.copyOfRange(from, to + 1), speed.copyOfRange(from, to + 1),
+    )
+
     /** Energy used up to each point (kWh) for a car with this consumption factor. */
     fun energy(factor: Double): DoubleArray {
         val e = DoubleArray(size)
