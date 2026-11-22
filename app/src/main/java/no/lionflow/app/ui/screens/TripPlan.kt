@@ -333,9 +333,9 @@ private fun ViaStays(p: Planner) {
     }
 }
 
-/** Stay steps: 5 min up to 30, 10 min up to 50, then 1 h 30 min and half hours (2 h, 2 h 30 min …). */
-private fun stayMore(m: Int) = when { m < 30 -> (m / 5 + 1) * 5; m < 50 -> (m / 10 + 1) * 10; m < 90 -> 90; else -> (m / 30 + 1) * 30 }
-private fun stayLess(m: Int) = when { m <= 30 -> ((m - 1) / 5) * 5; m <= 50 -> ((m - 1) / 10) * 10; m <= 90 -> 50; else -> ((m - 1) / 30) * 30 }.coerceAtLeast(0)
+/** Stay steps: 5 min up to 30, 10 min up to 1 h, then 1 h 30 min and half hours (2 h, 2 h 30 min …). */
+private fun stayMore(m: Int) = when { m < 30 -> (m / 5 + 1) * 5; m < 60 -> (m / 10 + 1) * 10; m < 90 -> 90; else -> (m / 30 + 1) * 30 }
+private fun stayLess(m: Int) = when { m <= 30 -> ((m - 1) / 5) * 5; m <= 60 -> ((m - 1) / 10) * 10; m <= 90 -> 60; else -> ((m - 1) / 30) * 30 }.coerceAtLeast(0)
 private fun stayText(m: Int) = if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60}h" else "${m / 60}h ${m % 60}m"
 
 @Composable
