@@ -161,7 +161,9 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
                 val st = CarHub.status.value
                 val live = SavedRoutes.live(carContext, r, st?.lat, st?.lon, st?.batteryPct)
                 val n = live.nextStop
-                if (n != null) openInGoogleMaps(carContext, n.lat, n.lon, n.name) else openInGoogleMaps(carContext, r.lat.last(), r.lon.last(), r.name)
+                val here = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+                if (n != null) openInGoogleMaps(carContext, n.lat, n.lon, n.name, stillHere = here)
+                else openInGoogleMaps(carContext, r.lat.last(), r.lon.last(), r.name, stillHere = here)
             }.build())
             strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener {
                 SavedRoutes.resetProgress(carContext, id); CarHub.refresh(carContext, force = true); CarHub.say("Updating…")
