@@ -30,6 +30,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,6 +48,8 @@ import no.lionflow.app.ui.components.GroupCard
 import no.lionflow.app.ui.components.SectionTitle
 import no.lionflow.app.ui.components.ToggleRow
 import no.lionflow.app.ui.l10n.Text
+import no.lionflow.app.ui.components.LfIcon
+import no.lionflow.app.ui.components.LfIcons
 import no.lionflow.app.ui.theme.LocalLf
 import no.lionflow.app.ui.theme.Type
 
@@ -128,7 +137,7 @@ fun RouteTrackingSettings(vm: AppViewModel, s: AppSettings) {
         }
     }
 
-    if (pick) BluetoothPicker(onDismiss = { pick = false }) { addr, name ->
+    if (pick) BluetoothPicker(s.routeBtAddr, onDismiss = { pick = false }) { addr, name ->
         set { it.copy(routeBtAddr = addr, routeBtName = name) }
         pick = false
     }
@@ -136,7 +145,7 @@ fun RouteTrackingSettings(vm: AppViewModel, s: AppSettings) {
 
 @SuppressLint("MissingPermission")
 @Composable
-private fun BluetoothPicker(onDismiss: () -> Unit, onPick: (String, String) -> Unit) {
+private fun BluetoothPicker(selected: String?, onDismiss: () -> Unit, onPick: (String, String) -> Unit) {
     val ctx = LocalContext.current
     val devices = remember {
         try {
@@ -144,37 +153,124 @@ private fun BluetoothPicker(onDismiss: () -> Unit, onPick: (String, String) -> U
                 .map { it.address to (it.name ?: it.address) }.sortedBy { it.second.lowercase() }
         } catch (_: Exception) { emptyList() }
     }
-    BluetoothDeviceDialog(devices, onDismiss, onPick)
+    BluetoothDeviceDialog(devices, onDismiss, selected, onPick)
 }
 
+/** Names that are most likely the car's own Bluetooth. */
+private val carWords = listOf("peugeot", "citro", "ds ", "ds7", "ds4", "ds3", "opel", "vauxhall", "my car", "car", "stellantis", "uconnect", "connect", "e-5008", "5008", "3008", "2008", "208", "308", "408", "corsa", "astra", "mokka", "grandland", "c4", "c5")
+
+private fun looksLikeCar(name: String) = name.lowercase().let { n -> carWords.any { n.contains(it) } }
+
+/**
+ * Pick the car among the phone's paired Bluetooth devices. Devices that look like a car come first; with many
+ * devices there is a search field, and the list shows clearly that it scrolls (fades at the edges, a scroll bar,
+ * and "scroll for more").
+ */
 @Composable
 internal fun BluetoothDeviceDialog(
     devices: List<Pair<String, String>>,
     onDismiss: () -> Unit,
+    selected: String? = null,
     onPick: (String, String) -> Unit,
 ) {
     val c = LocalLf.current
+    var query by remember { mutableStateOf("") }
+    val shown = remember(devices, query) {
+        val q = query.trim().lowercase()
+        devices.filter { q.isEmpty() || it.second.lowercase().contains(q) }
+    }
+    val cars = shown.filter { looksLikeCar(it.second) }
+    val others = shown.filter { !looksLikeCar(it.second) }
+    val state = androidx.compose.foundation.lazy.rememberLazyListState()
+    val canUp by remember { androidx.compose.runtime.derivedStateOf { state.canScrollBackward } }
+    val canDown by remember { androidx.compose.runtime.derivedStateOf { state.canScrollForward } }
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Choose your car") },
+        onDismissRequest = onDismiss, containerColor = c.card,
+        title = {
+            Column {
+                Text("Choose your car", color = c.text)
+                Text("The car's Bluetooth name, often the brand or \"My Peugeot\".", style = Type.small, color = c.muted)
+            }
+        },
         text = {
             if (devices.isEmpty()) {
                 Text("No paired Bluetooth devices. Pair your phone with the car first.", style = Type.small, color = c.muted)
-            } else {
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
-                    items(devices, key = { it.first }) { (address, name) ->
-                        Text(
-                            name,
-                            style = Type.body,
-                            color = c.text,
-                            modifier = Modifier.fillMaxWidth()
-                                .clickable { onPick(address, name) }
-                                .padding(vertical = 12.dp),
-                        )
+            } else Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                if (devices.size > 6) androidx.compose.material3.OutlinedTextField(
+                    query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search ${devices.size} devices", color = c.muted) },
+                    leadingIcon = { LfIcon(LfIcons.Search, c.muted, 18.dp) },
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = c.text, unfocusedTextColor = c.text, focusedBorderColor = c.accentInk, unfocusedBorderColor = c.line2, cursorColor = c.accentInk),
+                )
+                Box(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                    LazyColumn(
+                        state = state,
+                        modifier = Modifier.fillMaxWidth()
+                            .drawWithContent {
+                                drawContent()
+                                // Scroll bar on the right, so it is clear the list goes on.
+                                val info = state.layoutInfo
+                                val total = info.totalItemsCount
+                                val visible = info.visibleItemsInfo.size
+                                if (total > visible && visible > 0) {
+                                    val frac = visible.toFloat() / total
+                                    val barH = (size.height * frac).coerceAtLeast(28.dp.toPx())
+                                    val first = state.firstVisibleItemIndex.toFloat() / (total - visible).coerceAtLeast(1)
+                                    val top = (size.height - barH) * first.coerceIn(0f, 1f)
+                                    drawRoundRect(c.line2, androidx.compose.ui.geometry.Offset(size.width - 4.dp.toPx(), 0f),
+                                        androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+                                    drawRoundRect(c.accentInk, androidx.compose.ui.geometry.Offset(size.width - 4.dp.toPx(), top),
+                                        androidx.compose.ui.geometry.Size(3.dp.toPx(), barH), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+                                }
+                            },
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (cars.isNotEmpty()) {
+                            item(key = "h-car") { BtHeader("Looks like a car") }
+                            items(cars, key = { "c" + it.first }) { (address, name) -> BtRow(name, address, true, address == selected) { onPick(address, name) } }
+                        }
+                        if (others.isNotEmpty()) {
+                            if (cars.isNotEmpty()) item(key = "h-other") { BtHeader("Other devices") }
+                            items(others, key = { "o" + it.first }) { (address, name) -> BtRow(name, address, false, address == selected) { onPick(address, name) } }
+                        }
+                        if (shown.isEmpty()) item(key = "none") { Text("No device matches.", style = Type.small, color = c.muted, modifier = Modifier.padding(8.dp)) }
                     }
+                    // Fades at the edges where there is more to scroll.
+                    if (canUp) Box(Modifier.fillMaxWidth().height(22.dp).align(Alignment.TopCenter)
+                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(c.card, c.card.copy(alpha = 0f)))))
+                    if (canDown) Box(Modifier.fillMaxWidth().height(34.dp).align(Alignment.BottomCenter)
+                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(c.card.copy(alpha = 0f), c.card))))
                 }
+                if (canDown) Text("Scroll for more ↓", style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                    modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.muted) } },
     )
+}
+
+@Composable
+private fun BtHeader(t: String) {
+    val c = LocalLf.current
+    Text(t, style = Type.tiny.copy(fontWeight = FontWeight.SemiBold), color = c.muted, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 2.dp))
+}
+
+@Composable
+private fun BtRow(name: String, address: String, car: Boolean, sel: Boolean, onClick: () -> Unit) {
+    val c = LocalLf.current
+    Row(
+        Modifier.fillMaxWidth().padding(end = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(if (sel) c.accent.copy(alpha = 0.16f) else c.raised).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (car) c.accent.copy(alpha = 0.18f) else c.card),
+            contentAlignment = Alignment.Center) { LfIcon(if (car) LfIcons.Car else LfIcons.Bluetooth, if (car) c.accentInk else c.muted, 18.dp) }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            androidx.compose.material3.Text(name, style = Type.body, color = c.text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            androidx.compose.material3.Text("…" + address.takeLast(5), style = Type.tiny, color = c.muted)
+        }
+        if (sel) LfIcon(LfIcons.Check, c.accentInk, 18.dp)
+    }
 }

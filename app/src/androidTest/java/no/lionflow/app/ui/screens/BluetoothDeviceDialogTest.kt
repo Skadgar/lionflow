@@ -2,6 +2,7 @@ package no.lionflow.app.ui.screens
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -14,25 +15,22 @@ import org.junit.Test
 class BluetoothDeviceDialogTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun scrollsToLastDeviceAndSelectsItsAddress() {
+    @Test fun carsFirstAndScrollsToLastDevice() {
         val devices = List(39) { index -> "02:00:00:00:00:${index.toString(16).padStart(2, '0')}" to "Device $index" }
         val car = "02:00:00:00:00:ff" to "PEUGEOT"
         val duplicateName = "02:00:00:00:00:fe" to car.second
         var picked: Pair<String, String>? = null
         compose.setContent {
             LionFlowTheme("light") {
-                BluetoothDeviceDialog(devices + duplicateName + car, onDismiss = {}) { address, name ->
-                    picked = address to name
-                }
+                BluetoothDeviceDialog(devices + duplicateName + car, onDismiss = {}) { address, name -> picked = address to name }
             }
         }
-
-        compose.onNodeWithText("Device 0").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsDisplayed()
-        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(devices.size + 1)
-        compose.onNodeWithText("Cancel").assertIsDisplayed()
-        // The preceding row has the same name. The last row must return its own address.
-        compose.onAllNodes(androidx.compose.ui.test.hasText(car.second))[1].assertIsDisplayed().performClick()
+        // Devices that look like a car come first; two with the same name each return their own address.
+        compose.onAllNodes(hasText(car.second))[1].assertIsDisplayed().performClick()
         compose.runOnIdle { assertEquals(car, picked) }
+        // The list scrolls to the last other device, and Cancel stays visible.
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(devices.size + 3)
+        compose.onNodeWithText("Device 38").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
     }
 }

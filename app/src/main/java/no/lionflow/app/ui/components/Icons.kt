@@ -41,6 +41,7 @@ object LfIcons {
 
     val Home = stroke("home", "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z")
     val Bolt = stroke("bolt", "M13 2L4 14h7l-1 8 9-12h-7z")
+    val Bluetooth = stroke("bt", "M7 7l10 10-5 5V2l5 5L7 17")
     val Mail = stroke("mail", "M4 6h16v12H4zM4 7l8 6 8-6")
     val BoltFilled = filled("boltf", "M13 2L4 14h7l-1 8 9-12h-7z")
     val Map = stroke("map", "M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14M15 6v14")
