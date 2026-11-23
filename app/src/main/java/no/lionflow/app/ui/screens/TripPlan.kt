@@ -445,6 +445,13 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
                     if (stops.isNotEmpty()) "&waypoints=$stops" else "",
             )
         }
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        if (plan.ok && remember { no.lionflow.app.plan.SavedRoutes.fromPlay(ctx) }) {
+            var saved by remember(plan) { mutableStateOf(false) }
+            no.lionflow.app.ui.components.SecondaryButton(if (saved) "Saved to Android Auto" else "Save to Android Auto", Modifier.fillMaxWidth()) {
+                if (!saved && p.saveForCar()) saved = true
+            }
+        }
         if (p.changed) Text("Undo my changes to the stops", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk, modifier = Modifier.clickable { p.resetStops() })
 
         Text(

@@ -916,3 +916,21 @@ not plugged in	pas branchée	nicht angesteckt	no enchufado	ikke koblet til lader
 forecast {0}	prévision {0}	Vorhersage {0}	previsión {0}	varslet {0}
 Skipped last time	Ignoré la dernière fois	Letztes Mal übersprungen	Omitida la última vez	Hoppet over sist
 Checked again about an hour before the next one	Vérifié à nouveau environ une heure avant le prochain	Wird etwa eine Stunde vor dem nächsten erneut geprüft	Se vuelve a comprobar una hora antes de la siguiente	Sjekkes på nytt omtrent en time før neste
+Save to Android Auto	Enregistrer pour Android Auto	Für Android Auto speichern	Guardar para Android Auto	Lagre til Android Auto
+Saved to Android Auto	Enregistré pour Android Auto	Für Android Auto gespeichert	Guardado para Android Auto	Lagret til Android Auto
+Saved routes	Itinéraires enregistrés	Gespeicherte Routen	Rutas guardadas	Lagrede ruter
+Plan a trip on your phone and tap Save to Android Auto.	Planifiez un trajet sur votre téléphone et touchez Enregistrer pour Android Auto.	Plane eine Fahrt auf dem Handy und tippe auf Für Android Auto speichern.	Planifica un viaje en el teléfono y toca Guardar para Android Auto.	Planlegg en tur på telefonen og trykk Lagre til Android Auto.
+This route was deleted.	Cet itinéraire a été supprimé.	Diese Route wurde gelöscht.	Esta ruta se eliminó.	Denne ruten ble slettet.
+{0} left	{0} restants	noch {0}	quedan {0}	{0} igjen
+The car is {0} from the route	La voiture est à {0} de l'itinéraire	Das Auto ist {0} von der Route entfernt	El coche está a {0} de la ruta	Bilen er {0} fra ruten
+No charging stops left	Plus d'arrêt de recharge	Keine Ladestopps mehr	No quedan paradas de carga	Ingen ladestopp igjen
+1 charging stop left	1 arrêt de recharge restant	Noch 1 Ladestopp	Queda 1 parada de carga	1 ladestopp igjen
+{0} charging stops left	{0} arrêts de recharge restants	Noch {0} Ladestopps	Quedan {0} paradas de carga	{0} ladestopp igjen
+Next stop: {0}	Prochain arrêt : {0}	Nächster Stopp: {0}	Próxima parada: {0}	Neste stopp: {0}
+About {0} % at the next stop	Environ {0} % au prochain arrêt	Etwa {0} % am nächsten Stopp	Unos {0} % en la próxima parada	Ca. {0} % ved neste stopp
+About {0} % at the end	Environ {0} % à l'arrivée	Etwa {0} % am Ziel	Unos {0} % al final	Ca. {0} % ved målet
+From the battery now: {0} %	D'après la batterie actuelle : {0} %	Ausgehend vom Akku jetzt: {0} %	Según la batería actual: {0} %	Ut fra batteriet nå: {0} %
+no charging stops	aucun arrêt de recharge	keine Ladestopps	sin paradas de carga	ingen ladestopp
+1 charging stop	1 arrêt de recharge	1 Ladestopp	1 parada de carga	1 ladestopp
+{0} charging stops	{0} arrêts de recharge	{0} Ladestopps	{0} paradas de carga	{0} ladestopp
+{0} routes	{0} itinéraires	{0} Routen	{0} rutas	{0} ruter

@@ -453,6 +453,17 @@ class Planner(
         }
     }
 
+    /** Saves the plan that is showing so Android Auto can follow it. False when there is nothing to save. */
+    fun saveForCar(): Boolean {
+        val r = route ?: return false; val p = plan ?: return false
+        if (!p.ok) return false
+        val dest = if (planRound) planVias.lastOrNull() else planTo
+        fun nm(pl: Place?) = pl?.let { if (it.detail.isEmpty() && (it.name == "Car's position" || it.name == "My position")) no.lionflow.app.ui.l10n.L10n.tr(it.name) else it.name } ?: ""
+        val name = if (planRound) nm(dest) + " ⇄" else nm(planFrom) + " → " + nm(dest)
+        SavedRoutes.add(app, SavedRoutes.build(name, r, r.energy(model.factor), p, batteryKwh()))
+        return true
+    }
+
     /** Minutes spent at the far end of a round trip (not part of the trip's total time). */
     val farStay: Int get() = if (planRound) planStays.lastOrNull() ?: 0 else 0
 
