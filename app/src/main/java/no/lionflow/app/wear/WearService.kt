@@ -100,16 +100,7 @@ class WearService : WearableListenerService() {
         val cal = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
         val todayStart = cal.timeInMillis
         val yStart = todayStart - 86_400_000L
-        val since = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date(yStart))
-        val trips = mutableListOf<Trip>()
-        var page: String? = null
-        var guard = 0
-        do {
-            val j = app.api.trips(v, since, page)
-            j.optJSONObject("_embedded")?.optJSONArray("trips")?.objects()?.forEach { trips += Trip.parse(it) }
-            page = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
-            guard++
-        } while (page != null && guard < 50)
+        val trips = app.api.allTrips(v, yStart).trips.map { Trip.parse(it) }
         val uniq = trips.distinctBy { it.id }
         val today = uniq.filter { (it.startMillis ?: 0L) >= todayStart }.sumOf { it.distanceKm }
         val yesterday = uniq.filter { (it.startMillis ?: 0L) in yStart until todayStart }.sumOf { it.distanceKm }

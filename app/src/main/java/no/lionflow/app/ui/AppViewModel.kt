@@ -11,6 +11,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -101,6 +103,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** False when Peugeot has no remote-services link for this car — then don't offer setup at all. */
     val remotePossible: Boolean get() = api.customerId != null || remote.isSetUp || isDemo
     fun commandLog(): String = energyLog() + remote.log.joinToString("\n").ifEmpty { "No commands sent since the app was opened." }
+
+    /**
+     * Technical details for a bug report: app, phone, car model and the latest car data and errors. No position,
+     * names, e-mail, VIN or account ids: those are left out or blanked.
+     */
+    fun techDetails(): String {
+        val app = getApplication<Application>()
+        val st = _ui.value.status
+        val v = _ui.value.vehicle
+        val s = settings.value
+        val play = no.lionflow.app.plan.SavedRoutes.fromPlay(app)
+        val sb = StringBuilder()
+        sb.append("LionFlow ${no.lionflow.app.BuildConfig.VERSION_NAME} (${if (play) "Google Play" else "GitHub"})\n")
+        sb.append("Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT}) · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n")
+        sb.append("Language ${no.lionflow.app.ui.l10n.L10n.lang} · ${java.util.TimeZone.getDefault().id}\n")
+        if (v != null) sb.append("Car: ${v.brand} · ${v.motorization} · model code ${v.vin.take(8)}\n")
+        if (st != null) {
+            sb.append("Energy ${st.energyType} · battery ${st.batteryPct?.toInt()} % · capacity ${st.capacityKwh} kWh · residual ${st.residualKwh}\n")
+            sb.append("Charging ${st.chargingStatus} · ${st.chargeType} · plugged ${st.plugged} · preheat ${st.preconditioningOn} · ignition ${st.ignition}\n")
+            sb.append("Car reported ${st.updatedAtMillis?.let { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(it)) }}\n")
+        }
+        sb.append("Remote control set up: $remoteReady\n")
+        sb.append("Charge limit ${if (s.chargeLimitOn) "${s.chargeLimitPct} %" else "off"} · smart schedule ${s.smartMode.ifEmpty { "off" }} · route tracking ${s.routeTracking}\n")
+        sb.append("Trips: ${_ui.value.trips.size} shown, server none-found ${tripsNone}, logged from the car ${no.lionflow.app.model.CarTrips.list().size}\n\n")
+        sb.append(commandLog())
+        return scrub(sb.toString())
+    }
+
+    /** Blanks anything that could point to a person or place: coordinates, VINs, e-mails, ids and tokens. */
+    private fun scrub(t: String): String = t
+        .replace(Regex("[\\w.+-]+@[\\w-]+\\.[\\w.]+"), "[e-mail]")
+        .replace(Regex("\\b[A-HJ-NPR-Z0-9]{17}\\b"), "[VIN]")
+        .replace(Regex("-?\\b\\d{1,3}\\.\\d{4,}\\b"), "[pos]")
+        .replace(Regex("(?i)bearer\\s+\\S+"), "Bearer [token]")
+        .replace(Regex("\\b[A-Za-z0-9_-]{24,}\\b"), "[id]")
 
     /** What the car reports about battery and fuel, word for word: for finding out why a level shows wrong. */
     private fun energyLog(): String {
@@ -293,6 +330,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun clearMessage() = _ui.update { it.copy(message = null) }
     private fun toast(m: String) = _ui.update { it.copy(message = m) }
+    fun toastText(m: String) = toast(m)
 
     // ---------------- sign in ----------------
 
@@ -949,23 +987,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _ui.update { it.copy(tripsLoading = true) }
             try {
-                val since = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", no.lionflow.app.ui.l10n.L10n.locale)
-                    .apply { timeZone = TimeZone.getTimeZone("UTC") }
-                    .format(Date(System.currentTimeMillis() - days * 86_400_000L))
-                val all = mutableListOf<Trip>()
-                var page: String? = null
-                var guard = 0
-                do {
-                    // "404 / 40400 No trip was found" just means the car has no trips in this period (some cars say so on every call).
-                    val j = try { api.trips(v, since, page) } catch (e: no.lionflow.app.api.ApiException) {
-                        if (e.code == 404) { if (guard == 0) tripsNone = true; remote.addLog("trips: ${e.message}"); break } else throw e
-                    }
-                    if (guard == 0) tripsNone = false
-                    j.optJSONObject("_embedded")?.optJSONArray("trips")?.objects()?.forEach { all += Trip.parse(it) }
-                    val next = j.optJSONObject("_links")?.optJSONObject("next")?.optString("href")
-                    page = next?.substringAfter("pageToken=", "")?.substringBefore("&")?.ifEmpty { null }
-                    guard++
-                } while (page != null && guard < 50)
+                val res = api.allTrips(v, System.currentTimeMillis() - days * 86_400_000L)
+                val all = res.trips.map { Trip.parse(it) }
+                tripsNone = res.noneFound
+                if (tripsNone) remote.addLog("trips: the server says no trips were found")
+                val newest = all.maxOfOrNull { it.startMillis ?: 0L } ?: 0L
+                if (newest > 0) remote.addLog("trips: newest from Peugeot " + SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(newest)))
                 remote.addLog("trips: ${all.size} from the last $days days")
                 val imported = loadImportedTrips()
                 val merged = withCarTrips((all + imported).distinctBy { it.id }).sortedByDescending { it.startMillis ?: 0L }

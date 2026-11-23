@@ -65,6 +65,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
     var pickLanguage by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
     var showLog by remember { mutableStateOf(false) }
+    var showFeedback by remember { mutableStateOf(false) }
     var showChanges by remember { mutableStateOf(false) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -199,7 +200,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
         SectionTitle("App updates")
         GroupCard {
-            LinkRow("What's new", "Everything added and fixed, version by version", LfIcons.Bolt, last = true) { vm.loadReleases(); showChanges = true }
+            LinkRow("What's new", "Everything added and fixed, version by version", LfIcons.Bolt) { vm.loadReleases(); showChanges = true }
+            LinkRow("Send feedback", "Ideas, problems or bugs, straight to the developer", LfIcons.Mail, last = true) { showFeedback = true }
         }
         if (showChanges) androidx.compose.material3.AlertDialog(
             onDismissRequest = { showChanges = false }, containerColor = c.card,
@@ -330,6 +332,7 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
             dismissButton = { TextButton(onClick = { editBattery = false }) { Text("Cancel", color = c.muted) } },
         )
     }
+    if (showFeedback) FeedbackDialog(vm, fieldColors) { showFeedback = false }
     if (showLog) {
         val text = vm.commandLog()
         val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -420,4 +423,60 @@ fun ChangeList(list: List<no.lionflow.app.update.Release>, modifier: Modifier = 
             }
         }
     }
+}
+
+/** Feedback to the developer by e-mail, optionally with technical details (no position, names or VIN). */
+@Composable
+private fun FeedbackDialog(vm: AppViewModel, fieldColors: androidx.compose.material3.TextFieldColors, onClose: () -> Unit) {
+    val c = LocalLf.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var msg by remember { mutableStateOf("") }
+    var details by remember { mutableStateOf(true) }
+    var showDetails by remember { mutableStateOf(false) }
+    val tech = remember { vm.techDetails() }
+    AlertDialog(
+        onDismissRequest = onClose, containerColor = c.card,
+        title = { Text("Send feedback", color = c.text) },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Write anything: an idea, something that doesn't work, or what happened just before a problem.", style = Type.small, color = c.muted)
+                OutlinedTextField(msg, { msg = it.take(5000) }, colors = fieldColors, minLines = 5, modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Your message", color = c.muted) })
+                Row(Modifier.fillMaxWidth().clickable(role = Role.Checkbox) { details = !details }, verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Checkbox(details, { details = it }, colors = androidx.compose.material3.CheckboxDefaults.colors(
+                        checkedColor = c.accent, checkmarkColor = c.onAccent, uncheckedColor = c.muted))
+                    Column(Modifier.weight(1f)) {
+                        Text("Include technical details", style = Type.label, color = c.text)
+                        Text("App and Android version, phone and car model, the car's latest battery data and the command & error log. No position, names, e-mail or VIN. The more I get, the easier it is to help.", style = Type.tiny, color = c.muted)
+                    }
+                }
+                if (details) Text(if (showDetails) "Hide what is sent" else "Show what is sent", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                    modifier = Modifier.clickable(role = Role.Button) { showDetails = !showDetails }.padding(vertical = 4.dp))
+                if (details && showDetails) Text(tech, style = Type.tiny.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 10.sp, lineHeight = 13.sp), color = c.text2)
+                Text("Opens your e-mail app with everything filled in. Tap send there.", style = Type.tiny, color = c.muted)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = msg.isNotBlank(), onClick = {
+                val body = msg.trim() + if (details) "\n\n---- Technical details ----\n$tech" else ""
+                val subject = "LionFlow feedback (${no.lionflow.app.BuildConfig.VERSION_NAME})"
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf("antpqth@gmail.com"))
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+                    putExtra(android.content.Intent.EXTRA_TEXT, body)
+                    selector = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+                }
+                try { ctx.startActivity(android.content.Intent.createChooser(send, no.lionflow.app.ui.l10n.L10n.tr("Send feedback"))); onClose() }
+                catch (_: Exception) {
+                    try {
+                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO,
+                            android.net.Uri.parse("mailto:antpqth@gmail.com?subject=" + android.net.Uri.encode(subject) + "&body=" + android.net.Uri.encode(body))))
+                        onClose()
+                    } catch (_: Exception) { vm.toastText("No e-mail app found") }
+                }
+            }) { Text("Send", color = if (msg.isNotBlank()) c.accentInk else c.muted) }
+        },
+        dismissButton = { TextButton(onClick = onClose) { Text("Cancel", color = c.muted) } },
+    )
 }
