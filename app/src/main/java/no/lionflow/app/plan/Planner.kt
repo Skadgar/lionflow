@@ -464,8 +464,11 @@ class Planner(
     private fun pj(p: Place) = JSONObject().put("n", p.name).put("d", p.detail).put("la", p.lat).put("lo", p.lon).put("c", p.country)
     private fun pf(o: JSONObject) = Place(o.optString("n"), o.optString("d"), o.getDouble("la"), o.getDouble("lo"), o.optString("c"))
 
-    /** Saves the plan that is showing. False when there is nothing to save. */
-    fun saveTrip(): Boolean {
+    /**
+     * Saves the plan that is showing. With [asPlanned] the whole plan is kept and opens exactly as it is now;
+     * otherwise only the places, and it is planned again from the car's position and charge when opened.
+     */
+    fun saveTrip(asPlanned: Boolean = true): Boolean {
         val r = route ?: return false; val p = plan ?: return false
         if (!p.ok) return false
         val dest = if (planRound) planVias.lastOrNull() else planTo
@@ -477,7 +480,7 @@ class Planner(
         from?.let { setup.put("from", pj(it)) }
         dest?.let { setup.put("to", pj(it)) }
         // The plan in full, so it opens exactly as it is now, without asking any server.
-        setup.put("full", JSONObject()
+        if (asPlanned) setup.put("full", JSONObject()
             .put("route", PlanStore.route(r)).put("plan", PlanStore.plan(p))
             .put("planFrom", planFrom?.let { pj(it) }).put("planTo", planTo?.let { pj(it) })
             .put("planVias", JSONArray().apply { planVias.forEach { put(pj(it)) } })
@@ -499,8 +502,9 @@ class Planner(
         val su = t.setup ?: return
         val full = su.optJSONObject("full")
         val dest = su.optJSONObject("to") ?: return
-        if (full == null) {   // saved by an older version: plan it again
+        if (full == null) {   // saved to be planned again: from where the car is now (unless another start was chosen), with its charge now
             from = su.optJSONObject("from")?.let { pf(it) }; to = pf(dest)
+            startPct = null; departAt = null; savedDepart = null
             val vs = su.optJSONArray("vias"); val ss = su.optJSONArray("stays")
             vias = if (vs == null) emptyList() else (0 until vs.length()).map { pf(vs.getJSONObject(it)) }
             stays = vias.indices.map { ss?.optInt(it) ?: 0 }

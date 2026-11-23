@@ -250,6 +250,15 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
     }
 }
 
+@Composable
+private fun SaveChoice(title: String, text: String, onClick: () -> Unit) {
+    val c = LocalLf.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.raised).clickable(role = Role.Button, onClick = onClick).padding(14.dp)) {
+        Text(title, style = Type.body.copy(fontWeight = FontWeight.SemiBold), color = c.text)
+        Text(text, style = Type.small, color = c.muted)
+    }
+}
+
 /** Trips saved earlier: tap one to plan it again, the cross deletes it. */
 @Composable
 private fun SavedTrips(p: Planner, s: AppSettings) {
@@ -363,6 +372,10 @@ private fun BatteryOptions(p: Planner) {
         }
         if (pickTime) DepartPicker(p.departAt?.takeIf { it > System.currentTimeMillis() }, { p.setDepart(it); pickTime = false }, { pickTime = false })
         OptionRow(if (p.startPct == null) "Start with (car now)" else "Start with", "$start %", { p.setStart(((start - 1) / 5) * 5) }, { p.setStart((start / 5 + 1) * 5) })
+        if (p.startPct != null) Text(
+            "Use the car's battery % now", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+            modifier = Modifier.clickable(role = Role.Button) { p.setStart(null) }.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+        )
         OptionRow("Never below", "${p.minPct} %", { p.setMin(p.minPct - 5) }, { p.setMin(p.minPct + 5) })
         OptionRow("Charge to", "${p.targetPct} %", { p.setTarget(p.targetPct - 5) }, { p.setTarget(p.targetPct + 5) })
     }
@@ -518,9 +531,20 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
         }
         if (plan.ok) {
             var saved by remember(plan) { mutableStateOf(false) }
-            no.lionflow.app.ui.components.SecondaryButton(if (saved) "Trip saved" else "Save trip", Modifier.fillMaxWidth()) {
-                if (!saved && p.saveTrip()) saved = true
-            }
+            var ask by remember { mutableStateOf(false) }
+            no.lionflow.app.ui.components.SecondaryButton(if (saved) "Trip saved" else "Save trip", Modifier.fillMaxWidth()) { if (!saved) ask = true }
+            if (ask) androidx.compose.material3.AlertDialog(
+                onDismissRequest = { ask = false }, containerColor = c.card,
+                title = { Text("Save trip", color = c.text) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SaveChoice("Exactly as planned now", "Opens at once with this route, these stops, times and battery %.") { ask = false; if (p.saveTrip(true)) saved = true }
+                        SaveChoice("Plan again when opened", "Keeps the places. Opening it plans again from the car's position and battery % at that time.") { ask = false; if (p.saveTrip(false)) saved = true }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { ask = false }) { Text("Cancel", color = c.muted) } },
+            )
         }
         if (p.changed) Text("Undo my changes to the stops", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk, modifier = Modifier.clickable { p.resetStops() })
 
