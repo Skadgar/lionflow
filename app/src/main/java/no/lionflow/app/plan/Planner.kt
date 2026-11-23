@@ -667,6 +667,22 @@ class Planner(
         if (route != null && planRound && planStays.isNotEmpty()) { planStays = planStays.dropLast(1) + destStay; recompute() }
     }
 
+    /**
+     * Moves a stop to another place in the order. Positions count the stops on the way and then the destination,
+     * so a stop can become the destination and the other way round. A plan that is showing is worked out again.
+     */
+    fun moveStop(fromPos: Int, toPos: Int) {
+        val d = to ?: return
+        val list = (vias.mapIndexed { i, v -> v to stays.getOrElse(i) { 0 } } + (d to 0)).toMutableList()
+        if (fromPos !in list.indices || toPos !in list.indices || fromPos == toPos) return
+        list.add(toPos, list.removeAt(fromPos))
+        val last = list.removeAt(list.size - 1)
+        if (last.first == null) return   // an empty stop can't be the destination
+        to = last.first
+        vias = list.map { it.first }; stays = list.map { it.second }
+        if (route != null) go()
+    }
+
     fun swapEnds() {
         vias = vias.reversed(); stays = stays.reversed()
         val a = from; val b = to

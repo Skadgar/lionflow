@@ -6,6 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -154,11 +158,49 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AddressRow(LfIcons.Car, c.orangeInk, "From", fromText, field == 0, query, requester, { query = it; p.search(it) }, { open(0) }, { done() })
-                p.vias.forEachIndexed { i, v ->
-                    AddressRow(LfIcons.Pin, c.muted, "Via", v?.name, field == i + 2, query, requester, { query = it; p.search(it) }, { open(i + 2) },
-                        { if (v == null) p.removeVia(i); done() }, onRemove = { p.removeVia(i); done() })
+                // Stops on the way and the destination: hold one and drag it to change the order.
+                val count = p.vias.size + 1
+                var dragging by remember { mutableStateOf(-1) }
+                var dragY by remember { mutableStateOf(0f) }
+                var rowH by remember { mutableStateOf(1f) }
+                val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 6.dp.toPx() }
+                val canDrag = field < 0 && p.to != null && p.vias.isNotEmpty()
+                fun target(): Int = if (dragging < 0) -1 else (dragging + Math.round(dragY / (rowH + gap))).coerceIn(0, count - 1)
+                for (pos in 0 until count) {
+                    val t = target()
+                    // While dragging, the other rows make room for the one being moved.
+                    val shift = when {
+                        dragging < 0 || pos == dragging -> 0f
+                        pos in (dragging + 1)..t -> -(rowH + gap)
+                        pos in t until dragging -> rowH + gap
+                        else -> 0f
+                    }
+                    val mod = Modifier
+                        .onGloballyPositioned { rowH = it.size.height.toFloat() }
+                        .zIndex(if (pos == dragging) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (pos == dragging) dragY else shift
+                            if (pos == dragging) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12f }
+                        }
+                        .then(if (!canDrag) Modifier else Modifier.pointerInput(count, p.to) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { dragging = pos; dragY = 0f },
+                                onDrag = { ch, d -> ch.consume(); dragY += d.y },
+                                onDragEnd = { val to = target(); val from = dragging; dragging = -1; dragY = 0f; if (to >= 0 && to != from) p.moveStop(from, to) },
+                                onDragCancel = { dragging = -1; dragY = 0f },
+                            )
+                        })
+                    Box(mod) {
+                        if (pos < p.vias.size) {
+                            val i = pos; val v = p.vias[i]
+                            AddressRow(LfIcons.Pin, c.muted, "Via", v?.name, field == i + 2, query, requester, { query = it; p.search(it) }, { open(i + 2) },
+                                { if (v == null) p.removeVia(i); done() }, onRemove = { p.removeVia(i); done() })
+                        } else {
+                            AddressRow(LfIcons.Pin, c.accentInk, "Where to?", p.to?.name, field == 1, query, requester, { query = it; p.search(it) }, { open(1) }, { if (p.to != null) done() else { query = ""; p.clearSearch() } })
+                        }
+                    }
                 }
-                AddressRow(LfIcons.Pin, c.accentInk, "Where to?", p.to?.name, field == 1, query, requester, { query = it; p.search(it) }, { open(1) }, { if (p.to != null) done() else { query = ""; p.clearSearch() } })
+                if (canDrag) Text("Hold and drag a stop to change the order", style = Type.tiny, color = c.muted, modifier = Modifier.padding(horizontal = 4.dp))
                 if (field < 0 && p.vias.size < 3) Text(
                     "Add a stop on the way", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
                     modifier = Modifier.clickable(role = Role.Button) { p.addVia(); open(p.vias.size + 1) }.padding(horizontal = 4.dp, vertical = 6.dp),
