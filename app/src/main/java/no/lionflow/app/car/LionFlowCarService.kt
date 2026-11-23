@@ -232,6 +232,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val km = week?.sumOf { it.distanceKm } ?: 0.0
         tile(1, if (trips == null) "Trips" else "7 days: ${fmtDistance(km, s)}", if (trips == null) "Loading…" else "${week?.size ?: 0} trips",
             R.drawable.ic_car_route, lion) { screenManager.push(TripsScreen(carContext)) }
+        tile(2, "Plan a trip", "Battery % on arrival", R.drawable.ic_car_search, lion) { screenManager.push(TripSearchScreen(carContext)) }
         if (no.lionflow.app.plan.SavedRoutes.fromPlay(carContext)) {
             val saved = no.lionflow.app.plan.SavedRoutes.all(carContext)
             if (saved.isNotEmpty()) tile(3, "Saved routes", if (saved.size == 1) saved[0].name else "${saved.size} routes", R.drawable.ic_car_route, lion) {
