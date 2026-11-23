@@ -968,11 +968,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 } while (page != null && guard < 50)
                 remote.addLog("trips: ${all.size} from the last $days days")
                 val imported = loadImportedTrips()
-                val merged = (all + imported).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }
+                val merged = withCarTrips((all + imported).distinctBy { it.id }).sortedByDescending { it.startMillis ?: 0L }
                 _ui.update { it.copy(trips = merged, tripsLoading = false) }
                 autoTagNow()
             } catch (e: Exception) {
-                _ui.update { it.copy(tripsLoading = false, trips = loadImportedTrips()) }
+                _ui.update { it.copy(tripsLoading = false, trips = withCarTrips(loadImportedTrips()).sortedByDescending { t -> t.startMillis ?: 0L }) }
                 toast("Couldn't load trips — ${no.lionflow.app.api.Http.describe(e)}")
             }
         }
@@ -1023,6 +1023,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         toast("Imported $count trips")
         _ui.update { s -> s.copy(trips = (s.trips + loadImportedTrips()).distinctBy { it.id }.sortedByDescending { it.startMillis ?: 0L }) }
+    }
+
+    /** Adds the trips LionFlow logged from the car's own reports, where Peugeot's list or an import has none at that time. */
+    private fun withCarTrips(list: List<Trip>): List<Trip> {
+        val own = no.lionflow.app.model.CarTrips.list()
+        if (own.isEmpty()) return list
+        val slack = 20 * 60_000L
+        val extra = own.filter { o ->
+            val a = o.startMillis ?: return@filter false; val b = o.endMillis ?: a
+            list.none { t -> val ta = t.startMillis ?: return@none false; val tb = t.endMillis ?: ta; ta <= b + slack && tb >= a - slack }
+        }
+        return list + extra
     }
 
     private fun loadImportedTrips(): List<Trip> = try {

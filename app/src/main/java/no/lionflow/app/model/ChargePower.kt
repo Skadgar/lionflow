@@ -42,6 +42,8 @@ object ChargePower {
     }
 
     fun setVin(v: String) { vin = v }
+    internal fun store(): SharedPreferences? = prefs
+    internal fun key(name: String) = k(name)
 
     /**
      * Usable battery size: the user's setting, else what the car reports (or works out from energy left and %),
@@ -100,6 +102,7 @@ object ChargePower {
     fun record(raw: VehicleStatus): VehicleStatus {
         val st = applyPendingPrograms(fixRange(fixLevel(raw)))
         try { ChargeLog.observe(st) } catch (_: Exception) { }
+        try { CarTrips.observe(st) } catch (_: Exception) { }
         val p = prefs ?: return st
         remember(p, st)
         if (!st.isCharging) { p.edit().remove(k("s")).apply(); return st }
