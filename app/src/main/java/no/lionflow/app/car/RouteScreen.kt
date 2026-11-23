@@ -187,8 +187,9 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         fun dp(v: Float) = v * d
         val w = sc.width.toFloat(); val h = sc.height.toFloat()
         c.drawColor(BG)
-        val v = visible?.let { RectF(it) } ?: RectF(0f, 0f, w, h)
-        val area = RectF(v.left + dp(12f), v.top + dp(12f), v.right - dp(12f), v.bottom - dp(12f))
+        // The whole screen is used; the car's buttons float on top of the route panel (top right).
+        val area = RectF(dp(12f), dp(12f), w - dp(12f), h - dp(12f))
+        val buttonsBottom = visible?.top?.toFloat() ?: 0f
         val s = CarHub.app(carContext).settings.value
         val r = SavedRoutes.all(carContext).firstOrNull { it.id == id }
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -276,7 +277,8 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
 
         // ---- the route
         val tlH = dp(64f)
-        val routeBox = RectF(mapBox.left + dp(18f), mapBox.top + dp(18f), mapBox.right - dp(18f), mapBox.bottom - tlH - dp(18f))
+        // The route itself stays clear of the floating buttons; the panel behind it doesn't.
+        val routeBox = RectF(mapBox.left + dp(18f), max(mapBox.top + dp(18f), buttonsBottom + dp(6f)), mapBox.right - dp(18f), mapBox.bottom - tlH - dp(18f))
         p.style = Paint.Style.FILL
         p.shader = LinearGradient(0f, mapBox.top, 0f, mapBox.bottom, 0xFF131518.toInt(), BG, Shader.TileMode.CLAMP)
         c.drawRoundRect(mapBox, dp(24f), dp(24f), p)
