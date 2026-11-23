@@ -453,15 +453,43 @@ class Planner(
         }
     }
 
-    /** Saves the plan that is showing so Android Auto can follow it. False when there is nothing to save. */
-    fun saveForCar(): Boolean {
+    /** Trips saved from the planner (also shown in Android Auto). */
+    var savedTrips by mutableStateOf(SavedRoutes.all(app))
+        private set
+
+    private fun pj(p: Place) = JSONObject().put("n", p.name).put("d", p.detail).put("la", p.lat).put("lo", p.lon).put("c", p.country)
+    private fun pf(o: JSONObject) = Place(o.optString("n"), o.optString("d"), o.getDouble("la"), o.getDouble("lo"), o.optString("c"))
+
+    /** Saves the plan that is showing. False when there is nothing to save. */
+    fun saveTrip(): Boolean {
         val r = route ?: return false; val p = plan ?: return false
         if (!p.ok) return false
         val dest = if (planRound) planVias.lastOrNull() else planTo
         fun nm(pl: Place?) = pl?.let { if (it.detail.isEmpty() && (it.name == "Car's position" || it.name == "My position")) no.lionflow.app.ui.l10n.L10n.tr(it.name) else it.name } ?: ""
         val name = if (planRound) nm(dest) + " ⇄" else nm(planFrom) + " → " + nm(dest)
-        SavedRoutes.add(app, SavedRoutes.build(name, r, r.energy(model.factor), p, batteryKwh()))
+        val setup = JSONObject().put("round", planRound).put("destStay", destStay)
+            .put("vias", JSONArray().apply { (if (planRound) planVias.dropLast(1) else planVias).forEach { put(pj(it)) } })
+            .put("stays", JSONArray().apply { (if (planRound) planStays.dropLast(1) else planStays).forEach { put(it) } })
+        from?.let { setup.put("from", pj(it)) }
+        dest?.let { setup.put("to", pj(it)) }
+        SavedRoutes.add(app, SavedRoutes.build(name, r, r.energy(model.factor), p, batteryKwh(), setup))
+        savedTrips = SavedRoutes.all(app)
         return true
+    }
+
+    fun deleteTrip(id: Long) { SavedRoutes.delete(app, id); savedTrips = SavedRoutes.all(app) }
+
+    /** Fills in the form from a saved trip and plans it again (from the car's position when it was saved that way). */
+    fun openTrip(t: SavedRoutes.Saved) {
+        val su = t.setup ?: return
+        val dest = su.optJSONObject("to") ?: return
+        from = su.optJSONObject("from")?.let { pf(it) }
+        to = pf(dest)
+        val vs = su.optJSONArray("vias"); val ss = su.optJSONArray("stays")
+        vias = if (vs == null) emptyList() else (0 until vs.length()).map { pf(vs.getJSONObject(it)) }
+        stays = vias.indices.map { ss?.optInt(it) ?: 0 }
+        roundTrip = su.optBoolean("round"); destStay = su.optInt("destStay", 30)
+        go()
     }
 
     /** Minutes spent at the far end of a round trip (not part of the trip's total time). */

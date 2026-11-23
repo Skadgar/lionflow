@@ -236,11 +236,35 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
             ViaStays(p)
             BatteryOptions(p)
             PrimaryButton(if (p.plan != null) "Plan again" else "Plan trip", Modifier.fillMaxWidth(), icon = LfIcons.Route, enabled = p.to != null && p.busy == null) { p.go() }
+            if (p.plan == null && p.busy == null) SavedTrips(p, s)
         }
         p.busy?.let { msg ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { Busy(); Text(msg, style = Type.small, color = c.text2) }
         }
         p.error?.let { Text(it, style = Type.small, color = c.danger) }
+    }
+}
+
+/** Trips saved earlier: tap one to plan it again, the cross deletes it. */
+@Composable
+private fun SavedTrips(p: Planner, s: AppSettings) {
+    val c = LocalLf.current
+    val list = p.savedTrips.filter { it.setup != null }
+    if (list.isEmpty()) return
+    Text("Saved trips", style = Type.label, color = c.text, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.raised).padding(vertical = 4.dp)) {
+        for (t in list) {
+            Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { p.openTrip(t) }.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                LfIcon(LfIcons.Route, c.accentInk, 18.dp)
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Plain(t.name, Type.body, c.text)
+                    Plain(fmtDistance(t.totalKm, s) + " · " + L10n.tr(when (t.stops.size) { 0 -> "no charging stops"; 1 -> "1 charging stop"; else -> "${t.stops.size} charging stops" }), Type.tiny, c.muted)
+                }
+                Box(Modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button) { p.deleteTrip(t.id) }
+                    .semantics { contentDescription = L10n.tr("Delete") }, contentAlignment = Alignment.Center) { LfIcon(LfIcons.Close, c.muted, 16.dp) }
+            }
+        }
     }
 }
 
@@ -487,11 +511,10 @@ fun PlanResult(p: Planner, s: AppSettings, options: Boolean, onShow: (Double, Do
                     if (stops.isNotEmpty()) "&waypoints=$stops" else "",
             )
         }
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        if (plan.ok && remember { no.lionflow.app.plan.SavedRoutes.fromPlay(ctx) }) {
+        if (plan.ok) {
             var saved by remember(plan) { mutableStateOf(false) }
-            no.lionflow.app.ui.components.SecondaryButton(if (saved) "Saved to Android Auto" else "Save to Android Auto", Modifier.fillMaxWidth()) {
-                if (!saved && p.saveForCar()) saved = true
+            no.lionflow.app.ui.components.SecondaryButton(if (saved) "Trip saved" else "Save trip", Modifier.fillMaxWidth()) {
+                if (!saved && p.saveTrip()) saved = true
             }
         }
         if (p.changed) Text("Undo my changes to the stops", style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk, modifier = Modifier.clickable { p.resetStops() })

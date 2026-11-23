@@ -385,7 +385,7 @@ class SavedRoutesScreen(ctx: CarContext) : Screen(ctx) {
         val s = CarHub.app(carContext).settings.value
         val list = ItemList.Builder()
         val saved = no.lionflow.app.plan.SavedRoutes.all(carContext)
-        if (saved.isEmpty()) list.setNoItemsMessage(tr("Plan a trip on your phone and tap Save to Android Auto."))
+        if (saved.isEmpty()) list.setNoItemsMessage(tr("Plan a trip on your phone and tap Save trip."))
         for (r in saved) {
             list.addItem(Row.Builder().setTitle(r.name.ifBlank { "—" })
                 .addText(tr(fmtDistance(r.totalKm, s) + " · " + (if (r.stops.isEmpty()) "no charging stops" else if (r.stops.size == 1) "1 charging stop" else "${r.stops.size} charging stops")))

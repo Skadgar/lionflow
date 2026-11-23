@@ -25,6 +25,8 @@ object SavedRoutes {
         val stops: List<Stop>,
         /** How far along the route the car was last seen (point index): a round trip passes the same road twice. */
         var progress: Int = 0,
+        /** The trip as it was set up (start, stops, destination, stays), so it can be planned again in the app. */
+        val setup: JSONObject? = null,
     ) {
         val totalKm: Double get() = km.last()
     }
@@ -68,7 +70,7 @@ object SavedRoutes {
     fun add(ctx: Context, s: Saved) = synchronized(this) { write(ctx, (listOf(s) + all(ctx)).take(MAX)) }
 
     /** Makes a saved route from a plan: points about every 300 m, battery use per point, the charging stops. */
-    fun build(name: String, r: RouteData, energy: DoubleArray, plan: Plan, batteryKwh: Double): Saved {
+    fun build(name: String, r: RouteData, energy: DoubleArray, plan: Plan, batteryKwh: Double, setup: JSONObject? = null): Saved {
         val keep = ArrayList<Int>()
         var next = 0.0
         for (i in 0 until r.size) if (i == 0 || i == r.size - 1 || r.km[i] >= next) { keep += i; next = r.km[i] + 0.3 }
@@ -81,7 +83,7 @@ object SavedRoutes {
             System.currentTimeMillis(), name,
             DoubleArray(keep.size) { r.lat[keep[it]] }, DoubleArray(keep.size) { r.lon[keep[it]] },
             DoubleArray(keep.size) { r.km[keep[it]] }, DoubleArray(keep.size) { energy[keep[it]] - energy[0] },
-            batteryKwh, stops,
+            batteryKwh, stops, 0, setup,
         )
     }
 
@@ -119,7 +121,7 @@ object SavedRoutes {
 
     private fun toJson(s: Saved) = JSONObject().put("id", s.id).put("name", s.name)
         .put("lat", arr(s.lat, 5)).put("lon", arr(s.lon, 5)).put("km", arr(s.km, 2)).put("kwh", arr(s.kwh, 3))
-        .put("battery", s.batteryKwh).put("progress", s.progress)
+        .put("battery", s.batteryKwh).put("progress", s.progress).apply { s.setup?.let { put("setup", it) } }
         .put("stops", JSONArray().apply { s.stops.forEach { put(JSONObject().put("name", it.name).put("lat", it.lat).put("lon", it.lon).put("idx", it.idx).put("km", it.km)) } })
 
     private fun parse(o: JSONObject?): Saved? = try {
@@ -130,7 +132,7 @@ object SavedRoutes {
             darr(o.getJSONArray("lat")), darr(o.getJSONArray("lon")), darr(o.getJSONArray("km")), darr(o.getJSONArray("kwh")),
             o.getDouble("battery"),
             (0 until st.length()).map { i -> st.getJSONObject(i).let { Stop(it.getString("name"), it.getDouble("lat"), it.getDouble("lon"), it.getInt("idx"), it.getDouble("km")) } },
-            o.optInt("progress"),
+            o.optInt("progress"), o.optJSONObject("setup"),
         )
     } catch (_: Exception) { null }
 }
