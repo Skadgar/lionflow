@@ -100,6 +100,11 @@ internal fun routeThumb(r: SavedRoutes.Saved, size: Int = 256): CarIcon {
 
 /** Saved routes as tiles, each with a picture of the route. */
 class SavedRoutesScreen(ctx: CarContext) : Screen(ctx) {
+    init {
+        // Trips saved or deleted on the phone show up here at once.
+        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { SavedRoutes.changes.collect { invalidate() } } }
+    }
+
     override fun onGetTemplate(): Template {
         val s = CarHub.app(carContext).settings.value
         val saved = SavedRoutes.all(carContext)
@@ -132,6 +137,8 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { while (true) { lastFetch = System.currentTimeMillis(); CarHub.refresh(carContext, force = true); delay(30_000L) } }
                 launch { CarHub.status.collect { main.post { draw() } } }
+                // Deleted on the phone: leave.
+                launch { SavedRoutes.changes.collect { if (SavedRoutes.all(carContext).none { it.id == id }) main.post { try { screenManager.pop() } catch (_: Exception) { } } } }
                 launch { while (true) { delay(5_000L); main.post { draw() } } }   // keeps "updated … ago" current
             }
         }
@@ -158,9 +165,6 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             }.build())
             strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener {
                 SavedRoutes.resetProgress(carContext, id); CarHub.refresh(carContext, force = true); CarHub.say("Updating…")
-            }.build())
-            strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_close)).setOnClickListener {
-                SavedRoutes.delete(carContext, id); screenManager.pop()
             }.build())
         }
         return NavigationTemplate.Builder().setActionStrip(strip.build()).build()

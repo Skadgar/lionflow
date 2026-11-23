@@ -70,14 +70,18 @@ object SavedRoutes {
         if (!f.exists()) emptyList() else JSONArray(f.readText()).let { a -> (0 until a.length()).mapNotNull { parse(a.optJSONObject(it)) } }
     } catch (_: Exception) { emptyList() }
 
-    private fun write(ctx: Context, list: List<Saved>) {
+    /** Goes up each time trips are added or deleted, so the phone and Android Auto show the same list right away. */
+    val changes = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    private fun write(ctx: Context, list: List<Saved>, listChanged: Boolean = true) {
         val a = JSONArray(); list.forEach { a.put(toJson(it)) }
         File(ctx.filesDir, FILE).writeText(a.toString())
+        if (listChanged) changes.value++
     }
 
     fun delete(ctx: Context, id: Long) = synchronized(this) { write(ctx, all(ctx).filter { it.id != id }) }
 
-    fun resetProgress(ctx: Context, id: Long) = synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == id) it.progress = 0 }) }
+    fun resetProgress(ctx: Context, id: Long) = synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == id) it.progress = 0 }, false) }
 
     fun add(ctx: Context, s: Saved) = synchronized(this) { write(ctx, (listOf(s) + all(ctx)).take(MAX)) }
 
@@ -113,7 +117,7 @@ object SavedRoutes {
             off = min
             if (min < 3.0) {
                 at = (from until d.size).first { d[it] <= min + 0.3 }
-                if (at != s.progress) synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == s.id) it.progress = at }); s.progress = at }
+                if (at != s.progress) synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == s.id) it.progress = at }, false); s.progress = at }
             }
         }
         val left = s.stops.filter { it.idx > at }

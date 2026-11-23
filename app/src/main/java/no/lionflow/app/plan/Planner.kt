@@ -460,6 +460,7 @@ class Planner(
     /** Trips saved from the planner (also shown in Android Auto). */
     var savedTrips by mutableStateOf(SavedRoutes.all(app))
         private set
+    init { scope.launch { SavedRoutes.changes.collect { savedTrips = SavedRoutes.all(app) } } }
 
     private fun pj(p: Place) = JSONObject().put("n", p.name).put("d", p.detail).put("la", p.lat).put("lo", p.lon).put("c", p.country)
     private fun pf(o: JSONObject) = Place(o.optString("n"), o.optString("d"), o.getDouble("la"), o.getDouble("lo"), o.optString("c"))
