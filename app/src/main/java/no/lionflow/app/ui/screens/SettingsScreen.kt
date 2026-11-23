@@ -460,17 +460,18 @@ private fun FeedbackDialog(vm: AppViewModel, fieldColors: androidx.compose.mater
             TextButton(enabled = msg.isNotBlank(), onClick = {
                 val body = msg.trim() + if (details) "\n\n---- Technical details ----\n$tech" else ""
                 val subject = "LionFlow feedback (${no.lionflow.app.BuildConfig.VERSION_NAME})"
-                // Straight into a new e-mail (only e-mail apps answer "mailto:"), not the share sheet.
-                val mail = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:antpqth@gmail.com")).apply {
+                // A "send" with an e-mail-only selector: opens the e-mail app with everything filled in, without the share sheet.
+                val mail = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                     putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf("antpqth@gmail.com"))
                     putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
                     putExtra(android.content.Intent.EXTRA_TEXT, body)
+                    selector = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
                 }
                 try { ctx.startActivity(mail); onClose() }
                 catch (_: Exception) {
                     try {
                         ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO,
-                            android.net.Uri.parse("mailto:antpqth@gmail.com?subject=" + android.net.Uri.encode(subject) + "&body=" + android.net.Uri.encode(body.take(1800)))))
+                            android.net.Uri.parse("mailto:antpqth@gmail.com?subject=" + android.net.Uri.encode(subject) + "&body=" + android.net.Uri.encode(body.take(6000)))))
                         onClose()
                     } catch (_: Exception) { vm.toastText("No e-mail app found") }
                 }
