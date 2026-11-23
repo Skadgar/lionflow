@@ -102,7 +102,7 @@ private fun Plain(text: String, style: TextStyle, color: Color, modifier: Modifi
 /** Keeps touches on a panel from reaching the map under it. */
 fun Modifier.blockTouches(): Modifier = this.pointerInput(Unit) { detectTapGestures { } }
 
-fun placeName(p: Place): String = if (p.detail.isEmpty() && (p.name == "Car's position" || p.name == "My position")) L10n.tr(p.name) else p.name
+fun placeName(p: Place): String = if (p.detail.isEmpty() && (p.name == "Car's position" || p.name == "My position" || p.name == "Where the car was")) L10n.tr(p.name) else p.name
 
 private fun clockAt(p: Planner, minutes: Double): String {
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = p.departMillis(); add(java.util.Calendar.MINUTE, minutes.roundToInt()) }
@@ -152,12 +152,17 @@ fun PlanForm(p: Planner, ui: UiState, s: AppSettings) {
     fun pick(place: Place?) { if (field == 0) p.from = place else if (field == 1) p.to = place else p.setVia(field - 2, place); done() }
 
     val carHere = ui.status?.lat != null
-    val fromText = p.from?.name ?: L10n.tr(if (carHere) "Car's position" else "My position")
+    val fromText = p.from?.let { placeName(it) } ?: L10n.tr(if (carHere) "Car's position" else "My position")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 AddressRow(LfIcons.Car, c.orangeInk, "From", fromText, field == 0, query, requester, { query = it; p.search(it) }, { open(0) }, { done() })
+                if (p.from != null && field < 0) Text(
+                    if (carHere) "Start from the car's position now" else "Start from my position now",
+                    style = Type.small.copy(fontWeight = FontWeight.SemiBold), color = c.accentInk,
+                    modifier = Modifier.clickable(role = Role.Button) { p.startAtCar() }.padding(horizontal = 4.dp, vertical = 6.dp),
+                )
                 // Stops on the way and the destination: hold one and drag it to change the order.
                 val count = p.vias.size + 1
                 var dragging by remember { mutableStateOf(-1) }

@@ -80,7 +80,9 @@ class Planner(
     /** When the trip starts; null = now. A time that has passed counts as now. */
     var departAt by mutableStateOf<Long?>(null)
         private set
-    fun departMillis(): Long = departAt?.takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis()
+    /** The departure time of a saved trip that is being shown as it was planned. */
+    private var savedDepart: Long? = null
+    fun departMillis(): Long = savedDepart ?: departAt?.takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis()
 
     /** A car ferry on the route with the wait for it: when it leaves (if the timetable is known) and minutes to wait. */
     class FerryInfo(val ferry: Ferry, val waitMin: Int, val departMs: Long?)
@@ -200,6 +202,7 @@ class Planner(
     fun go() {
         val b = to ?: return
         planJob?.cancel()
+        savedDepart = null
         planJob = scope.launch {
             error = null
             val a = origin()
@@ -242,6 +245,7 @@ class Planner(
     /** Plans again after a change to the numbers or the stops (no new route). */
     fun recompute() {
         if (route == null) return
+        savedDepart = null
         planJob?.cancel()
         planJob = scope.launch {
             error = null
@@ -472,24 +476,68 @@ class Planner(
             .put("stays", JSONArray().apply { (if (planRound) planStays.dropLast(1) else planStays).forEach { put(it) } })
         from?.let { setup.put("from", pj(it)) }
         dest?.let { setup.put("to", pj(it)) }
+        // The plan in full, so it opens exactly as it is now, without asking any server.
+        setup.put("full", JSONObject()
+            .put("route", PlanStore.route(r)).put("plan", PlanStore.plan(p))
+            .put("planFrom", planFrom?.let { pj(it) }).put("planTo", planTo?.let { pj(it) })
+            .put("planVias", JSONArray().apply { planVias.forEach { put(pj(it)) } })
+            .put("planStays", JSONArray().apply { planStays.forEach { put(it) } })
+            .put("depart", departMillis()).put("startPct", startPct ?: -1).put("minPct", minPct).put("targetPct", targetPct)
+            .put("ferries", JSONArray().apply { ferryInfo.forEach { put(JSONObject().put("i", it.ferry.idx).put("w", it.waitMin).put("d", it.departMs ?: -1L)) } }))
         SavedRoutes.add(app, SavedRoutes.build(name, r, r.energy(model.factor), p, batteryKwh(), setup))
         savedTrips = SavedRoutes.all(app)
         return true
     }
 
+    /** Start from where the car is now (or this phone, without the car's position). Plans again when a plan is showing. */
+    fun startAtCar() { from = null; if (route != null) go() }
+
     fun deleteTrip(id: Long) { SavedRoutes.delete(app, id); savedTrips = SavedRoutes.all(app) }
 
-    /** Fills in the form from a saved trip and plans it again (from the car's position when it was saved that way). */
+    /** Shows a saved trip exactly as it was planned: same route, stops, start and times. Nothing is looked up again. */
     fun openTrip(t: SavedRoutes.Saved) {
         val su = t.setup ?: return
+        val full = su.optJSONObject("full")
         val dest = su.optJSONObject("to") ?: return
-        from = su.optJSONObject("from")?.let { pf(it) }
-        to = pf(dest)
-        val vs = su.optJSONArray("vias"); val ss = su.optJSONArray("stays")
-        vias = if (vs == null) emptyList() else (0 until vs.length()).map { pf(vs.getJSONObject(it)) }
-        stays = vias.indices.map { ss?.optInt(it) ?: 0 }
-        roundTrip = su.optBoolean("round"); destStay = su.optInt("destStay", 30)
-        go()
+        if (full == null) {   // saved by an older version: plan it again
+            from = su.optJSONObject("from")?.let { pf(it) }; to = pf(dest)
+            val vs = su.optJSONArray("vias"); val ss = su.optJSONArray("stays")
+            vias = if (vs == null) emptyList() else (0 until vs.length()).map { pf(vs.getJSONObject(it)) }
+            stays = vias.indices.map { ss?.optInt(it) ?: 0 }
+            roundTrip = su.optBoolean("round"); destStay = su.optInt("destStay", 30)
+            go(); return
+        }
+        try {
+            planJob?.cancel(); altJob?.cancel(); prefetch?.cancel(); prefetch = null; prefetchFor = null; condJob?.cancel()
+            val r = PlanStore.route(full.getJSONObject("route"))
+            val pl = PlanStore.plan(full.getJSONObject("plan"))
+            val pVias = full.getJSONArray("planVias").let { a -> (0 until a.length()).map { pf(a.getJSONObject(it)) } }
+            val pStays = full.getJSONArray("planStays").let { a -> (0 until a.length()).map { a.getInt(it) } }
+            val round = su.optBoolean("round")
+            val start = full.optJSONObject("planFrom")?.let { pf(it) }
+            // Where the trip started, as a fixed place (the car's position then, if it started there).
+            from = start?.let { if (it.detail.isEmpty() && (it.name == "Car's position" || it.name == "My position")) it.copy(name = "Where the car was") else it }
+            to = pf(dest)
+            vias = if (round) pVias.dropLast(1) else pVias
+            stays = if (round) pStays.dropLast(1) else pStays
+            roundTrip = round; destStay = su.optInt("destStay", 30)
+            startPct = full.optInt("startPct", -1).takeIf { it >= 0 }
+            minPct = full.optInt("minPct", minPct); targetPct = full.optInt("targetPct", targetPct)
+            savedDepart = full.optLong("depart").takeIf { it > 0 }
+            val fi = full.optJSONArray("ferries")
+            ferryInfo = if (fi == null) emptyList() else (0 until fi.length()).mapNotNull { i -> fi.getJSONObject(i).let { o ->
+                r.ferries.firstOrNull { it.idx == o.getInt("i") }?.let { f -> FerryInfo(f, o.getInt("w"), o.getLong("d").takeIf { it > 0 }) } } }
+            edits = emptyList(); excluded = emptySet()
+            route = r; plan = pl
+            planFrom = start ?: from; planTo = full.optJSONObject("planTo")?.let { pf(it) }; planRound = round; planVias = pVias; planStays = pStays
+            chargers = pl.stops.flatMap { listOf(it.charger) + it.alternatives }.distinctBy { it.id }
+            corridorFor = r; corridorRaw = emptyList(); corridorFull = false
+            viaRawKey = planVias.joinToString("|") { "${it.lat},${it.lon}" }; viaRaw = emptyList()
+            alts = listOf(AltRoute(r, pl, null)); altIndex = 0; userPicked = true; autoPicked = true
+            error = null; busy = null; editing = false
+        } catch (e: Exception) {
+            error = "Couldn't open the saved trip"
+        }
     }
 
     /** Minutes spent at the far end of a round trip (not part of the trip's total time). */
@@ -546,6 +594,7 @@ class Planner(
     /** Moves the start time to the next or the previous quarter of an hour (back to "now" at the earliest). */
     /** Leave at a set time (null = now). A time in the past means now. */
     fun setDepart(ms: Long?) {
+        savedDepart = null
         departAt = ms?.takeIf { it > System.currentTimeMillis() + 60_000L }
         staleAlts(); recompute()
     }
@@ -555,6 +604,7 @@ class Planner(
         val base = departAt?.takeIf { it > now } ?: now
         val q = 15 * 60_000L
         val t = if (dir > 0) (base / q + 1) * q else ((base - 1) / q) * q
+        savedDepart = null
         departAt = if (t <= now + 60_000L) null else t
         staleAlts(); recompute()
     }
