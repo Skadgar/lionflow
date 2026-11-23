@@ -99,11 +99,25 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
     val customerId: String? get() = secure.get(K_CUSTOMER)
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
-    private fun clientQuery() = "client_id=${cfg.clientId}&locale=${cfg.locale}"
+    private fun clientQuery() = "client_id=${cfg.clientId}&locale=${locale()}"
+
+    // Some countries' listed locale is refused by the server ("Invalid parameter: locale", e.g. en-IS for Iceland).
+    // Then the next one is tried and remembered: the country's own language, then British English.
+    private fun localeKey() = "locale_${settings.value.brand}_${settings.value.country}"
+    private fun locale(): String = secure.get(localeKey()) ?: cfg.locale
+    private fun nextLocale(): Boolean {
+        val cc = settings.value.country.uppercase()
+        val own = mapOf("IS" to "is", "NO" to "nb", "DK" to "da", "SE" to "sv", "FI" to "fi", "EE" to "et", "LV" to "lv", "LT" to "lt")[cc]
+        val tries = listOfNotNull(cfg.locale, own?.let { "$it-$cc" }, "en-GB", "fr-FR").distinct()
+        val next = tries.getOrNull(tries.indexOf(locale()) + 1) ?: return false
+        secure.put(localeKey(), next)
+        return true
+    }
+    private fun isLocaleError(e: ApiException) = e.code == 400 && e.message.orEmpty().contains("locale", ignoreCase = true)
 
     fun authorizeUrl(): String =
         "${cfg.oauthUrl}/am/oauth2/authorize?client_id=${cfg.clientId}&response_type=code" +
-            "&redirect_uri=${cfg.redirectUri}&scope=openid%20profile%20email&locale=${cfg.locale}"
+            "&redirect_uri=${cfg.redirectUri}&scope=openid%20profile%20email&locale=${locale()}"
 
     // ---------------- OAuth ----------------
 
@@ -145,6 +159,16 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
     }
 
     private suspend fun <T> authed(block: suspend (String) -> T): T {
+        var n = 0
+        while (true) {
+            try { return authedOnce(block) } catch (e: ApiException) {
+                if (isLocaleError(e) && n++ < 3 && nextLocale()) continue
+                throw e
+            }
+        }
+    }
+
+    private suspend fun <T> authedOnce(block: suspend (String) -> T): T {
         val token = accessToken()
         return try {
             block(token)
