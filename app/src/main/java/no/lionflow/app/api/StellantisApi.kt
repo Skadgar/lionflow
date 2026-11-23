@@ -183,6 +183,7 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
         val url = "$API/connectedcar/v4/user/vehicles?${clientQuery()}"
         val j = Http.json(carHeaders(Request.Builder().url(url), token).get().build()) as? JSONObject
             ?: throw ApiException(0, "Empty vehicle list")
+        val before = cachedVehicles()
         val list = j.obj("_embedded")?.optJSONArray("vehicles")?.objects().orEmpty().map { v ->
             Vehicle(
                 id = v.getString("id"),
@@ -193,6 +194,8 @@ class StellantisApi(private val ctx: Context, private val secure: SecureStore, p
                 maintenanceHref = v.obj("_links", "maintenance")?.str("href"),
             )
         }
+            // The same car can come twice (for example when it is shared with another account): keep the one in use.
+            .groupBy { it.vin }.values.map { same -> same.firstOrNull { v -> before.any { it.id == v.id } } ?: same.first() }
         secure.put(K_VEHICLES, JSONArray(list.map { it.toJson() }).toString())
         list
     }

@@ -249,9 +249,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Every signed-in account with its cars, for the car list. */
     fun garage(): List<GarageAccount> {
         val active = settings.activeAccount
-        return settings.accounts().map { a ->
+        val list = settings.accounts().map { a ->
             GarageAccount(a.id, no.lionflow.app.model.Brand.of(a.brand), api.isSignedInTo(a.id), if (a.id == active) _ui.value.vehicles else api.cachedVehiclesOf(a.id), api.selectedVinOf(a.id), a.id == active)
         }.filter { it.signedIn || it.active }
+        // The same car can be on two accounts (shared with family) or listed twice: show each car once, from the open account first.
+        val seen = HashSet<String>()
+        return list.sortedByDescending { it.active }.map { acc -> acc.copy(cars = acc.cars.filter { seen.add(it.vin) }) }
+            .filter { it.cars.isNotEmpty() || it.active }
     }
 
     /** Name of a car on any account. */
