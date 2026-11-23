@@ -948,3 +948,10 @@ Opens at once with this route, these stops, times and battery %.	S'ouvre aussit�
 Plan again when opened	Replanifier à l'ouverture	Beim Öffnen neu planen	Planificar de nuevo al abrir	Planlegg på nytt når den åpnes
 Keeps the places. Opening it plans again from the car's position and battery % at that time.	Garde les lieux. À l'ouverture, le trajet est replanifié depuis la position et la batterie de la voiture à ce moment-là.	Behält die Orte. Beim Öffnen wird ab Standort und Akkustand des Autos zu dem Zeitpunkt neu geplant.	Guarda los lugares. Al abrirlo se planifica de nuevo desde la posición y la batería del coche en ese momento.	Tar vare på stedene. Når den åpnes, planlegges turen på nytt fra der bilen står og batteriprosenten da.
 Use the car's battery % now	Utiliser la batterie actuelle de la voiture	Akkustand des Autos jetzt verwenden	Usar la batería actual del coche	Bruk bilens batteriprosent nå
+left	restants	übrig	restantes	igjen
+≈ {0} · arrive {1}	≈ {0} · arrivée {1}	≈ {0} · Ankunft {1}	≈ {0} · llegada {1}	≈ {0} · fremme {1}
+Expected at the next stop	Prévu au prochain arrêt	Erwartet am nächsten Stopp	Previsto en la próxima parada	Ventet ved neste stopp
+Expected at the end	Prévu à l'arrivée	Erwartet am Ziel	Previsto al final	Ventet ved målet
+Battery now {0}	Batterie actuelle {0}	Akku jetzt {0}	Batería ahora {0}	Batteri nå {0}
+Straight to the destination	Directement à destination	Direkt zum Ziel	Directo al destino	Rett til målet
+Getting the car's status…	Récupération de l'état de la voiture…	Status des Autos wird geholt…	Obteniendo el estado del coche…	Henter bilens status…
