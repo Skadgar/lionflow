@@ -67,6 +67,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
     var showLog by remember { mutableStateOf(false) }
     var showFeedback by remember { mutableStateOf(false) }
     var showChanges by remember { mutableStateOf(false) }
+    var askRestore by remember { mutableStateOf<android.net.Uri?>(null) }
+    val restorer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) askRestore = uri }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             val text = try { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
@@ -165,6 +167,12 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
 
         SectionTitle("Driving data")
         GroupCard {
+            LinkRow("Back up app data", "Settings, saved trips, tags and logs in one file, to move to a new install", LfIcons.Download) {
+                try { platform.share(no.lionflow.app.model.Backup.export(ctx), "application/zip") } catch (_: Exception) { vm.toastText("Couldn't make the backup") }
+            }
+            LinkRow("Restore from backup", "Puts everything back from a LionFlow backup file", LfIcons.Upload) {
+                restorer.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+            }
             LinkRow("Export driving data", "Trips as a CSV file", LfIcons.Download) {
                 if (ui.trips.isEmpty()) vm.loadTrips()
                 platform.share(vm.exportTripsCsv(), "text/csv")
@@ -333,6 +341,19 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         )
     }
     if (showFeedback) FeedbackDialog(vm, fieldColors) { showFeedback = false }
+    askRestore?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { askRestore = null }, containerColor = c.card,
+            title = { Text("Restore from backup", color = c.text) },
+            text = { Text("Replaces the app's settings and data on this phone with the ones in the backup. The app then starts again. Sign in afterwards if asked.", style = Type.small, color = c.text2) },
+            confirmButton = { TextButton(onClick = {
+                askRestore = null
+                val ok = try { no.lionflow.app.model.Backup.restore(ctx, uri) } catch (_: Exception) { false }
+                if (!ok) vm.toastText("That isn't a LionFlow backup")
+            }) { Text("Restore", color = c.accentInk) } },
+            dismissButton = { TextButton(onClick = { askRestore = null }) { Text("Cancel", color = c.muted) } },
+        )
+    }
     if (showLog) {
         val text = vm.commandLog()
         val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
