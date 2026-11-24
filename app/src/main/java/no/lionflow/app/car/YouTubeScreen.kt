@@ -19,7 +19,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import androidx.car.app.AppManager
 import androidx.car.app.CarContext
 import androidx.car.app.CarToast
 import androidx.car.app.Screen
@@ -59,7 +58,8 @@ class VideoSite(val name: String, val home: String, val hosts: List<String>, val
     }
 }
 
-class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard, private val site: VideoSite = VideoSite.YouTube) : Screen(ctx), SurfaceCallback, DefaultLifecycleObserver {
+internal class YouTubeScreen(ctx: CarContext, private val ui: CarUi, private val site: VideoSite = VideoSite.YouTube) : Screen(ctx), SurfaceCallback, DefaultLifecycleObserver {
+    private val guard get() = ui.guard
     private val main = Handler(Looper.getMainLooper())
     private var display: VirtualDisplay? = null
     private var presentation: Presentation? = null
@@ -74,7 +74,9 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard, private val s
     }
 
     override fun onCreate(owner: LifecycleOwner) {
-        carContext.getCarService(AppManager::class.java).setSurfaceCallback(this)
+        // The drawn screens let go of the surface, and this screen gets it (and its taps and swipes) until it closes:
+        // only one thing at a time can put pictures on it.
+        ui.surface.lend(this)
         lifecycleScope.launch {
             // Re-check every second; leave immediately when the car is no longer parked.
             while (isActive) {
@@ -96,8 +98,10 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard, private val s
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
-        try { carContext.getCarService(AppManager::class.java).setSurfaceCallback(null) } catch (_: Exception) { }
-        main.post { tearDown() }
+        closing = true
+        try { tearDown() } catch (e: Exception) { ui.log("closing the video", e) }
+        // The surface goes back to the drawn screens.
+        ui.surface.takeBack(this)
     }
 
     private fun close(msg: String) {
@@ -170,7 +174,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard, private val s
 
     // ---------------- surface ----------------
 
-    override fun onSurfaceAvailable(c: SurfaceContainer) { main.post { setUp(c) } }
+    override fun onSurfaceAvailable(c: SurfaceContainer) { main.post { if (!closing) try { setUp(c) } catch (e: Exception) { ui.log("starting the video", e) } } }
     override fun onSurfaceDestroyed(c: SurfaceContainer) { main.post { tearDown() } }
     private var visible: Rect? = null
     override fun onVisibleAreaChanged(visibleArea: Rect) { visible = Rect(visibleArea); main.post { applyPadding() } }

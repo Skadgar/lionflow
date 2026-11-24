@@ -34,8 +34,9 @@ import no.lionflow.app.ui.fmtDistance
 import no.lionflow.app.ui.fmtTemp
 
 /**
- * LionFlow in Android Auto: a simple overview of the car (battery, charging power, range, climate,
- * doors, service, trips) with a few remote actions. No map.
+ * LionFlow in Android Auto. The screens are drawn by LionFlow itself (see [DrawnScreen]): a start screen with the
+ * battery and tiles, the car's details, trips planned and saved, chargers, previous trips. With "Plain lists in the
+ * car" on in Settings (for cars without a touch screen) the plain tiles and lists further down in this file are used.
  */
 class LionFlowCarService : CarAppService() {
 
@@ -72,95 +73,82 @@ private fun CarContext.listLimit(): Int = try {
 } catch (_: Exception) { 6 }
 
 /**
- * Starts navigation to a place in Google Maps and closes LionFlow on the car screen.
- * The car's own "navigate" intent can end up back at LionFlow (it is a navigation-category app too),
- * so Google Maps is started directly through the phone, which Android Auto then shows on the car screen.
+ * What a "navigate to …" request points at: a place with coordinates, or words to search for.
+ * Android Auto sends these as geo: addresses — "geo:59.91,10.75", "geo:0,0?q=59.91,10.75(Oslo)" or "geo:0,0?q=Storgata 1, Oslo".
  */
-/** Each step of Navigate goes to the Command & error log, so a failure can be traced. */
-private fun navLog(ctx: CarContext, m: String) { try { CarHub.app(ctx).remote.addLog(m) } catch (_: Exception) { } }
-
-private var lastCarAsk = 0L
-private var lastPhoneStart = 0L
-
-/** Starts Google Maps through the phone; Android Auto then shows it on the car screen. */
-private fun startMapsOnPhone(ctx: CarContext, lat: Double, lon: Double) {
-    val now = System.currentTimeMillis()
-    if (now - lastPhoneStart < 6000) return   // one at a time, so a request handed back and forth can't loop
-    lastPhoneStart = now
-    navLog(ctx, "navigate: starting Google Maps on the phone")
-    try {
-        val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$lat,$lon&mode=d"))
-            .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try { ctx.startActivity(i) } catch (_: Exception) { CarHub.app(ctx).startActivity(i) }
-    } catch (e: Exception) {
-        navLog(ctx, "navigate: phone start failed: ${e.javaClass.simpleName} ${e.message}")
-        android.util.Log.w("LionFlowCar", "direct Google Maps start failed", e)
-        CarToast.makeText(ctx, tr("Couldn't open navigation"), CarToast.LENGTH_LONG).show()
+internal fun parseNavigate(uri: android.net.Uri?): Pair<no.lionflow.app.plan.Place?, String?> {
+    val ssp = uri?.encodedSchemeSpecificPart ?: return null to null
+    val pair = Regex("^\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*,\\s*(-?[0-9]+(?:\\.[0-9]+)?)")
+    fun place(lat: Double, lon: Double, label: String): no.lionflow.app.plan.Place? =
+        if (Math.abs(lat) > 90 || Math.abs(lon) > 180 || (Math.abs(lat) < 1e-6 && Math.abs(lon) < 1e-6)) null
+        else no.lionflow.app.plan.Place(label.ifBlank { String.format(java.util.Locale.US, "%.5f, %.5f", lat, lon) }, "", lat, lon)
+    val q = ssp.substringAfter('?', "").split('&').firstOrNull { it.startsWith("q=") }?.substring(2)
+        ?.let { android.net.Uri.decode(it.replace("+", " ")) }?.trim()
+    if (!q.isNullOrEmpty()) {
+        val m = pair.find(q)
+        if (m != null) {
+            val label = if (q.contains('(')) q.substringAfter('(').substringBeforeLast(')').trim() else ""
+            place(m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), label)?.let { return it to null }
+            if (label.isNotEmpty()) return null to label
+        } else return null to q
     }
-}
-
-/**
- * Starts navigation to a place in Google Maps. First the car is asked to open it; when the car hands the request
- * back to LionFlow (a navigation app too), or nothing has happened after a few seconds, Maps is started through the phone.
- * [stillHere] says whether LionFlow is still showing (then Maps didn't open).
- */
-internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: String, fromCar: Boolean = false, stillHere: (() -> Boolean)? = null) {
-    if (fromCar) { navLog(ctx, "navigate: the car handed the request back to LionFlow"); startMapsOnPhone(ctx, lat, lon); return }
-    val now = System.currentTimeMillis()
-    if (now - lastCarAsk < 3000) return
-    lastCarAsk = now
-    val geo = android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon(${android.net.Uri.encode(name)})")
-    if (name.isNotBlank()) CarToast.makeText(ctx, tr("Navigating to") + " " + name, CarToast.LENGTH_SHORT).show()
-    try {
-        navLog(ctx, "navigate: asking the car to open navigation (car API ${ctx.carAppApiLevel})")
-        ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, geo))
-    } catch (e: Exception) {
-        navLog(ctx, "navigate: the car refused: ${e.javaClass.simpleName} ${e.message}")
-        android.util.Log.w("LionFlowCar", "startCarApp(navigate) failed", e)
-        startMapsOnPhone(ctx, lat, lon); return
-    }
-    if (stillHere != null) android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-        if (stillHere()) { navLog(ctx, "navigate: LionFlow still showing after 3.5 s"); startMapsOnPhone(ctx, lat, lon) }
-    }, 3500)
+    val m = pair.find(android.net.Uri.decode(ssp.substringBefore('?'))) ?: return null to null
+    return place(m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), "") to null
 }
 
 class MainSession : Session() {
-    /** A "navigate" request that the car routed to LionFlow: pass it on to Google Maps. */
+    private var ui: CarUi? = null
+
+    /**
+     * A "navigate to …" request (from the assistant, or from another app in the car) comes to LionFlow because it is
+     * listed as a navigation app. LionFlow doesn't navigate: it plans the trip there, or searches for the words.
+     */
+    private fun navigate(intent: Intent) {
+        val ui = ui ?: return
+        ui.safe("navigate request") {
+            val (place, words) = parseNavigate(intent.data)
+            val sm = carContext.getCarService(androidx.car.app.ScreenManager::class.java)
+            when {
+                place != null -> { sm.popToRoot(); sm.push(TripScreen.plan(carContext, ui, place)) }
+                !words.isNullOrBlank() -> { sm.popToRoot(); sm.push(TripSearchScreen(carContext, ui, words)) }
+            }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
-        if (intent.action != CarContext.ACTION_NAVIGATE) return
-        val m = Regex("(-?[0-9]+(?:\\.[0-9]+)?),(-?[0-9]+(?:\\.[0-9]+)?)").find(intent.data?.schemeSpecificPart ?: return) ?: return
-        openInGoogleMaps(carContext, m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), "", fromCar = true)
+        if (intent.action == CarContext.ACTION_NAVIGATE) navigate(intent)
+    }
+
+    /** Day or night in the car changed: the drawn screens follow (unless a look was chosen with the sun / moon button). */
+    override fun onCarConfigurationChanged(newConfiguration: android.content.res.Configuration) {
+        val ui = ui ?: return
+        ui.surface.invalidate()
+        try { carContext.getCarService(androidx.car.app.ScreenManager::class.java).top.invalidate() } catch (_: Exception) { }
     }
 
     override fun onCreateScreen(intent: Intent): Screen {
-        val guard = ParkGuard(carContext)
+        val ui = CarUi(carContext)
+        this.ui = ui
         lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
-            override fun onCreate(owner: androidx.lifecycle.LifecycleOwner) = guard.start()
-            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) = guard.stop()
+            override fun onCreate(owner: androidx.lifecycle.LifecycleOwner) { ui.guard.start(); ui.surface.start() }
+            override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
+                ui.guard.stop(); ui.surface.close()
+                owner.lifecycle.removeObserver(this)   // a session that is started again gets a new set
+            }
         })
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                CarHub.notices.collect { m -> CarToast.makeText(carContext, tr(m), CarToast.LENGTH_LONG).show() }
+                CarHub.notices.collect { m -> try { CarToast.makeText(carContext, tr(m), CarToast.LENGTH_LONG).show() } catch (_: Exception) { } }
             }
         }
+        no.lionflow.app.plan.SavedRoutes.preload(carContext)
         CarHub.refresh(carContext)
         CarHub.loadTrips(carContext)
-        // The drawn start screen needs taps on the screen (car API 5); older cars get the plain grid.
-        val drawn = carContext.carAppApiLevel >= 5 && CarHub.app(carContext).api.isSignedIn
-        return if (drawn) HomeScreen(carContext, guard) else OverviewScreen(carContext, guard)
+        if (intent.action == CarContext.ACTION_NAVIGATE) android.os.Handler(android.os.Looper.getMainLooper()).post { navigate(intent) }
+        // LionFlow draws its own screens, which are tapped on. With "Plain lists in the car" on (for a car without a
+        // touch screen), and until someone has signed in, Android Auto's own tiles and lists are used.
+        return if (!ui.plain && CarHub.app(carContext).api.isSignedIn) HomeScreen(carContext, ui) else OverviewScreen(carContext, ui)
     }
-}
-
-/** Starts Google Maps navigation to a place; with Android Auto connected, Maps then takes over the car screen. */
-internal fun openMapsOnPhone(ctx: CarContext, geo: android.net.Uri?): Boolean {
-    val g = geo ?: return false
-    val q = g.getQueryParameter("q")?.substringBefore("(")?.takeIf { it.isNotBlank() } ?: g.schemeSpecificPart.substringBefore("?")
-    return try {
-        val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$q&mode=d"))
-            .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        CarHub.app(ctx).startActivity(i)
-        true
-    } catch (e: Exception) { false }
 }
 
 /** Base screen that redraws whenever the shared car state changes. */
@@ -187,7 +175,8 @@ abstract class LiveScreen(ctx: CarContext) : Screen(ctx) {
 
 // ---------------------------------------------------------------- overview
 
-class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen(ctx) {
+internal class OverviewScreen(ctx: CarContext, private val ui: CarUi) : LiveScreen(ctx) {
+    private val guard get() = ui.guard
     init {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) { CarHub.trips.collect { invalidate() } }
@@ -211,12 +200,12 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         if (!nrk) strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener { refreshAll() }.build())
         if (s.carVideo) strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_play, CarColor.RED)).setOnClickListener {
             guard.update()
-            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
+            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, ui))
             else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
         }.build())
-        if (nrk) strip.addAction(Action.Builder().setIcon(nrkIcon()).setOnClickListener {
+        if (nrk) strip.addAction(Action.Builder().setIcon(nrkBadge()).setOnClickListener {
             guard.update()
-            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard, VideoSite.NrkTv))
+            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, ui, VideoSite.NrkTv))
             else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
         }.build())
         val b = GridTemplate.Builder().setTitle(tr(CarHub.message.value ?: s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
@@ -244,17 +233,17 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val week = trips?.filter { (it.startMillis ?: 0L) >= System.currentTimeMillis() - 7 * 86_400_000L }
         val km = week?.sumOf { it.distanceKm } ?: 0.0
         tile(1, if (trips == null) "Trips" else "7 days: ${fmtDistance(km, s)}", if (trips == null) "Loading…" else "${week?.size ?: 0} trips",
-            R.drawable.ic_car_route, lion) { screenManager.push(TripsScreen(carContext)) }
-        tile(2, "Plan a trip", "Battery % on arrival", R.drawable.ic_car_search, lion) { screenManager.push(TripSearchScreen(carContext)) }
+            R.drawable.ic_car_history, lion) { screenManager.push(TripsScreen(carContext)) }
+        if (st.energyType != "Fuel") tile(2, "Plan a trip", "Battery % on arrival", R.drawable.ic_car_search, lion) { screenManager.push(TripSearchScreen(carContext, ui)) }
         if (no.lionflow.app.plan.SavedRoutes.fromPlay(carContext)) {
             val saved = no.lionflow.app.plan.SavedRoutes.all(carContext)
             if (saved.isNotEmpty()) tile(3, "Saved routes", if (saved.size == 1) saved[0].name else "${saved.size} routes", R.drawable.ic_car_route, lion) {
-                screenManager.push(SavedRoutesScreen(carContext))
+                screenManager.push(SavedRoutesScreen(carContext, ui))
             }
         }
         val fuelOnly = st.energyType == "Fuel"
         tile(2, if (fuelOnly) "Fuel stations" else if (st.energyType == "Hybrid") "Chargers & fuel" else "Chargers", "Nearest first",
-            if (fuelOnly) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext)) }
+            if (fuelOnly) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, lion) { screenManager.push(ChargersScreen(carContext, ui)) }
         val max = try {
             carContext.getCarService(androidx.car.app.constraints.ConstraintManager::class.java)
                 .getContentLimit(androidx.car.app.constraints.ConstraintManager.CONTENT_LIMIT_TYPE_GRID)
@@ -267,35 +256,17 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
 
     private fun refreshAll() { CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…") }
 
-    /** "NRK" in a round badge, like the YouTube button. */
-    private fun nrkIcon(): androidx.car.app.model.CarIcon {
-        val n = 96
-        val b = android.graphics.Bitmap.createBitmap(n, n, android.graphics.Bitmap.Config.ARGB_8888)
-        val c = android.graphics.Canvas(b)
-        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        p.color = 0xFFFFFFFF.toInt(); p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = n * 0.07f
-        c.drawCircle(n / 2f, n / 2f, n / 2f - p.strokeWidth, p)
-        p.style = android.graphics.Paint.Style.FILL; p.textAlign = android.graphics.Paint.Align.CENTER
-        p.typeface = android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD); p.textSize = n * 0.30f
-        c.drawText("NRK", n / 2f, n / 2f + p.textSize * 0.36f, p)
-        return androidx.car.app.model.CarIcon.Builder(androidx.core.graphics.drawable.IconCompat.createWithBitmap(b)).build()
-    }
-
     private fun serviceLine(st: no.lionflow.app.model.VehicleStatus, s: no.lionflow.app.data.AppSettings): String {
         val parts = mutableListOf<String>()
         st.kmToService?.let { parts += "service in ${fmtDistance(it, s)}" }
         st.daysToService?.let { d -> parts += if (d >= 60) "${(d / 30).toInt()} months" else "${d.toInt()} days" }
         return if (parts.isEmpty()) "Next service unknown" else "Next " + parts.joinToString(" or ")
     }
-
-    private fun consumption(kwhPer100Km: Double, s: no.lionflow.app.data.AppSettings) =
-        if (s.distanceUnit == "mi") String.format(java.util.Locale.US, "%.1f mi/kWh", 100 / kwhPer100Km / 1.609344)
-        else String.format(java.util.Locale.US, "%.1f kWh/100 km", kwhPer100Km)
 }
 
 // ---------------------------------------------------------------- chargers (list only)
 
-class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
+internal class ChargersScreen(ctx: CarContext, private val ui: CarUi) : LiveScreen(ctx) {
     init {
         CarHub.status.value?.let { st ->
             st.lat?.let { la -> st.lon?.let { lo ->
@@ -305,8 +276,8 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
         }
     }
 
-    /** Opens Google Maps with the place as the destination. */
-    private fun navigateTo(ch: no.lionflow.app.api.Charger) = openInGoogleMaps(carContext, ch.lat, ch.lon, ch.name, stillHere = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) })
+    /** Plans the trip to a charger: how long it takes and the battery left on arrival. */
+    private fun planTo(ch: no.lionflow.app.api.Charger) = screenManager.push(TripScreen.plan(carContext, ui, no.lionflow.app.plan.Place(ch.name, ch.address, ch.lat, ch.lon)))
 
     override fun build(): Template {
         val s = CarHub.app(carContext).settings.value
@@ -330,10 +301,10 @@ class ChargersScreen(ctx: CarContext) : LiveScreen(ctx) {
             val bits = mutableListOf<String>()
             ch.distanceM?.let { m -> bits += if (s.distanceUnit != "mi" && m < 1000) "$m m" else if (s.distanceUnit != "mi" && m < 10_000) String.format(java.util.Locale.US, "%.1f km", m / 1000.0) else fmtDistance(m / 1000.0, s) }
             if (!isFuel && ch.maxKw > 0) bits += "${ch.maxKw.toInt()} kW"
-            if (!isFuel && ch.points > 0) bits += "${ch.points} points"
-            list.addItem(Row.Builder().setTitle(tr(ch.name)).addText(tr(bits.joinToString(" · ").ifBlank { ch.address.ifBlank { "Tap to navigate" } }))
+            if (!isFuel && ch.points > 0) bits += tr("${ch.points} points")
+            list.addItem(Row.Builder().setTitle(ch.name.ifBlank { "—" }).addText(bits.joinToString(" · ").ifBlank { ch.address.ifBlank { "—" } })
                 .setImage(carContext.icon(if (isFuel) R.drawable.ic_car_fuel else R.drawable.ic_car_charger, if (!isFuel && ch.maxKw >= 50) CarColor.GREEN else null))
-                .setOnClickListener { navigateTo(ch) }.build())
+                .apply { if (!isFuel) setOnClickListener { planTo(ch) } }.build())
         }
         return b.setSingleList(list.build()).build()
     }
@@ -358,6 +329,29 @@ class CarsScreen(ctx: CarContext) : Screen(ctx) {
                 }.build())
         }
         return ListTemplate.Builder().setTitle(tr("Switch car")).setHeaderAction(Action.BACK).setSingleList(list.build()).build()
+    }
+}
+
+// ---------------------------------------------------------------- saved routes (list only)
+
+internal class SavedRoutesScreen(ctx: CarContext, private val ui: CarUi) : Screen(ctx) {
+    init {
+        // Trips saved or deleted on the phone show up here at once.
+        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { no.lionflow.app.plan.SavedRoutes.changes.collect { invalidate() } } }
+    }
+
+    override fun onGetTemplate(): Template {
+        val s = CarHub.app(carContext).settings.value
+        val saved = no.lionflow.app.plan.SavedRoutes.all(carContext)
+        if (saved.isEmpty()) return MessageTemplate.Builder(tr("Plan a trip on your phone and tap Save trip.")).setTitle(tr("Saved routes")).setHeaderAction(Action.BACK).build()
+        val list = ItemList.Builder()
+        for (r in saved.take(carContext.listLimit())) {
+            val stops = when (r.stops.size) { 0 -> "no charging stops"; 1 -> "1 charging stop"; else -> "${r.stops.size} charging stops" }
+            list.addItem(Row.Builder().setTitle(r.name.ifBlank { "—" }).addText(fmtDistance(r.totalKm, s) + " · " + tr(stops))
+                .setImage(carContext.icon(R.drawable.ic_car_route))
+                .setOnClickListener { screenManager.push(TripScreen.saved(carContext, ui, r.id)) }.build())
+        }
+        return ListTemplate.Builder().setTitle(tr("Saved routes")).setHeaderAction(Action.BACK).setSingleList(list.build()).build()
     }
 }
 
@@ -398,7 +392,7 @@ class TripsScreen(ctx: CarContext) : Screen(ctx) {
         list.addItem(Row.Builder()
             .setTitle(tr("Last 7 days: ${fmtDistance(km, s)} · ${week.size} trips"))
             .addText(tr(avg?.let { consumption(it, s) } ?: "Consumption not reported"))
-            .setImage(carContext.icon(R.drawable.ic_car_route)).build())
+            .setImage(carContext.icon(R.drawable.ic_car_history)).build())
 
         val day = java.text.SimpleDateFormat("EEE d MMM", no.lionflow.app.ui.l10n.L10n.locale)
         val time = java.text.SimpleDateFormat(no.lionflow.app.ui.l10n.TimeFmt.pattern("HH:mm"), no.lionflow.app.ui.l10n.L10n.locale)

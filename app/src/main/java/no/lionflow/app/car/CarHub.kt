@@ -78,6 +78,10 @@ object CarHub {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 
+    /** True while the car's status is being fetched. */
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading
+
     /** Charger the driver picked in the list; the map flies there. */
 
 
@@ -91,6 +95,10 @@ object CarHub {
     private var clearJob: Job? = null
 
     fun app(ctx: Context) = ctx.applicationContext as LionFlowApp
+
+    /** For the tests that draw the car screens: a status and trips put in place without asking the car. */
+    @androidx.annotation.VisibleForTesting
+    internal fun show(st: VehicleStatus?, trips: List<Trip>?) { _status.value = st; _trips.value = trips }
 
     /** Another car was chosen: forget everything about the old one and load the new one. */
     fun switchCar(ctx: Context, e: no.lionflow.app.model.Garage.Entry) {
@@ -106,6 +114,7 @@ object CarHub {
         val now = System.currentTimeMillis()
         if (!force && now - lastRefresh < 60_000 && _status.value != null) return
         refreshing = true
+        _loading.value = true
         diag = "refreshing…"
         scope.launch {
             try {
@@ -125,6 +134,7 @@ object CarHub {
                 say("Couldn't update — ${Http.describe(e)}")
             } finally {
                 refreshing = false
+                _loading.value = false
             }
         }
     }
@@ -219,29 +229,40 @@ object CarHub {
 
     private fun cacheFile(ctx: Context) = File(ctx.cacheDir, "chargers.json")
 
+    private var chargersBusy = false
+
+    /** Chargers near a position: from the list kept on the phone when it is fresh and for the same place, else fetched. */
     fun loadChargers(ctx: Context, lat: Double, lon: Double) {
+        if (chargersBusy) return
         val app = app(ctx)
         val src = app.settings.value.chargerSource
         val key = no.lionflow.app.BuildConfig.NOBIL_KEY
-        try {
-            val j = JSONObject(cacheFile(ctx).readText())
-            val near = Math.abs(j.getDouble("lat") - lat) < 0.03 && Math.abs(j.getDouble("lon") - lon) < 0.05
-            if (j.optString("src") == src && near) {
-                _chargers.value = j.getJSONArray("items").objects().map { chargerFromJson(it) }.withDistance(lat, lon)
-                if (System.currentTimeMillis() - j.getLong("time") < 6 * 3600_000L) return
-            }
-        } catch (_: Exception) { }
+        val file = cacheFile(ctx)
+        chargersBusy = true
         scope.launch {
             try {
+                // The kept list is read off the main thread: it can be a big file.
+                val kept = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    try {
+                        val j = JSONObject(file.readText())
+                        val near = Math.abs(j.getDouble("lat") - lat) < 0.03 && Math.abs(j.getDouble("lon") - lon) < 0.05
+                        if (j.optString("src") == src && near) j.getJSONArray("items").objects().map { chargerFromJson(it) }.withDistance(lat, lon) to j.getLong("time") else null
+                    } catch (_: Exception) { null }
+                }
+                if (kept != null) {
+                    _chargers.value = kept.first
+                    if (System.currentTimeMillis() - kept.second < 6 * 3600_000L) return@launch
+                }
                 val list = if (src == "nobil" && key.isNotEmpty()) NobilApi.near(key, lat, lon) else OsmChargers.near(lat, lon)
                 if (list.isNotEmpty()) {
                     _chargers.value = list.withDistance(lat, lon)
-                    cacheFile(ctx).writeText(JSONObject().put("src", src).put("lat", lat).put("lon", lon).put("time", System.currentTimeMillis())
-                        .put("items", JSONArray(list.map { it.toJson() })).toString())
+                    val text = JSONObject().put("src", src).put("lat", lat).put("lon", lon).put("time", System.currentTimeMillis())
+                        .put("items", JSONArray(list.map { it.toJson() })).toString()
+                    kotlinx.coroutines.withContext(Dispatchers.IO) { try { file.writeText(text) } catch (_: Exception) { } }
                 }
             } catch (_: Exception) {
                 if (_chargers.value.isEmpty()) say("Charger servers are busy — try again in a minute")
-            }
+            } finally { chargersBusy = false }
         }
     }
 

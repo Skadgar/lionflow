@@ -1024,3 +1024,19 @@ StartUp	Démarrage	Start	Arranque	Starter
 Drive	En marche	Fahrt	En marcha	Kjører
 None	Aucun	Keiner	Ninguno	Ingen
 Geolocation	Géolocalisation	Standort	Geolocalización	Posisjon
+Chargers	Bornes	Ladestationen	Cargadores	Ladere
+Fuel stations	Stations-service	Tankstellen	Gasolineras	Bensinstasjoner
+Chargers & fuel	Bornes et carburant	Laden & Tanken	Carga y combustible	Lading og drivstoff
+Fuel stations near the car	Stations-service près de la voiture	Tankstellen in der Nähe des Autos	Gasolineras cerca del coche	Bensinstasjoner nær bilen
+Chargers and fuel near the car	Bornes et stations-service près de la voiture	Ladestationen und Tankstellen in der Nähe des Autos	Cargadores y gasolineras cerca del coche	Ladere og bensinstasjoner nær bilen
+{0} points	{0} points	{0} Ladepunkte	{0} puntos	{0} ladepunkter
+The car hasn't shared its position	La voiture n'a pas partagé sa position	Das Auto hat seine Position nicht geteilt	El coche no ha compartido su posición	Bilen har ikke delt posisjonen sin
+1 stop left	1 arrêt restant	1 Stopp übrig	1 parada restante	1 stopp igjen
+{0} stops left	{0} arrêts restants	{0} Stopps übrig	{0} paradas restantes	{0} stopp igjen
+No fast charger within reach after {0}	Aucune borne rapide à portée après {0}	Kein Schnelllader in Reichweite nach {0}	Ningún cargador rápido al alcance tras {0}	Ingen hurtiglader innen rekkevidde etter {0}
+The battery is at or below your minimum	La batterie est à votre minimum ou en dessous	Der Akku ist an oder unter Ihrem Minimum	La batería está en tu mínimo o por debajo	Batteriet er på eller under minimumet ditt
+Something went wrong.	Une erreur s'est produite.	Etwas ist schiefgelaufen.	Algo salió mal.	Noe gikk galt.
+Quick	Rapide	Schnell	Rápida	Hurtig
+Total driven	Total parcouru	Gesamt gefahren	Total recorrido	Totalt kjørt
+Plain lists in the car	Listes simples dans la voiture	Einfache Listen im Auto	Listas sencillas en el coche	Enkle lister i bilen
+For cars whose screen can't be touched (a dial or a touchpad instead). Android Auto's own tiles and lists are shown in place of the screens LionFlow draws. Takes effect the next time the car connects	Pour les voitures dont l'écran n'est pas tactile (molette ou pavé tactile). Les tuiles et listes d'Android Auto remplacent les écrans dessinés par LionFlow. Prend effet à la prochaine connexion de la voiture	Für Autos ohne Touchscreen (Drehregler oder Touchpad). Statt der von LionFlow gezeichneten Bildschirme werden die Kacheln und Listen von Android Auto gezeigt. Gilt ab der nächsten Verbindung mit dem Auto	Para coches cuya pantalla no es táctil (rueda o panel táctil). Se muestran los mosaicos y listas de Android Auto en lugar de las pantallas que dibuja LionFlow. Se aplica la próxima vez que se conecte el coche	For biler der skjermen ikke kan trykkes på (hjul eller pekeplate i stedet). Android Autos egne fliser og lister vises i stedet for skjermene LionFlow tegner. Gjelder fra neste gang bilen kobler til

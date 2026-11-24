@@ -473,12 +473,27 @@ class Planner(
     var lastBuilt: SavedRoutes.Saved? = null
         private set
 
+    /** "Home → Oslo", or "Oslo ⇄" for a round trip. */
+    private fun tripName(): String {
+        val dest = if (planRound) planVias.lastOrNull() else planTo
+        fun nm(pl: Place?) = pl?.let { if (it.detail.isEmpty() && (it.name == "Car's position" || it.name == "My position")) no.lionflow.app.ui.l10n.L10n.tr(it.name) else it.name } ?: ""
+        return if (planRound) nm(dest) + " ⇄" else nm(planFrom) + " → " + nm(dest)
+    }
+
+    /**
+     * The plan that is showing, in the form the car screen draws, without saving it. Also when the trip can't be
+     * made: the car screen then shows how far it gets.
+     */
+    fun preview(): SavedRoutes.Saved? {
+        val r = route ?: return null; val p = plan ?: return null
+        return SavedRoutes.build(tripName(), r, r.energy(model.factor), p, batteryKwh(), null)
+    }
+
     fun saveTrip(asPlanned: Boolean = true, keep: Boolean = true): Boolean {
         val r = route ?: return false; val p = plan ?: return false
         if (!p.ok) return false
         val dest = if (planRound) planVias.lastOrNull() else planTo
-        fun nm(pl: Place?) = pl?.let { if (it.detail.isEmpty() && (it.name == "Car's position" || it.name == "My position")) no.lionflow.app.ui.l10n.L10n.tr(it.name) else it.name } ?: ""
-        val name = if (planRound) nm(dest) + " ⇄" else nm(planFrom) + " → " + nm(dest)
+        val name = tripName()
         val setup = JSONObject().put("round", planRound).put("destStay", destStay)
             .put("vias", JSONArray().apply { (if (planRound) planVias.dropLast(1) else planVias).forEach { put(pj(it)) } })
             .put("stays", JSONArray().apply { (if (planRound) planStays.dropLast(1) else planStays).forEach { put(it) } })

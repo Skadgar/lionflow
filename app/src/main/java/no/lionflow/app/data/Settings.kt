@@ -45,6 +45,7 @@ data class AppSettings(
     val carActions: Boolean = true,     // remote actions from Android Auto
     val carVideo: Boolean = true,       // YouTube in Android Auto, only while parked
     val carVideoSync: Boolean = true,   // hold the picture back ~0.4 s so it lines up with the car's delayed audio
+    val carPlain: Boolean = false,      // Android Auto's own tiles and lists instead of the drawn screens (cars without a touch screen)
     val chargeLimitOn: Boolean = false, // LionFlow stops charging at chargeLimitPct
     val chargeLimitPct: Int = 80,
     /** Car is set to charge to 100 % while LionFlow stops it at chargeLimitPct (lets it go past the car's own daily limit). */
@@ -102,6 +103,7 @@ class SettingsStore internal constructor(private val p: SharedPreferences) {
         timeFormat = p.getString("timeFormat", "system") ?: "system",
         carVideo = p.getBoolean("carVideo", true),
         carVideoSync = p.getBoolean("carVideoSync", true),
+        carPlain = p.getBoolean("carPlain", false),
         batteryKwh = p.getFloat("batteryKwh", 0f).toDouble(),
         chargeLimitOn = p.getBoolean("chargeLimitOn", false),
         chargeLimitPct = p.getInt("chargeLimitPct", 80),
@@ -159,6 +161,7 @@ class SettingsStore internal constructor(private val p: SharedPreferences) {
             .putString("timeFormat", s.timeFormat)
             .putBoolean("carVideo", s.carVideo)
             .putBoolean("carVideoSync", s.carVideoSync)
+            .putBoolean("carPlain", s.carPlain)
             .putFloat("batteryKwh", s.batteryKwh.toFloat())
             .putBoolean("chargeLimitOn", s.chargeLimitOn)
             .putInt("chargeLimitPct", s.chargeLimitPct)

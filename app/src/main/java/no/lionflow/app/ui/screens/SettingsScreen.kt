@@ -266,7 +266,8 @@ fun SettingsScreen(vm: AppViewModel, ui: UiState, s: AppSettings) {
         SectionTitle("Android Auto")
         GroupCard {
             ToggleRow("YouTube in the car (parked only)", "Opens only when the car reports standing still (or GPS shows no movement), and closes the moment the car moves", s.carVideo) { v -> set { it.copy(carVideo = v) } }
-            ToggleRow("Line up YouTube picture with the car's sound", "Android Auto plays sound a little late. This holds the picture back by about 0.4 seconds so they match. Turn it off if playback looks choppy", s.carVideoSync, showDivider = false) { v -> set { it.copy(carVideoSync = v) } }
+            ToggleRow("Line up YouTube picture with the car's sound", "Android Auto plays sound a little late. This holds the picture back by about 0.4 seconds so they match. Turn it off if playback looks choppy", s.carVideoSync) { v -> set { it.copy(carVideoSync = v) } }
+            ToggleRow("Plain lists in the car", "For cars whose screen can't be touched (a dial or a touchpad instead). Android Auto's own tiles and lists are shown in place of the screens LionFlow draws. Takes effect the next time the car connects", s.carPlain, showDivider = false) { v -> set { it.copy(carPlain = v) } }
         }
         Text(
             if (vm.fromPlay) "Installed from Google Play, so LionFlow shows up in Android Auto's app launcher."

@@ -20,8 +20,8 @@ import androidx.car.app.media.CarAudioRecord
  * (Norwegian in Norway, Swedish in Sweden, …; English elsewhere). Needs Android 13 and a car that lets apps record.
  */
 object CarVoice {
-    fun possible(ctx: CarContext): Boolean = Build.VERSION.SDK_INT >= 33 && ctx.carAppApiLevel >= 5 &&
-        try { SpeechRecognizer.isRecognitionAvailable(ctx) } catch (_: Exception) { false }
+    fun possible(ctx: CarContext): Boolean = Build.VERSION.SDK_INT >= 33 &&
+        try { ctx.carAppApiLevel >= 5 && SpeechRecognizer.isRecognitionAvailable(ctx) } catch (_: Exception) { false }
 
     /** Listens once; [onText] gets what was said, or null when nothing was understood. */
     fun listen(ctx: CarContext, onText: (String?) -> Unit) {

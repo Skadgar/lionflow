@@ -2,6 +2,7 @@ package no.lionflow.app.plan
 
 import android.content.Context
 import android.os.Build
+import kotlinx.coroutines.flow.update
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -55,35 +56,85 @@ object SavedRoutes {
     )
 
     private const val FILE = "saved_routes.json"
+    private const val PROGRESS = "saved_routes_progress.json"
     private const val MAX = 10
 
-    /** Only builds installed from Google Play may use this. */
-    fun fromPlay(ctx: Context): Boolean = try {
+    private var play: Boolean? = null
+
+    /** Only builds installed from Google Play may use this. (Asked once: it can't change while the app runs.) */
+    fun fromPlay(ctx: Context): Boolean = play ?: (try {
         val pm = ctx.packageManager
         val src = if (Build.VERSION.SDK_INT >= 30) pm.getInstallSourceInfo(ctx.packageName).installingPackageName
         else @Suppress("DEPRECATION") pm.getInstallerPackageName(ctx.packageName)
         src == "com.android.vending"
-    } catch (_: Exception) { false }
+    } catch (_: Exception) { false }).also { play = it }
 
-    fun all(ctx: Context): List<Saved> = try {
+    // The trips are read from the file once and then kept in memory: the car screens ask for them every time they
+    // draw. Writing happens on a thread of its own, so nothing on the main thread waits for the file.
+    @Volatile private var cache: List<Saved>? = null
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "LionFlowSavedRoutes").apply { isDaemon = true } }
+
+    fun all(ctx: Context): List<Saved> {
+        cache?.let { return it }
+        return synchronized(this) { cache ?: (read(ctx.applicationContext)?.also { cache = it } ?: emptyList()) }
+    }
+
+    /** Reads the trips in the background, so the first screen that wants them doesn't have to wait for the file. */
+    fun preload(ctx: Context) {
+        if (cache != null) return
+        val app = ctx.applicationContext
+        io.execute { try { all(app) } catch (_: Exception) { } }
+    }
+
+    /** Null when the file couldn't be read (so a passing fault isn't remembered as "no trips"). */
+    private fun read(ctx: Context): List<Saved>? = try {
         val f = File(ctx.filesDir, FILE)
-        if (!f.exists()) emptyList() else JSONArray(f.readText()).let { a -> (0 until a.length()).mapNotNull { parse(a.optJSONObject(it)) } }
-    } catch (_: Exception) { emptyList() }
+        val list = if (!f.exists()) emptyList() else JSONArray(f.readText()).let { a -> (0 until a.length()).mapNotNull { parse(a.optJSONObject(it)) } }
+        // How far along each trip the car was last seen is kept in a small file of its own (see [live]).
+        try {
+            val p = File(ctx.filesDir, PROGRESS)
+            if (p.exists()) { val o = JSONObject(p.readText()); list.forEach { s -> if (o.has(s.id.toString())) s.progress = o.optInt(s.id.toString(), s.progress).coerceIn(0, (s.lat.size - 1).coerceAtLeast(0)) } }
+        } catch (_: Exception) { }
+        list
+    } catch (_: Exception) { null }
 
     /** Goes up each time trips are added or deleted, so the phone and Android Auto show the same list right away. */
     val changes = kotlinx.coroutines.flow.MutableStateFlow(0)
 
-    private fun write(ctx: Context, list: List<Saved>, listChanged: Boolean = true) {
-        val a = JSONArray(); list.forEach { a.put(toJson(it)) }
-        File(ctx.filesDir, FILE).writeText(a.toString())
-        if (listChanged) changes.value++
+    private fun writeFile(f: File, text: String) {
+        val tmp = File(f.parentFile, f.name + ".tmp")
+        tmp.writeText(text)
+        if (!tmp.renameTo(f)) { f.writeText(text); tmp.delete() }
     }
 
-    fun delete(ctx: Context, id: Long) = synchronized(this) { write(ctx, all(ctx).filter { it.id != id }) }
+    private fun store(ctx: Context, list: List<Saved>) {
+        cache = list
+        val app = ctx.applicationContext
+        io.execute {
+            try {
+                val a = JSONArray(); list.forEach { a.put(toJson(it)) }
+                writeFile(File(app.filesDir, FILE), a.toString())
+                File(app.filesDir, PROGRESS).delete()   // the trips' file has it now
+            } catch (_: Exception) { }
+        }
+        changes.update { it + 1 }
+    }
 
-    fun resetProgress(ctx: Context, id: Long) = synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == id) it.progress = 0 }, false) }
+    /** Remembers how far along the trips the car is, without writing the trips themselves again. */
+    private fun storeProgress(ctx: Context) {
+        val list = cache ?: return
+        val app = ctx.applicationContext
+        val text = JSONObject().apply { list.forEach { put(it.id.toString(), it.progress) } }.toString()
+        io.execute { try { writeFile(File(app.filesDir, PROGRESS), text) } catch (_: Exception) { } }
+    }
 
-    fun add(ctx: Context, s: Saved) = synchronized(this) { write(ctx, (listOf(s) + all(ctx)).take(MAX)) }
+    fun delete(ctx: Context, id: Long) = synchronized(this) { store(ctx, all(ctx).filter { it.id != id }) }
+
+    fun resetProgress(ctx: Context, id: Long) {
+        all(ctx).firstOrNull { it.id == id }?.let { it.progress = 0; storeProgress(ctx) }
+    }
+
+    fun add(ctx: Context, s: Saved) = synchronized(this) { store(ctx, (listOf(s) + all(ctx)).take(MAX)) }
 
     /** Makes a saved route from a plan: points about every 300 m, battery use per point, the charging stops. */
     fun build(name: String, r: RouteData, energy: DoubleArray, plan: Plan, batteryKwh: Double, setup: JSONObject? = null): Saved {
@@ -146,7 +197,11 @@ object SavedRoutes {
                     val same = if (heading == null) clusters else clusters.filter { k -> val diff = Math.abs(((routeBearing(k) - heading + 540) % 360) - 180); diff < 70 }.ifEmpty { clusters }
                     same.filter { it >= s.progress - 5 }.minByOrNull { it - s.progress } ?: same.minBy { Math.abs(it - s.progress) }
                 }
-                if (at != s.progress) synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == s.id) it.progress = at }); s.progress = at }
+                if (at != s.progress) {
+                    s.progress = at
+                    // Only for a trip that is saved; one just planned in the car lives in memory alone.
+                    if (cache?.any { it === s } == true) storeProgress(ctx)
+                }
             }
             val prev = lastPos[s.id]
             if (prev == null || Geo.km(prev.first, prev.second, lat, lon) > 0.15) lastPos[s.id] = lat to lon

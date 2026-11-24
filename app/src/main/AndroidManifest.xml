@@ -98,7 +98,7 @@
             android:name="com.google.android.gms.car.notification.SmallIcon"
             android:resource="@drawable/ic_notification" />
 
-        <!-- Car overview in Android Auto (lists) + YouTube while parked. Navigation category only to get a drawing surface. -->
+        <!-- LionFlow in Android Auto: its own drawn screens + YouTube while parked. Navigation category only to get a drawing surface. -->
         <service
             android:name=".car.LionFlowCarService"
             android:exported="true"

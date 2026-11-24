@@ -13,7 +13,7 @@ import no.lionflow.app.data.SettingsStore
 import no.lionflow.app.work.StatusWorker
 import java.util.concurrent.TimeUnit
 
-class LionFlowApp : Application() {
+open class LionFlowApp : Application() {
     lateinit var settings: SettingsStore
     lateinit var secure: SecureStore
     lateinit var api: StellantisApi

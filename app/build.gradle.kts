@@ -64,6 +64,10 @@ android {
         checkReleaseBuilds = false
         abortOnError = false
     }
+    testOptions {
+        // The car screen pictures (CarPreviewTest) draw the app's own icons.
+        unitTests.isIncludeAndroidResources = true
+    }
     packaging {
         resources {
             excludes += setOf("META-INF/INDEX.LIST", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module")
@@ -71,9 +75,25 @@ android {
     }
 }
 
+// The Android Auto tests (the screens drawn to pictures, and taps and screens followed through) need Android's own
+// graphics from the network, so they only run when asked for: gradle :app:testDebugUnitTest -PcarPreviews
+tasks.withType<Test>().configureEach {
+    if (project.hasProperty("carPreviews")) {
+        systemProperty("carPreviewDir", layout.buildDirectory.dir("car-previews").get().asFile.absolutePath)
+        // Android's graphics for the tests, from the same copy of Maven Central as in settings.gradle.kts.
+        systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2/")
+        systemProperty("robolectric.dependency.repo.id", "maven-central-google")
+        maxHeapSize = "2g"
+    } else {
+        exclude("**/no/lionflow/app/car/**")
+    }
+}
+
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.car.app:app-testing:1.7.0")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
