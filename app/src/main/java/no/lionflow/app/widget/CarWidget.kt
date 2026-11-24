@@ -146,12 +146,14 @@ class CarWidget : AppWidgetProvider() {
         fun render(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
             for (id in ids) {
                 // Short widgets leave out the Car / Outside panel so nothing gets cut off.
-                val h = mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
-                mgr.updateAppWidget(id, build(ctx, compact = h in 1..279))
+                val o = mgr.getAppWidgetOptions(id)
+                val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+                val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0)
+                mgr.updateAppWidget(id, build(ctx, compact = h in 1..279, narrow = w in 1..339))
             }
         }
 
-        private fun build(ctx: Context, compact: Boolean): RemoteViews {
+        private fun build(ctx: Context, compact: Boolean, narrow: Boolean = false): RemoteViews {
             val app = ctx.applicationContext as LionFlowApp
             val s = app.settings.value
             val snap = WidgetData.load(ctx)
@@ -212,7 +214,7 @@ class CarWidget : AppWidgetProvider() {
                 v.setTextViewText(R.id.w_outside, tr(if (outside > -100) fmtTemp(outside, s) else "—"))
             }
 
-            val line = tr(WidgetData.status(ctx) ?: updatedLine(snap, app.api.isSignedIn))
+            val line = tr(WidgetData.status(ctx) ?: updatedLine(snap, app.api.isSignedIn, narrow))
             val place = if (snap != null && app.api.isSignedIn) WidgetData.place(ctx) else null
             // Under the name: where the car is, and how fresh the numbers are.
             v.setTextViewText(R.id.w_updated_top, listOfNotNull(place, line).joinToString(" · "))
@@ -237,7 +239,7 @@ class CarWidget : AppWidgetProvider() {
                 setSpan(android.text.style.RelativeSizeSpan(f), big.length, big.length + small.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
 
-        private fun updatedLine(snap: JSONObject?, signedIn: Boolean): String {
+        private fun updatedLine(snap: JSONObject?, signedIn: Boolean, short: Boolean = false): String {
             if (!signedIn) return "Open LionFlow to sign in"
             if (snap == null) return "Tap ↻ to load your car"
             val now = System.currentTimeMillis()
@@ -245,7 +247,8 @@ class CarWidget : AppWidgetProvider() {
             val carTime = snap.optLong("carTime", fetched)
             // If the car itself hasn't reported for a while, say so — otherwise "Updated" would be misleading.
             return if (now - carTime > 30 * 60_000 && fetched - carTime > 30 * 60_000) {
-                "Car asleep · Last report ${minutesAgo(carTime, now)}"
+                // Narrow widgets get the short form, so it fits beside the place.
+                if (short) "Asleep · ${minutesAgo(carTime, now)}" else "Car asleep · Last report ${minutesAgo(carTime, now)}"
             } else {
                 "Updated ${minutesAgo(carTime, now)}"
             }

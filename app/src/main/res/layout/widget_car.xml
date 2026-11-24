@@ -40,15 +40,18 @@
 
             <TextView
                 android:id="@+id/w_name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="match_parent"
+                android:layout_height="26dp"
+                android:autoSizeMaxTextSize="21sp"
+                android:autoSizeMinTextSize="15sp"
+                android:autoSizeStepGranularity="1sp"
+                android:autoSizeTextType="uniform"
                 android:ellipsize="end"
                 android:fontFamily="sans-serif"
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:text="LionFlow"
                 android:textColor="@color/widget_text"
-                android:textSize="21sp"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -183,7 +186,7 @@
             android:paddingStart="10dp"
             android:paddingTop="10dp"
             android:paddingEnd="10dp"
-            android:paddingBottom="12dp">
+            android:paddingBottom="22dp">
 
             <ImageView
                 android:layout_width="26dp"
@@ -310,7 +313,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:layout_weight="1.25"
+            android:layout_weight="1.5"
             android:orientation="vertical">
 
             <TextView
@@ -330,7 +333,7 @@
                 android:maxLines="1"
                 android:text="—"
                 android:textColor="@color/widget_text"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -358,7 +361,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:layout_weight="1"
+            android:layout_weight="0.85"
             android:orientation="vertical">
 
             <TextView
@@ -376,7 +379,7 @@
                 android:fontFamily="sans-serif"
                 android:text="—"
                 android:textColor="@color/widget_text"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
