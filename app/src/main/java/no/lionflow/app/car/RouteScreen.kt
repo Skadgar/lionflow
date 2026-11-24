@@ -282,7 +282,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         // ---- the route
         val tlH = dp(64f)
         // The route itself stays clear of the floating buttons; the panel behind it doesn't.
-        val routeBox = RectF(mapBox.left + dp(18f), max(mapBox.top + dp(18f), buttonsBottom + dp(6f)), mapBox.right - dp(18f), mapBox.bottom - tlH - dp(18f))
+        val routeBox = RectF(mapBox.left + dp(18f), maxOf(mapBox.top + dp(18f), buttonsBottom + dp(6f), area.top + dp(60f)), mapBox.right - dp(18f), mapBox.bottom - tlH - dp(18f))
         ink.card(c, mapBox, dp(26f), CarTheme.p.bg2, pressed = true)
         p.style = Paint.Style.FILL
         // A faint dot grid gives the map some depth.
