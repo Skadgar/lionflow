@@ -2,4 +2,4 @@
 
 Thanks to everyone who has helped make LionFlow better.
 
-- [@wi3ste](https://github.com/wi3ste): scrollable Bluetooth device picker for route recording (#7)
+- [@wi3ste](https://github.com/wi3ste): scrollable Bluetooth device picker for route recording (#7), 48 V mild-hybrid support (#10)
