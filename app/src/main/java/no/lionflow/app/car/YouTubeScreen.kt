@@ -42,14 +42,31 @@ import java.net.URLEncoder
  * YouTube on the car screen — only while parked. A WebView limited to YouTube is drawn on the
  * surface Android Auto gives us. As soon as the car moves, the page is destroyed and the screen closes.
  */
-class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx), SurfaceCallback, DefaultLifecycleObserver {
+/** A video site that can be shown on the car screen while parked. */
+class VideoSite(val name: String, val home: String, val hosts: List<String>, val searchFirst: Boolean, val searchUrl: (String) -> String) {
+    fun allows(u: Uri): Boolean {
+        if (u.scheme != "https") return false
+        val h = u.host ?: return false
+        return hosts.any { h == it || h.endsWith(".$it") }
+    }
+    companion object {
+        val YouTube = VideoSite("YouTube", "https://m.youtube.com/", listOf("youtube.com", "youtu.be", "google.com", "gstatic.com", "ytimg.com", "googlevideo.com"), true) {
+            "https://m.youtube.com/results?search_query=" + URLEncoder.encode(it, "UTF-8")
+        }
+        val NrkTv = VideoSite("NRK TV", "https://tv.nrk.no/", listOf("nrk.no"), false) {
+            "https://tv.nrk.no/sok?q=" + URLEncoder.encode(it, "UTF-8")
+        }
+    }
+}
+
+class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard, private val site: VideoSite = VideoSite.YouTube) : Screen(ctx), SurfaceCallback, DefaultLifecycleObserver {
     private val main = Handler(Looper.getMainLooper())
     private var display: VirtualDisplay? = null
     private var presentation: Presentation? = null
     private var web: WebView? = null
     private var root: FrameLayout? = null
     private var fullscreen: View? = null
-    private var pendingUrl = HOME
+    private var pendingUrl = site.home
     private var closing = false
 
     init {
@@ -71,10 +88,10 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     /** YouTube's start page is empty when nobody is signed in, so go straight to search the first time. */
     private var askedSearch = false
     override fun onStart(owner: LifecycleOwner) {
-        if (askedSearch || closing || pendingUrl != HOME) return
+        if (!site.searchFirst || askedSearch || closing || pendingUrl != site.home) return
         askedSearch = true
         main.post {
-            if (!closing) try { screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) }) } catch (_: Exception) { }
+            if (!closing) try { screenManager.push(YouTubeSearchScreen(carContext, site.name) { q -> search(q) }) } catch (_: Exception) { }
         }
     }
 
@@ -92,7 +109,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     }
 
     fun search(q: String) {
-        val url = "https://m.youtube.com/results?search_query=" + URLEncoder.encode(q, "UTF-8")
+        val url = site.searchUrl(q)
         pendingUrl = url
         main.post { web?.loadUrl(url) }
     }
@@ -123,7 +140,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             col.addView(b, android.widget.LinearLayout.LayoutParams(dp(60f), dp(60f)).apply { topMargin = dp(5f); bottomMargin = dp(5f) })
             controlActions += b to action
         }
-        add(no.lionflow.app.R.drawable.ic_car_search) { screenManager.push(YouTubeSearchScreen(carContext) { q -> search(q) }) }
+        add(no.lionflow.app.R.drawable.ic_car_search) { screenManager.push(YouTubeSearchScreen(carContext, site.name) { q -> search(q) }) }
         add(no.lionflow.app.R.drawable.ic_car_back) { web?.let { if (it.canGoBack()) it.goBack() } }
         return col
     }
@@ -143,7 +160,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
         // In fullscreen the X is swapped for an empty, do-nothing action (the template needs one).
         val strip = ActionStrip.Builder().addAction(
             if (fullscreen != null) Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_blank)).setOnClickListener { }.build()
-            else Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close("YouTube closed") }.build()
+            else Action.Builder().setIcon(ytIcon(no.lionflow.app.R.drawable.ic_car_close)).setOnClickListener { close(site.name + " " + tr("closed")) }.build()
         ).build()
         return NavigationTemplate.Builder()
             .setActionStrip(strip)
@@ -298,11 +315,11 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
             val cm = android.webkit.CookieManager.getInstance()
             cm.setAcceptCookie(true); cm.setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean = !allowed(req.url)
+                override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean = !site.allows(req.url)
                 override fun onPageFinished(view: WebView, url: String?) { injectSync(view) }
                 override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) { injectSync(view) }
                 override fun onReceivedError(view: WebView, req: WebResourceRequest, err: android.webkit.WebResourceError) {
-                    if (req.isForMainFrame) CarToast.makeText(carContext, "YouTube: ${err.description}", CarToast.LENGTH_LONG).show()
+                    if (req.isForMainFrame) CarToast.makeText(carContext, "${site.name}: ${err.description}", CarToast.LENGTH_LONG).show()
                 }
             }
             webChromeClient = object : WebChromeClient() {
@@ -429,7 +446,7 @@ class YouTubeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx)
     }
 }
 
-class YouTubeSearchScreen(ctx: CarContext, private val onSearch: (String) -> Unit) : Screen(ctx) {
+class YouTubeSearchScreen(ctx: CarContext, private val siteName: String = "YouTube", private val onSearch: (String) -> Unit) : Screen(ctx) {
     override fun onGetTemplate(): Template =
         SearchTemplate.Builder(object : SearchTemplate.SearchCallback {
             override fun onSearchSubmitted(searchText: String) {
@@ -438,7 +455,7 @@ class YouTubeSearchScreen(ctx: CarContext, private val onSearch: (String) -> Uni
             }
         })
             .setHeaderAction(Action.BACK)
-            .setSearchHint(tr("Search YouTube"))
+            .setSearchHint(tr("Search {0}").replace("{0}", siteName))
             .setShowKeyboardByDefault(true)
             .build()
 }

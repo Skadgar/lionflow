@@ -280,7 +280,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ticker?.cancel()
         // An account that was started but never signed in is dropped when leaving it.
         if (!api.isSignedIn) settings.saveAccounts(settings.accounts().filter { it.id != settings.activeAccount })
-        val entry = no.lionflow.app.model.Garage.entries(app).firstOrNull { it.accountId == id && (vin == null || it.vehicle.vin == vin) }
+        val entry = no.lionflow.app.model.Garage.allEntries(app).firstOrNull { it.accountId == id && (vin == null || it.vehicle.vin == vin) }
         if (entry != null) no.lionflow.app.model.Garage.activate(app, entry)
         else { api.switchProfile(id); settings.activeAccount = id; settings.update { it.copy(brand = target.brand, country = target.country) } }
         resyncFromStore()

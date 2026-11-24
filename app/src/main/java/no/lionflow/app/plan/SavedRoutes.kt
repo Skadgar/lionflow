@@ -107,18 +107,49 @@ object SavedRoutes {
      * What is left from the car's position and battery. Looks only ahead of the last known progress, and picks the
      * earliest close point, so the way back on a round trip isn't mistaken for the way out.
      */
+    private fun bearing(la1: Double, lo1: Double, la2: Double, lo2: Double): Double {
+        val y = Math.sin(Math.toRadians(lo2 - lo1)) * Math.cos(Math.toRadians(la2))
+        val x = Math.cos(Math.toRadians(la1)) * Math.sin(Math.toRadians(la2)) - Math.sin(Math.toRadians(la1)) * Math.cos(Math.toRadians(la2)) * Math.cos(Math.toRadians(lo2 - lo1))
+        return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360
+    }
+
+    private val lastPos = HashMap<Long, Pair<Double, Double>>()
+
+    /**
+     * What is left from the car's position and battery. The car can join the route anywhere (say 70 % along):
+     * the nearest part of the route counts. Where the route passes the same road twice (a round trip), the way the
+     * car is heading decides, else the part nearest to where it was last seen.
+     */
     fun live(ctx: Context, s: Saved, lat: Double?, lon: Double?, pct: Double?): Live {
         var at = s.progress
         var off = 0.0
         if (lat != null && lon != null) {
-            val from = (s.progress - 5).coerceAtLeast(0)
-            val d = DoubleArray(s.lat.size) { if (it < from) Double.MAX_VALUE else Geo.km(lat, lon, s.lat[it], s.lon[it]) }
+            val n = s.lat.size
+            val d = DoubleArray(n) { Geo.km(lat, lon, s.lat[it], s.lon[it]) }
             val min = d.minOrNull() ?: 0.0
             off = min
             if (min < 3.0) {
-                at = (from until d.size).first { d[it] <= min + 0.3 }
-                if (at != s.progress) synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == s.id) it.progress = at }, false); s.progress = at }
+                // Close stretches of the route, each with its nearest point.
+                val clusters = ArrayList<Int>()
+                var i = 0
+                while (i < n) {
+                    if (d[i] <= min + 0.4) {
+                        var best = i; var j = i
+                        while (j < n && (d[j] <= min + 0.4 || j - i < 1)) { if (d[j] < d[best]) best = j; j++ }
+                        clusters += best; i = j
+                    } else i++
+                }
+                at = if (clusters.size <= 1) clusters.firstOrNull() ?: at else {
+                    val prev = lastPos[s.id]
+                    val heading = prev?.takeIf { Geo.km(it.first, it.second, lat, lon) > 0.15 }?.let { bearing(it.first, it.second, lat, lon) }
+                    fun routeBearing(k: Int) = bearing(s.lat[(k - 2).coerceAtLeast(0)], s.lon[(k - 2).coerceAtLeast(0)], s.lat[(k + 2).coerceAtMost(n - 1)], s.lon[(k + 2).coerceAtMost(n - 1)])
+                    val same = if (heading == null) clusters else clusters.filter { k -> val diff = Math.abs(((routeBearing(k) - heading + 540) % 360) - 180); diff < 70 }.ifEmpty { clusters }
+                    same.filter { it >= s.progress - 5 }.minByOrNull { it - s.progress } ?: same.minBy { Math.abs(it - s.progress) }
+                }
+                if (at != s.progress) synchronized(this) { write(ctx, all(ctx).onEach { if (it.id == s.id) it.progress = at }); s.progress = at }
             }
+            val prev = lastPos[s.id]
+            if (prev == null || Geo.km(prev.first, prev.second, lat, lon) > 0.15) lastPos[s.id] = lat to lon
         }
         val left = s.stops.filter { it.idx > at }
         val next = left.firstOrNull()

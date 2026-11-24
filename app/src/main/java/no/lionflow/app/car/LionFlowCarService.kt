@@ -196,14 +196,18 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         }
         val s = app.settings.value
         val st = CarHub.status.value
-        // Only one button in the strip may have text; the rest must be icons.
+        // The strip holds at most two buttons, icons only. With YouTube and NRK TV both there, updating is on the doors tile.
+        val nrk = s.carVideo && Where.inNorway(carContext)
         val strip = ActionStrip.Builder()
-            .addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener {
-                CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…")
-            }.build())
+        if (!nrk) strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_refresh)).setOnClickListener { refreshAll() }.build())
         if (s.carVideo) strip.addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_play, CarColor.RED)).setOnClickListener {
             guard.update()
             if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard))
+            else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
+        }.build())
+        if (nrk) strip.addAction(Action.Builder().setIcon(nrkIcon()).setOnClickListener {
+            guard.update()
+            if (guard.parked.value) screenManager.push(YouTubeScreen(carContext, guard, VideoSite.NrkTv))
             else CarToast.makeText(carContext, tr(guard.reason), CarToast.LENGTH_LONG).show()
         }.build())
         val b = GridTemplate.Builder().setTitle(tr(CarHub.message.value ?: s.carName)).setHeaderAction(Action.APP_ICON).setActionStrip(strip.build())
@@ -223,7 +227,7 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
 
         // Order: doors, odometer, service, trips (4th), chargers, YouTube (last).
         // Trips and chargers are green, YouTube red. If the car shows fewer tiles, the status tiles go first.
-        tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock)
+        tile(4, CarHub.doorsLine(st), CarHub.updatedLine(), R.drawable.ic_car_lock) { refreshAll() }
         tile(5, st.odometerKm?.let { fmtDistance(it, s) } ?: "Odometer", "Total driven", R.drawable.ic_car_gauge)
         tile(6, "Service", serviceLine(st, s), R.drawable.ic_car_refresh)
         if (no.lionflow.app.model.Garage.hasSeveral(app)) tile(3, "Switch car", s.carName, R.drawable.ic_car_switch) { screenManager.push(CarsScreen(carContext)) }
@@ -250,6 +254,22 @@ class OverviewScreen(ctx: CarContext, private val guard: ParkGuard) : LiveScreen
         val list = ItemList.Builder()
         items.forEach { list.addItem(it.item) }
         return b.setSingleList(list.build()).build()
+    }
+
+    private fun refreshAll() { CarHub.refresh(carContext, force = true); CarHub.loadTrips(carContext, force = true); CarHub.say("Updating…") }
+
+    /** "NRK" in a round badge, like the YouTube button. */
+    private fun nrkIcon(): androidx.car.app.model.CarIcon {
+        val n = 96
+        val b = android.graphics.Bitmap.createBitmap(n, n, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(b)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = 0xFFFFFFFF.toInt(); p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = n * 0.07f
+        c.drawCircle(n / 2f, n / 2f, n / 2f - p.strokeWidth, p)
+        p.style = android.graphics.Paint.Style.FILL; p.textAlign = android.graphics.Paint.Align.CENTER
+        p.typeface = android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD); p.textSize = n * 0.30f
+        c.drawText("NRK", n / 2f, n / 2f + p.textSize * 0.36f, p)
+        return androidx.car.app.model.CarIcon.Builder(androidx.core.graphics.drawable.IconCompat.createWithBitmap(b)).build()
     }
 
     private fun serviceLine(st: no.lionflow.app.model.VehicleStatus, s: no.lionflow.app.data.AppSettings): String {

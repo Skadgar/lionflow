@@ -10,10 +10,17 @@ import no.lionflow.app.api.Vehicle
 object Garage {
     data class Entry(val accountId: String, val brand: Brand, val vehicle: Vehicle)
 
+    /** Every car on every signed-in account, duplicates included. */
+    fun allEntries(app: LionFlowApp): List<Entry> =
+        app.settings.accounts().filter { app.api.isSignedInTo(it.id) }
+            .flatMap { a -> app.api.cachedVehiclesOf(a.id).map { Entry(a.id, Brand.of(a.brand), it) } }
+
+    /** Each car once, even when it is on two accounts (shared with family): the open account's entry wins. */
     fun entries(app: LionFlowApp): List<Entry> =
-        app.settings.accounts().filter { app.api.isSignedInTo(it.id) }.flatMap { a ->
-            app.api.cachedVehiclesOf(a.id).map { Entry(a.id, Brand.of(a.brand), it) }
-        }
+        app.settings.accounts().filter { app.api.isSignedInTo(it.id) }
+            .sortedByDescending { it.id == app.settings.activeAccount }
+            .flatMap { a -> app.api.cachedVehiclesOf(a.id).map { Entry(a.id, Brand.of(a.brand), it) } }
+            .distinctBy { it.vehicle.vin }
 
     fun hasSeveral(app: LionFlowApp): Boolean = entries(app).size > 1
 

@@ -185,7 +185,8 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
     }
 
     private fun paint(c: Canvas, sc: SurfaceContainer) {
-        val d = sc.dpi / 160f
+        // Sized from both the screen's density and its height, so wide, low car screens (like the E-5008's) get big, readable text.
+        val d = maxOf(sc.dpi / 160f * 1.15f, sc.height / 400f)
         fun dp(v: Float) = v * d
         val w = sc.width.toFloat(); val h = sc.height.toFloat()
         c.drawColor(BG)
@@ -204,7 +205,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
 
         // Card on the left, the route on the right (or the card on top on a tall screen).
         val wide = area.width() > area.height() * 1.15f
-        val card = if (wide) RectF(area.left, area.top, area.left + min(dp(330f), area.width() * 0.45f), area.bottom)
+        val card = if (wide) RectF(area.left, area.top, area.left + min(dp(340f), area.width() * (if (area.width() > area.height() * 2.2f) 0.36f else 0.44f)), area.bottom)
         else RectF(area.left, area.top, area.right, area.top + min(dp(300f), area.height() * 0.55f))
         val mapBox = if (wide) RectF(card.right + dp(16f), area.top, area.right, area.bottom) else RectF(area.left, card.bottom + dp(12f), area.right, area.bottom)
 
@@ -285,6 +286,13 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         p.shader = LinearGradient(0f, mapBox.top, 0f, mapBox.bottom, 0xFF131518.toInt(), BG, Shader.TileMode.CLAMP)
         c.drawRoundRect(mapBox, dp(24f), dp(24f), p)
         p.shader = null
+        // A faint dot grid gives the map some depth.
+        run {
+            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x14FFFFFF }
+            val step = dp(22f)
+            var gy = mapBox.top + step
+            while (gy < mapBox.bottom - dp(8f)) { var gx = mapBox.left + step; while (gx < mapBox.right - dp(8f)) { c.drawCircle(gx, gy, dp(1.2f), dot); gx += step }; gy += step }
+        }
         if (routeBox.height() > dp(60f) && routeBox.width() > dp(60f)) {
             val fit = Fit(r.lat, r.lon, routeBox)
             fun path(from: Int, to: Int): Path { val pa = Path(); for (i in from..to) { val x = fit.x(r.lat[i], r.lon[i]); val yy = fit.y(r.lat[i]); if (i == from) pa.moveTo(x, yy) else pa.lineTo(x, yy) }; return pa }
@@ -315,6 +323,12 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
                 if (label != null) pill(c, label, sx, sy - dp(24f), dp(13f), if (stp === live.nextStop) pctColor(live.pctAtNext ?: 50.0) else RAISED, if (stp === live.nextStop) BG else TEXT, d)
             }
             live.pctAtEnd?.let { pill(c, "${it.coerceAtLeast(0.0).roundToInt()}%", ex, ey - dp(26f), dp(13f), pctColor(it), BG, d) }
+            // The destination's name under its marker.
+            val destName = r.name.substringAfterLast("→ ").removeSuffix(" ⇄").trim()
+            if (destName.isNotEmpty()) {
+                val lp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(12f); typeface = bold }
+                pill(c, ellipsize(destName, lp, dp(160f)), ex, ey + dp(24f), dp(12f), RAISED, TEXT, d)
+            }
             // the car
             if (st?.lat != null && st.lon != null && live.offRouteKm < 3.0) {
                 val carX = fit.x(r.lat[at], r.lon[at]); val carY = fit.y(r.lat[at])

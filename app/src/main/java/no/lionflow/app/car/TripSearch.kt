@@ -49,19 +49,41 @@ class TripSearchScreen(ctx: CarContext) : Screen(ctx) {
         }
     }
 
+    /** Places starred in the trip planner on the phone. */
+    private fun savedPlaces(): List<Place> = try {
+        val a = org.json.JSONArray(CarHub.app(carContext).settings.raw("planSaved").ifBlank { "[]" })
+        (0 until a.length()).map { i -> a.getJSONObject(i).let { o -> Place(o.optString("n"), o.optString("d"), o.getDouble("la"), o.getDouble("lo"), o.optString("c")) } }
+    } catch (_: Exception) { emptyList() }
+
+    private var listening = false
+
     override fun onGetTemplate(): Template {
         val list = ItemList.Builder()
-        if (results.isEmpty() && query.trim().length >= 2 && !loading) list.setNoItemsMessage(tr("No places found"))
-        for (p in results) {
+        val typing = query.trim().length >= 2
+        if (results.isEmpty() && typing && !loading) list.setNoItemsMessage(tr("No places found"))
+        val shown = if (typing) results else savedPlaces()
+        if (!typing && shown.isEmpty()) list.setNoItemsMessage(tr("Star places in the trip planner on your phone to see them here."))
+        for (p in shown) {
             list.addItem(Row.Builder().setTitle(p.name.ifBlank { "—" }).apply { if (p.detail.isNotBlank()) addText(p.detail) }
-                .setImage(CarIcon.Builder(carContext.icon(R.drawable.ic_car_route)).build())
+                .setImage(CarIcon.Builder(carContext.icon(if (typing) R.drawable.ic_car_route else R.drawable.ic_car_star)).build())
                 .setOnClickListener { screenManager.push(TripPlanScreen(carContext, p)) }.build())
         }
         val b = SearchTemplate.Builder(object : SearchTemplate.SearchCallback {
             override fun onSearchTextChanged(searchText: String) = search(searchText, false)
             override fun onSearchSubmitted(searchText: String) = search(searchText, true)
-        }).setHeaderAction(Action.BACK).setSearchHint(tr("Where to?")).setShowKeyboardByDefault(results.isEmpty())
+        }).setHeaderAction(Action.BACK).setSearchHint(tr(if (listening) "Listening…" else "Where to?")).setShowKeyboardByDefault(false)
             .setInitialSearchText(query)
+        // Our own microphone button: listens in the language of the country the car is in.
+        if (CarVoice.possible(carContext)) b.setActionStrip(androidx.car.app.model.ActionStrip.Builder().addAction(
+            Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_mic)).setOnClickListener {
+                if (listening) return@setOnClickListener
+                listening = true; invalidate()
+                CarVoice.listen(carContext) { text ->
+                    listening = false
+                    if (text != null) search(text, true)
+                    else { androidx.car.app.CarToast.makeText(carContext, tr("Didn't catch that. Try again, or type."), androidx.car.app.CarToast.LENGTH_LONG).show(); invalidate() }
+                }
+            }.build()).build())
         return if (loading && results.isEmpty()) b.setLoading(true).build() else b.setItemList(list.build()).build()
     }
 }
