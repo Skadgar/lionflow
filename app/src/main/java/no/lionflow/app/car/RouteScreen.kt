@@ -73,6 +73,33 @@ private class Fit(lat: DoubleArray, lon: DoubleArray, val box: RectF) {
     fun y(la: Double) = oy + ((-la - y0) * scale).toFloat()
 }
 
+/** Web-Mercator projection of a map area (the map picture and the route drawn on it use the same). */
+private class Merc(val box: RectF, val west: Double, val east: Double, val north: Double, val south: Double) {
+    private val x0 = mx(west); private val x1 = mx(east); private val y0 = my(north); private val y1 = my(south)
+    fun x(la: Double, lo: Double) = box.left + ((mx(lo) - x0) / (x1 - x0) * box.width()).toFloat()
+    fun y(la: Double) = box.top + ((my(la) - y0) / (y1 - y0) * box.height()).toFloat()
+    companion object {
+        fun mx(lo: Double) = (lo + 180.0) / 360.0
+        fun my(la: Double): Double { val r = Math.toRadians(la.coerceIn(-85.0, 85.0)); return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 }
+        fun lon(x: Double) = x * 360.0 - 180.0
+        fun lat(y: Double) = Math.toDegrees(Math.atan(Math.sinh(Math.PI * (1 - 2 * y))))
+        /** The map area for [box] in which the route's own extent fills [inner] (a part of [box]). */
+        fun fitting(lat: DoubleArray, lon: DoubleArray, box: RectF, inner: RectF): Merc {
+            var ax = Double.MAX_VALUE; var bx = -Double.MAX_VALUE; var ay = Double.MAX_VALUE; var by = -Double.MAX_VALUE
+            for (i in lat.indices) { val x = mx(lon[i]); val y = my(lat[i]); ax = min(ax, x); bx = max(bx, x); ay = min(ay, y); by = max(by, y) }
+            // Some room around a short route, so the map shows the area too.
+            val minSpan = 0.00006
+            if (bx - ax < minSpan) { val c = (ax + bx) / 2; ax = c - minSpan / 2; bx = c + minSpan / 2 }
+            if (by - ay < minSpan) { val c = (ay + by) / 2; ay = c - minSpan / 2; by = c + minSpan / 2 }
+            val sc = min(inner.width() / (bx - ax), inner.height() / (by - ay))   // screen px per mercator unit
+            val ox = inner.left + (inner.width() - (bx - ax) * sc) / 2; val oy = inner.top + (inner.height() - (by - ay) * sc) / 2
+            val west = ax - (ox - box.left) / sc; val east = west + box.width() / sc
+            val north = ay - (oy - box.top) / sc; val south = north + box.height() / sc
+            return Merc(box, lon(west), lon(east), lat(north), lat(south))
+        }
+    }
+}
+
 private fun pctColor(p: Double) = when { p < 10 -> RED; p < 20 -> ORANGE; else -> LIME }
 
 private fun dur(m: Double): String { val t = m.roundToInt().coerceAtLeast(0); return if (t >= 60) "${t / 60} h ${t % 60} min" else "$t min" }
@@ -136,7 +163,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         lifecycle.addObserver(this)
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { while (true) { lastFetch = System.currentTimeMillis(); CarHub.refresh(carContext, force = true); delay(30_000L) } }
+                launch { while (true) { lastFetch = System.currentTimeMillis(); CarHub.refresh(carContext, force = true); delay(10_000L) } }
                 launch { CarHub.status.collect { main.post { draw() } } }
                 // Deleted on the phone: leave.
                 launch { SavedRoutes.changes.collect { if (SavedRoutes.all(carContext).none { it.id == id }) main.post { try { screenManager.pop() } catch (_: Exception) { } } } }
@@ -146,7 +173,10 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
     }
 
     override fun onCreate(owner: LifecycleOwner) { carContext.getCarService(AppManager::class.java).setSurfaceCallback(this) }
-    override fun onDestroy(owner: LifecycleOwner) { try { carContext.getCarService(AppManager::class.java).setSurfaceCallback(null) } catch (_: Exception) { } }
+    override fun onDestroy(owner: LifecycleOwner) {
+        try { carContext.getCarService(AppManager::class.java).setSurfaceCallback(null) } catch (_: Exception) { }
+        try { snapper?.cancel() } catch (_: Exception) { }
+    }
 
     override fun onSurfaceAvailable(c: SurfaceContainer) { surface = c; main.post { draw() } }
     override fun onSurfaceDestroyed(c: SurfaceContainer) { surface = null }
@@ -171,6 +201,32 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             }.build())
         }
         return NavigationTemplate.Builder().setActionStrip(strip.build()).build()
+    }
+
+    // ---------------- the map picture ----------------
+
+    /** The map behind the route (the same OpenFreeMap style as the app), made once per route, size and look. */
+    private var mapPic: android.graphics.Bitmap? = null
+    private var mapKey: String? = null
+    private var snapper: org.maplibre.android.snapshotter.MapSnapshotter? = null
+
+    private fun ensureMap(key: String, m: Merc, ratio: Float, dark: Boolean) {
+        if (key == mapKey) return
+        mapKey = key; mapPic = null
+        try { snapper?.cancel() } catch (_: Exception) { }
+        try {
+            org.maplibre.android.MapLibre.getInstance(carContext.applicationContext)
+            val url = if (dark) "https://tiles.openfreemap.org/styles/dark" else "https://tiles.openfreemap.org/styles/positron"
+            val bounds = org.maplibre.android.geometry.LatLngBounds.from(m.north, m.east, m.south, m.west)
+            val opts = org.maplibre.android.snapshotter.MapSnapshotter.Options((m.box.width() / ratio).toInt().coerceAtLeast(64), (m.box.height() / ratio).toInt().coerceAtLeast(64))
+                .withPixelRatio(ratio)
+                .withStyleBuilder(org.maplibre.android.maps.Style.Builder().fromUri(url))
+                .withRegion(bounds)
+                .withLogo(false)
+            val sn = org.maplibre.android.snapshotter.MapSnapshotter(carContext.applicationContext, opts)
+            snapper = sn
+            sn.start({ shot -> if (mapKey == key) { mapPic = shot.bitmap; main.post { draw() } } }, { err -> android.util.Log.w("LionFlowCar", "map picture failed: $err") })
+        } catch (e: Exception) { android.util.Log.w("LionFlowCar", "map picture failed", e) }
     }
 
     // ---------------- drawing ----------------
@@ -231,26 +287,33 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             y += dp(22f)
         }
 
-        // battery: ring with the % expected at the next stop (or the end), and the % now
-        y += dp(12f)
-        val ringR = dp(38f)
-        val cx = L + ringR; val cy = y + ringR
+        // Battery: two small rings, "Now" in grey and the % expected at the next stop (or the end) in colour.
+        y += dp(10f)
+        val ringR = dp(32f)
         val pct = live.pctAtNext
-        p.style = Paint.Style.STROKE; p.strokeWidth = dp(8f); p.strokeCap = Paint.Cap.ROUND; p.color = RAISED
-        c.drawCircle(cx, cy, ringR, p)
-        if (pct != null) {
-            p.color = pctColor(pct)
-            c.drawArc(RectF(cx - ringR, cy - ringR, cx + ringR, cy + ringR), -90f, (pct.coerceIn(0.0, 100.0) * 3.6).toFloat(), false, p)
+        val nowPct = st?.batteryPct
+        fun ring(cx: Float, cy: Float, value: Double?, color: Int, label: String) {
+            p.style = Paint.Style.STROKE; p.strokeWidth = dp(7f); p.strokeCap = Paint.Cap.ROUND; p.color = RAISED
+            c.drawCircle(cx, cy, ringR, p)
+            if (value != null && value > 0.5) {
+                p.color = color
+                c.drawArc(RectF(cx - ringR, cy - ringR, cx + ringR, cy + ringR), -90f, (value.coerceIn(0.0, 100.0) * 3.6).toFloat(), false, p)
+            }
+            text.typeface = bold; text.textSize = dp(19f); text.color = TEXT; text.textAlign = Paint.Align.CENTER
+            c.drawText(value?.let { "${it.coerceAtLeast(0.0).roundToInt()}%" } ?: "—", cx, cy + dp(7f), text)
+            text.typeface = Typeface.DEFAULT; text.textSize = dp(13f); text.color = MUTED
+            c.drawText(ellipsize(label, text, ringR * 2 + dp(24f)), cx, cy + ringR + dp(22f), text)
+            text.textAlign = Paint.Align.LEFT
         }
-        text.typeface = bold; text.textSize = dp(22f); text.color = TEXT; text.textAlign = Paint.Align.CENTER
-        c.drawText(pct?.let { "${it.coerceAtLeast(0.0).roundToInt()}%" } ?: "—", cx, cy + dp(8f), text)
-        text.textAlign = Paint.Align.LEFT
-        val tx = cx + ringR + dp(16f); val tw = card.right - dp(20f) - tx
-        text.typeface = Typeface.DEFAULT; text.textSize = dp(14f); text.color = MUTED
-        c.drawText(ellipsize(tr(if (live.nextStop != null) "Expected at the next stop" else "Expected at the end"), text, tw), tx, cy - dp(8f), text)
-        text.textSize = dp(16f); text.color = TEXT
-        c.drawText(ellipsize(tr("Battery now {0}").replace("{0}", st?.batteryPct?.let { "${it.roundToInt()} %" } ?: "—"), text, tw), tx, cy + dp(16f), text)
-        y = cy + ringR + dp(26f)
+        val c1 = L + ringR + dp(4f); val cyR = y + ringR
+        val c2 = c1 + ringR * 2 + dp(56f)
+        ring(c1, cyR, nowPct, MUTED, tr("Now"))
+        // An arrow from now to then.
+        p.style = Paint.Style.STROKE; p.strokeWidth = dp(2.5f); p.strokeCap = Paint.Cap.ROUND; p.color = MUTED
+        val ax0 = c1 + ringR + dp(14f); val ax1 = c2 - ringR - dp(14f)
+        c.drawLine(ax0, cyR, ax1, cyR, p); c.drawLine(ax1 - dp(7f), cyR - dp(7f), ax1, cyR, p); c.drawLine(ax1 - dp(7f), cyR + dp(7f), ax1, cyR, p)
+        ring(c2, cyR, pct, pct?.let { pctColor(it) } ?: LIME, tr(if (live.nextStop != null) "Next stop" else "Arrival"))
+        y = cyR + ringR + dp(40f)
 
         // next charging stop
         p.style = Paint.Style.FILL; p.color = RAISED
@@ -285,15 +348,26 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         val routeBox = RectF(mapBox.left + dp(18f), maxOf(mapBox.top + dp(18f), buttonsBottom + dp(6f), area.top + dp(60f)), mapBox.right - dp(18f), mapBox.bottom - tlH - dp(18f))
         ink.card(c, mapBox, dp(26f), CarTheme.p.bg2, pressed = true)
         p.style = Paint.Style.FILL
-        // A faint dot grid gives the map some depth.
-        run {
+        val merc = Merc.fitting(r.lat, r.lon, mapBox, routeBox)
+        ensureMap("${r.id}:${mapBox.width().toInt()}x${mapBox.height().toInt()}:${CarTheme.p.dark}", merc, d, CarTheme.p.dark)
+        val pic = mapPic
+        val clip = Path().apply { addRoundRect(mapBox, dp(26f), dp(26f), Path.Direction.CW) }
+        c.save(); c.clipPath(clip)
+        if (pic != null) {
+            c.drawBitmap(pic, null, mapBox, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            // A light veil, so the route and the stops stand out from the map.
+            p.style = Paint.Style.FILL; p.color = (BG and 0x00FFFFFF) or (if (CarTheme.p.dark) 0x30000000 else 0x22000000)
+            c.drawRect(mapBox, p)
+        } else {
+            // A faint dot grid until the map has loaded.
             val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (CarTheme.p.dark) 0x14FFFFFF else 0x22000000 }
             val step = dp(22f)
             var gy = mapBox.top + step
             while (gy < mapBox.bottom - dp(8f)) { var gx = mapBox.left + step; while (gx < mapBox.right - dp(8f)) { c.drawCircle(gx, gy, dp(1.2f), dot); gx += step }; gy += step }
         }
+        c.restore()
         if (routeBox.height() > dp(60f) && routeBox.width() > dp(60f)) {
-            val fit = Fit(r.lat, r.lon, routeBox)
+            val fit = merc
             fun path(from: Int, to: Int): Path { val pa = Path(); for (i in from..to) { val x = fit.x(r.lat[i], r.lon[i]); val yy = fit.y(r.lat[i]); if (i == from) pa.moveTo(x, yy) else pa.lineTo(x, yy) }; return pa }
             val at = live.at.coerceIn(0, r.lat.size - 1)
             p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
@@ -340,6 +414,15 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         // ---- timeline: start → stops → end, with the car on it
         val tl = RectF(mapBox.left + dp(28f), mapBox.bottom - tlH, mapBox.right - dp(28f), mapBox.bottom - dp(18f))
         val ly = tl.top + dp(14f)
+        // A panel behind the timeline, so it reads on top of the map.
+        p.style = Paint.Style.FILL; p.color = (CARD and 0x00FFFFFF) or 0xE6000000.toInt()
+        val panel = RectF(mapBox.left + dp(12f), tl.top - dp(10f), mapBox.right - dp(12f), mapBox.bottom - dp(10f))
+        c.drawRoundRect(panel, dp(18f), dp(18f), p)
+        if (mapPic != null) {
+            text.typeface = Typeface.DEFAULT; text.textSize = dp(10f); text.color = MUTED; text.textAlign = Paint.Align.RIGHT
+            c.drawText("© OpenFreeMap © OpenStreetMap", panel.right - dp(6f), panel.top - dp(6f), text)
+            text.textAlign = Paint.Align.LEFT
+        }
         val total = r.totalKm.coerceAtLeast(0.1)
         fun xAt(km: Double) = tl.left + (km / total).toFloat().coerceIn(0f, 1f) * tl.width()
         val doneKm = r.km[live.at.coerceIn(0, r.km.size - 1)]
