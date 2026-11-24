@@ -147,8 +147,9 @@ class TripPlanScreen(ctx: CarContext, private val dest: Place) : Screen(ctx) {
             if (first != null) openInGoogleMaps(carContext, first.charger.lat, first.charger.lon, first.charger.name, stillHere = here)
             else openInGoogleMaps(carContext, dest.lat, dest.lon, dest.name, stillHere = here)
         }.build())
-        pane.addAction(Action.Builder().setTitle(tr("Save trip")).setOnClickListener {
-            if (planner.saveTrip(true)) SavedRoutes.all(carContext).firstOrNull()?.let { screenManager.push(RouteLiveScreen(carContext, it.id)) }
+        // Opens the trip in the live view (map, battery on the way) without saving it.
+        pane.addAction(Action.Builder().setTitle(tr("See trip")).setOnClickListener {
+            if (planner.saveTrip(true, keep = false)) planner.lastBuilt?.let { screenManager.push(RouteLiveScreen(carContext, it.id, it)) }
         }.build())
         return PaneTemplate.Builder(pane.build()).setTitle(dest.name).setHeaderAction(Action.BACK).build()
     }

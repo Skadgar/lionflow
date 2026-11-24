@@ -1,12 +1,9 @@
 package no.lionflow.app.car
 
 import android.content.Context
-import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.car.app.CarContext
 import androidx.core.content.ContextCompat
@@ -74,36 +71,21 @@ internal class Ink(val d: Float, val pal: CarPalette) {
     fun text(size: Float, color: Int, face: Typeface = regular, align: Paint.Align = Paint.Align.LEFT) =
         Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(size); this.color = color; typeface = face; textAlign = align }
 
-    /** A raised card with soft shadows (or pressed in, when [pressed]). */
-    fun card(c: Canvas, r: RectF, radius: Float = dp(24f), fill: Int = pal.card, pressed: Boolean = false) {
+    /** A flat card with a fine edge (a little darker or lighter while pressed). Flat is quick to draw. */
+    fun card(c: Canvas, r: RectF, radius: Float = dp(22f), fill: Int = pal.card, pressed: Boolean = false) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        val off = dp(if (pressed) 2f else 6f); val blur = dp(if (pressed) 4f else 12f)
-        p.maskFilter = BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL)
-        p.color = pal.shadowDark; c.drawRoundRect(RectF(r.left + off, r.top + off, r.right + off, r.bottom + off), radius, radius, p)
-        p.color = pal.shadowLight; c.drawRoundRect(RectF(r.left - off * 0.7f, r.top - off * 0.7f, r.right - off * 0.7f, r.bottom - off * 0.7f), radius, radius, p)
-        p.maskFilter = null
-        // A gentle top-to-bottom sheen so the card looks lit from above.
-        val top = if (pal.dark) lighten(fill, 0.05f) else lighten(fill, 0.35f)
-        val bottom = if (pressed) darken(fill, 0.04f) else fill
-        p.shader = LinearGradient(0f, r.top, 0f, r.bottom, if (pressed) bottom else top, if (pressed) top else bottom, Shader.TileMode.CLAMP)
+        p.color = if (pressed) (if (pal.dark) lighten(fill, 0.08f) else darken(fill, 0.06f)) else fill
         c.drawRoundRect(r, radius, radius, p)
-        p.shader = null
-        // Hairline edge.
-        p.style = Paint.Style.STROKE; p.strokeWidth = dp(1f); p.color = if (pal.dark) 0x14FFFFFF else 0x66FFFFFF
-        c.drawRoundRect(RectF(r.left + p.strokeWidth / 2, r.top + p.strokeWidth / 2, r.right - p.strokeWidth / 2, r.bottom - p.strokeWidth / 2), radius, radius, p)
+        p.style = Paint.Style.STROKE; p.strokeWidth = dp(1f); p.color = pal.line
+        val h = p.strokeWidth / 2
+        c.drawRoundRect(RectF(r.left + h, r.top + h, r.right - h, r.bottom - h), radius, radius, p)
     }
 
-    /** A round badge with an icon; [lit] gives it the green glow. */
+    /** A round badge with an icon; [lit] fills it with the LionFlow green. */
     fun badge(c: Canvas, ctx: Context, cx: Float, cy: Float, r: Float, icon: Int, lit: Boolean, tint: Int? = null) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        if (lit) {
-            p.color = pal.glow; p.maskFilter = BlurMaskFilter(r * 0.7f, BlurMaskFilter.Blur.NORMAL)
-            c.drawCircle(cx, cy + r * 0.15f, r * 1.05f, p); p.maskFilter = null
-            p.shader = LinearGradient(cx, cy - r, cx, cy + r, lighten(pal.accent, 0.2f), pal.accent, Shader.TileMode.CLAMP)
-            c.drawCircle(cx, cy, r, p); p.shader = null
-        } else {
-            card(c, RectF(cx - r, cy - r, cx + r, cy + r), r, pal.raised)
-        }
+        p.color = if (lit) pal.accent else pal.raised
+        c.drawCircle(cx, cy, r, p)
         icon(c, ctx, icon, cx, cy, r * 1.0f, tint ?: if (lit) pal.onAccent else pal.text)
     }
 

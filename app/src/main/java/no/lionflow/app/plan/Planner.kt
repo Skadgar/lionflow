@@ -469,7 +469,11 @@ class Planner(
      * Saves the plan that is showing. With [asPlanned] the whole plan is kept and opens exactly as it is now;
      * otherwise only the places, and it is planned again from the car's position and charge when opened.
      */
-    fun saveTrip(asPlanned: Boolean = true): Boolean {
+    /** The trip built by the last saveTrip(keep = false): shown without being saved. */
+    var lastBuilt: SavedRoutes.Saved? = null
+        private set
+
+    fun saveTrip(asPlanned: Boolean = true, keep: Boolean = true): Boolean {
         val r = route ?: return false; val p = plan ?: return false
         if (!p.ok) return false
         val dest = if (planRound) planVias.lastOrNull() else planTo
@@ -488,6 +492,7 @@ class Planner(
             .put("planStays", JSONArray().apply { planStays.forEach { put(it) } })
             .put("depart", departMillis()).put("startPct", startPct ?: -1).put("minPct", minPct).put("targetPct", targetPct)
             .put("ferries", JSONArray().apply { ferryInfo.forEach { put(JSONObject().put("i", it.ferry.idx).put("w", it.waitMin).put("d", it.departMs ?: -1L)) } }))
+        if (!keep) { lastBuilt = SavedRoutes.build(name, r, r.energy(model.factor), p, batteryKwh(), setup); return true }
         SavedRoutes.add(app, SavedRoutes.build(name, r, r.energy(model.factor), p, batteryKwh(), setup))
         savedTrips = SavedRoutes.all(app)
         return true

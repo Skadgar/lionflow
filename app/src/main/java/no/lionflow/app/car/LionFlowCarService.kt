@@ -76,6 +76,9 @@ private fun CarContext.listLimit(): Int = try {
  * The car's own "navigate" intent can end up back at LionFlow (it is a navigation-category app too),
  * so Google Maps is started directly through the phone, which Android Auto then shows on the car screen.
  */
+/** Each step of Navigate goes to the Command & error log, so a failure can be traced. */
+private fun navLog(ctx: CarContext, m: String) { try { CarHub.app(ctx).remote.addLog(m) } catch (_: Exception) { } }
+
 private var lastCarAsk = 0L
 private var lastPhoneStart = 0L
 
@@ -84,11 +87,13 @@ private fun startMapsOnPhone(ctx: CarContext, lat: Double, lon: Double) {
     val now = System.currentTimeMillis()
     if (now - lastPhoneStart < 6000) return   // one at a time, so a request handed back and forth can't loop
     lastPhoneStart = now
+    navLog(ctx, "navigate: starting Google Maps on the phone")
     try {
         val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("google.navigation:q=$lat,$lon&mode=d"))
             .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try { ctx.startActivity(i) } catch (_: Exception) { CarHub.app(ctx).startActivity(i) }
     } catch (e: Exception) {
+        navLog(ctx, "navigate: phone start failed: ${e.javaClass.simpleName} ${e.message}")
         android.util.Log.w("LionFlowCar", "direct Google Maps start failed", e)
         CarToast.makeText(ctx, tr("Couldn't open navigation"), CarToast.LENGTH_LONG).show()
     }
@@ -100,20 +105,22 @@ private fun startMapsOnPhone(ctx: CarContext, lat: Double, lon: Double) {
  * [stillHere] says whether LionFlow is still showing (then Maps didn't open).
  */
 internal fun openInGoogleMaps(ctx: CarContext, lat: Double, lon: Double, name: String, fromCar: Boolean = false, stillHere: (() -> Boolean)? = null) {
-    if (fromCar) { startMapsOnPhone(ctx, lat, lon); return }
+    if (fromCar) { navLog(ctx, "navigate: the car handed the request back to LionFlow"); startMapsOnPhone(ctx, lat, lon); return }
     val now = System.currentTimeMillis()
     if (now - lastCarAsk < 3000) return
     lastCarAsk = now
     val geo = android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon(${android.net.Uri.encode(name)})")
     if (name.isNotBlank()) CarToast.makeText(ctx, tr("Navigating to") + " " + name, CarToast.LENGTH_SHORT).show()
     try {
+        navLog(ctx, "navigate: asking the car to open navigation (car API ${ctx.carAppApiLevel})")
         ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, geo))
     } catch (e: Exception) {
+        navLog(ctx, "navigate: the car refused: ${e.javaClass.simpleName} ${e.message}")
         android.util.Log.w("LionFlowCar", "startCarApp(navigate) failed", e)
         startMapsOnPhone(ctx, lat, lon); return
     }
     if (stillHere != null) android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-        if (stillHere()) startMapsOnPhone(ctx, lat, lon)
+        if (stillHere()) { navLog(ctx, "navigate: LionFlow still showing after 3.5 s"); startMapsOnPhone(ctx, lat, lon) }
     }, 3500)
 }
 
@@ -367,7 +374,7 @@ class TripsScreen(ctx: CarContext) : Screen(ctx) {
     override fun onGetTemplate(): Template {
         val s = CarHub.app(carContext).settings.value
         val trips = CarHub.trips.value
-        val b = ListTemplate.Builder().setTitle(tr("Driving history")).setHeaderAction(Action.BACK)
+        val b = ListTemplate.Builder().setTitle(tr("Previous trips")).setHeaderAction(Action.BACK)
             .setActionStrip(ActionStrip.Builder().addAction(Action.Builder().setTitle(tr("Refresh"))
                 .setOnClickListener { CarHub.loadTrips(carContext, force = true) }.build()).build())
         if (trips == null) return b.setLoading(true).build()

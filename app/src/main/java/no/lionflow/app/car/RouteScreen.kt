@@ -1,7 +1,6 @@
 package no.lionflow.app.car
 
 import android.graphics.Bitmap
-import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -153,7 +152,10 @@ class SavedRoutesScreen(ctx: CarContext) : Screen(ctx) {
  * One saved route, drawn on the car screen: a card with what is left and the battery, the route itself with the car on it,
  * and a timeline of the stops. The car is asked for a fresh status every 30 seconds while this is showing.
  */
-class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), SurfaceCallback, DefaultLifecycleObserver {
+class RouteLiveScreen(ctx: CarContext, private val id: Long, private val temp: SavedRoutes.Saved? = null) : Screen(ctx), SurfaceCallback, DefaultLifecycleObserver {
+    /** The route shown: a saved one, or [temp] (a trip just planned in the car, not saved). */
+    private fun route(): SavedRoutes.Saved? = temp ?: SavedRoutes.all(carContext).firstOrNull { it.id == id }
+
     private val main = Handler(Looper.getMainLooper())
     private var surface: SurfaceContainer? = null
     private var visible: Rect? = null
@@ -184,7 +186,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
     override fun onStableAreaChanged(stableArea: Rect) { if (visible == null) { visible = Rect(stableArea); main.post { draw() } } }
 
     override fun onGetTemplate(): Template {
-        val r = SavedRoutes.all(carContext).firstOrNull { it.id == id }
+        val r = route()
         val strip = ActionStrip.Builder()
             .addAction(Action.Builder().setIcon(carContext.icon(R.drawable.ic_car_back)).setOnClickListener { screenManager.pop() }.build())
         if (r != null) {
@@ -252,7 +254,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         val area = RectF(dp(12f), dp(12f), w - dp(12f), h - dp(12f))
         val buttonsBottom = visible?.top?.toFloat() ?: 0f
         val s = CarHub.app(carContext).settings.value
-        val r = SavedRoutes.all(carContext).firstOrNull { it.id == id }
+        val r = route()
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = TEXT; typeface = Typeface.create("sans-serif", Typeface.NORMAL) }
         val bold = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -374,7 +376,8 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             if (at > 0) { p.color = DRIVEN; p.strokeWidth = dp(5f); c.drawPath(path(0, at), p) }
             if (at < r.lat.size - 1) {
                 val ahead = path(at, r.lat.size - 1)
-                p.color = CarTheme.p.glow; p.strokeWidth = dp(14f); p.maskFilter = BlurMaskFilter(dp(8f), BlurMaskFilter.Blur.NORMAL); c.drawPath(ahead, p)
+                // A wider, see-through band under the line (no blur: quick to draw).
+                p.color = CarTheme.p.glow; p.strokeWidth = dp(12f); c.drawPath(ahead, p)
                 p.maskFilter = null; p.color = LIME; p.strokeWidth = dp(6f); c.drawPath(ahead, p)
             }
             p.style = Paint.Style.FILL
