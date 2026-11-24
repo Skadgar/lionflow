@@ -145,9 +145,9 @@ class CarWidget : AppWidgetProvider() {
 
         fun render(ctx: Context, mgr: AppWidgetManager, ids: IntArray) {
             for (id in ids) {
-                // Short widgets move the "Updated" line up under the car name so nothing gets cut off.
+                // Short widgets leave out the Car / Outside panel so nothing gets cut off.
                 val h = mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
-                mgr.updateAppWidget(id, build(ctx, compact = h in 1..299))
+                mgr.updateAppWidget(id, build(ctx, compact = h in 1..279))
             }
         }
 
@@ -165,7 +165,11 @@ class CarWidget : AppWidgetProvider() {
                 ctx, 3, Intent(ctx, CarWidget::class.java).setAction(ACTION_NEXT_CAR), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             v.setViewVisibility(R.id.w_refresh_icon, if (refreshing) View.GONE else View.VISIBLE)
             v.setViewVisibility(R.id.w_spinner, if (refreshing) View.VISIBLE else View.GONE)
-            v.setTextViewText(R.id.w_range_unit, tr(if (s.distanceUnit == "mi") "mi" else "km"))
+            val unit = tr(if (s.distanceUnit == "mi") "mi" else "km")
+            v.setTextViewText(R.id.w_range_label, tr("Est. range"))
+            v.setTextViewText(R.id.w_cabin_label, tr("Car"))
+            v.setTextViewText(R.id.w_outside_label, tr("Outside"))
+            v.setViewVisibility(R.id.w_panel, if (compact) View.GONE else View.VISIBLE)
 
             if (snap == null || !app.api.isSignedIn) {
                 v.setTextViewText(R.id.w_battery, tr("—"))
@@ -189,8 +193,8 @@ class CarWidget : AppWidgetProvider() {
                 val rangeShown = if (s.distanceUnit == "mi") range * 0.621371 else range
 
                 v.setTextViewText(R.id.w_battery_label, tr(if (fuelOnly) "Fuel" else "Battery"))
-                v.setTextViewText(R.id.w_battery, tr(if (battery >= 0) "${battery.toInt()}" else "—"))
-                v.setTextViewText(R.id.w_range, tr(if (range >= 0) "≈${Math.round(rangeShown)}" else "—"))
+                v.setTextViewText(R.id.w_battery, if (battery >= 0) withSmall("${battery.toInt()}", "%", 0.5f) else "—")
+                v.setTextViewText(R.id.w_range, if (range >= 0) withSmall("≈${Math.round(rangeShown)}", " $unit", 0.42f) else "—")
                 v.setProgressBar(R.id.w_bar, 100, battery.coerceIn(0.0, 100.0).toInt(), false)
                 v.setViewVisibility(R.id.w_bolt, if (charging) View.VISIBLE else View.GONE)
                 v.setViewVisibility(R.id.w_plug, if (charging || fuelOnly) View.GONE else View.VISIBLE)
@@ -210,12 +214,9 @@ class CarWidget : AppWidgetProvider() {
 
             val line = tr(WidgetData.status(ctx) ?: updatedLine(snap, app.api.isSignedIn))
             val place = if (snap != null && app.api.isSignedIn) WidgetData.place(ctx) else null
-            // Under the name: where the car is. Short widgets also put the "Updated" line there.
-            val top = listOfNotNull(place?.let { "📍 $it" }, line.takeIf { compact }).joinToString(" · ")
-            v.setTextViewText(R.id.w_updated, line)
-            v.setTextViewText(R.id.w_updated_top, top)
-            v.setViewVisibility(R.id.w_updated, if (compact) View.GONE else View.VISIBLE)
-            v.setViewVisibility(R.id.w_updated_top, if (top.isNotEmpty()) View.VISIBLE else View.GONE)
+            // Under the name: where the car is, and how fresh the numbers are.
+            v.setTextViewText(R.id.w_updated_top, listOfNotNull(place, line).joinToString(" · "))
+            v.setViewVisibility(R.id.w_pin, if (place != null) View.VISIBLE else View.GONE)
 
             val open = PendingIntent.getActivity(
                 ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -230,6 +231,12 @@ class CarWidget : AppWidgetProvider() {
             return v
         }
 
+        /** "75" with a smaller "%" after it (the size shrinks to fit, the proportions stay). */
+        private fun withSmall(big: String, small: String, f: Float): CharSequence =
+            android.text.SpannableString(big + small).apply {
+                setSpan(android.text.style.RelativeSizeSpan(f), big.length, big.length + small.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+
         private fun updatedLine(snap: JSONObject?, signedIn: Boolean): String {
             if (!signedIn) return "Open LionFlow to sign in"
             if (snap == null) return "Tap ↻ to load your car"
@@ -238,7 +245,7 @@ class CarWidget : AppWidgetProvider() {
             val carTime = snap.optLong("carTime", fetched)
             // If the car itself hasn't reported for a while, say so — otherwise "Updated" would be misleading.
             return if (now - carTime > 30 * 60_000 && fetched - carTime > 30 * 60_000) {
-                "Car asleep · last report ${minutesAgo(carTime, now)}"
+                "Car asleep · Last report ${minutesAgo(carTime, now)}"
             } else {
                 "Updated ${minutesAgo(carTime, now)}"
             }
