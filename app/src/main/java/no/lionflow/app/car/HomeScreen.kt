@@ -160,9 +160,11 @@ class HomeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx), S
 
         val body = RectF(area.left, area.top + maxOf(dp(60f), topInset), area.right, area.bottom)
         val wide = body.width() > body.height() * 1.25f
-        val hero = if (wide) RectF(body.left, body.top, body.left + min(body.width() * 0.38f, body.height() * 1.05f), body.bottom)
+        val hero = if (wide) RectF(body.left, body.top, body.left + min(body.width() * 0.36f, body.height() * 1.0f), body.bottom)
         else RectF(body.left, body.top, body.right, body.top + body.height() * 0.42f)
-        val grid = if (wide) RectF(hero.right + dp(18f), body.top, body.right, body.bottom) else RectF(body.left, hero.bottom + dp(16f), body.right, body.bottom)
+        // Room on the right for the car's own grid button (the map buttons), so it never covers a tile.
+        val mapStrip = (w - v.right).coerceIn(dp(56f), dp(96f))
+        val grid = if (wide) RectF(hero.right + dp(18f), body.top, body.right - mapStrip, body.bottom) else RectF(body.left, hero.bottom + dp(16f), body.right - mapStrip, body.bottom)
 
         drawHero(c, ink, hero, st, s)
 
@@ -225,7 +227,8 @@ class HomeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx), S
         if (sweep > 0.5f) {
             val glow = Paint(track).apply { this.color = (color and 0x00FFFFFF) or 0x88000000.toInt(); maskFilter = BlurMaskFilter(ringR * 0.18f, BlurMaskFilter.Blur.NORMAL) }
             c.drawArc(box, -90f, sweep, false, glow)
-            track.shader = SweepGradient(cx, cy, intArrayOf(Ink.darken(color, 0.25f), color, Ink.lighten(color, 0.2f)), floatArrayOf(0f, 0.6f, 1f)).also {
+            val fr = (sweep / 360f).coerceAtLeast(0.01f)
+            track.shader = SweepGradient(cx, cy, intArrayOf(Ink.darken(color, 0.25f), color, Ink.lighten(color, 0.2f), Ink.lighten(color, 0.2f)), floatArrayOf(0f, fr * 0.6f, fr, 1f)).also {
                 val m = android.graphics.Matrix(); m.setRotate(-90f, cx, cy); it.setLocalMatrix(m)
             }
             c.drawArc(box, -90f, sweep, false, track)
@@ -265,22 +268,22 @@ class HomeScreen(ctx: CarContext, private val guard: ParkGuard) : Screen(ctx), S
         fun dp(v: Float) = ink.dp(v)
         ink.card(c, r, dp(24f), pressed = pressed)
         val small = r.height() < dp(104f)
-        val br = if (small) min(r.height() * 0.26f, dp(22f)) else min(r.height() * 0.22f, dp(26f))
-        val pad = dp(18f)
+        val br = if (small) min(r.height() * 0.24f, dp(19f)) else min(r.height() * 0.22f, dp(26f))
+        val pad = dp(if (small) 14f else 18f)
         val textX: Float; val titleY: Float
         if (small || r.width() > r.height() * 2.1f) {
             // Icon on the left, text beside it.
             ink.badge(c, carContext, r.left + pad + br, r.centerY(), br, t.icon, t.lit)
-            textX = r.left + pad + br * 2 + dp(14f); titleY = r.centerY() - dp(2f)
+            textX = r.left + pad + br * 2 + dp(12f); titleY = r.centerY() - dp(2f)
         } else {
             ink.badge(c, carContext, r.left + pad + br, r.top + pad + br, br, t.icon, t.lit)
             textX = r.left + pad; titleY = r.bottom - pad - dp(22f)
         }
         val maxW = r.right - dp(14f) - textX
-        val tp = ink.text(17f, pal.text, ink.bold)
+        val tp = ink.text(if (small) 16f else 17f, pal.text, ink.bold)
         c.drawText(ink.ellipsize(t.title, tp, maxW), textX, titleY, tp)
-        val sp = ink.text(13.5f, pal.muted, ink.medium)
-        c.drawText(ink.ellipsize(t.sub, sp, maxW), textX, titleY + dp(22f), sp)
+        val sp = ink.text(if (small) 13f else 13.5f, pal.muted, ink.medium)
+        c.drawText(ink.ellipsize(t.sub, sp, maxW), textX, titleY + dp(if (small) 20f else 22f), sp)
         if (!small && r.width() <= r.height() * 2.1f) {
             // A small arrow, top right: it can be tapped.
             val ap = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.2f); strokeCap = Paint.Cap.ROUND; color = pal.muted }
