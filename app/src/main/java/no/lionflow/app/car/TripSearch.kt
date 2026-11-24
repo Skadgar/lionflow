@@ -61,11 +61,19 @@ class TripSearchScreen(ctx: CarContext) : Screen(ctx) {
         val list = ItemList.Builder()
         val typing = query.trim().length >= 2
         if (results.isEmpty() && typing && !loading) list.setNoItemsMessage(tr("No places found"))
-        val shown = if (typing) results else savedPlaces()
+        // With nothing typed: home and the known chargers (from charging costs on the phone), then the starred places.
+        val shown: List<Pair<Place, Int>> = if (typing) results.map { it to R.drawable.ic_car_route } else {
+            val cfg = no.lionflow.app.model.ChargeLog.places.value
+            val chargePlaces = (listOfNotNull(cfg.home?.let { it.copy(name = it.name.ifBlank { tr("Home") }) }) + cfg.known)
+                .filter { it.lat != null && it.lon != null }
+                .map { Place(it.name.ifBlank { tr("Known charger") }, it.address, it.lat!!, it.lon!!) to R.drawable.ic_car_charger }
+            val starred = savedPlaces().filter { sp -> chargePlaces.none { (cp, _) -> no.lionflow.app.plan.Geo.km(cp.lat, cp.lon, sp.lat, sp.lon) < 0.1 } }
+            chargePlaces + starred.map { it to R.drawable.ic_car_star }
+        }
         if (!typing && shown.isEmpty()) list.setNoItemsMessage(tr("Star places in the trip planner on your phone to see them here."))
-        for (p in shown) {
+        for ((p, ic) in shown.take(12)) {
             list.addItem(Row.Builder().setTitle(p.name.ifBlank { "—" }).apply { if (p.detail.isNotBlank()) addText(p.detail) }
-                .setImage(CarIcon.Builder(carContext.icon(if (typing) R.drawable.ic_car_route else R.drawable.ic_car_star)).build())
+                .setImage(CarIcon.Builder(carContext.icon(ic)).build())
                 .setOnClickListener { screenManager.push(TripPlanScreen(carContext, p)) }.build())
         }
         val b = SearchTemplate.Builder(object : SearchTemplate.SearchCallback {

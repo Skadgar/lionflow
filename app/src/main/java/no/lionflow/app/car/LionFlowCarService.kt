@@ -138,7 +138,9 @@ class MainSession : Session() {
         }
         CarHub.refresh(carContext)
         CarHub.loadTrips(carContext)
-        return OverviewScreen(carContext, guard)
+        // The drawn start screen needs taps on the screen (car API 5); older cars get the plain grid.
+        val drawn = carContext.carAppApiLevel >= 5 && CarHub.app(carContext).api.isSignedIn
+        return if (drawn) HomeScreen(carContext, guard) else OverviewScreen(carContext, guard)
     }
 }
 

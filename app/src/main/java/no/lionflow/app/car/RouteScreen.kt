@@ -46,16 +46,16 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-private const val BG = 0xFF0D0E10.toInt()
-private const val CARD = 0xFF16181B.toInt()
-private const val RAISED = 0xFF1E2024.toInt()
-private const val LINE = 0xFF2A2D32.toInt()
-private const val TEXT = 0xFFF2F3F5.toInt()
-private const val MUTED = 0xFF9A9EA6.toInt()
-private const val LIME = 0xFFC6F36B.toInt()
-private const val ORANGE = 0xFFFFB547.toInt()
-private const val RED = 0xFFE5484D.toInt()
-private const val DRIVEN = 0xFF3A3E45.toInt()
+private val BG: Int get() = CarTheme.p.bg
+private val CARD: Int get() = CarTheme.p.card
+private val RAISED: Int get() = CarTheme.p.raised
+private val LINE: Int get() = CarTheme.p.line
+private val TEXT: Int get() = CarTheme.p.text
+private val MUTED: Int get() = CarTheme.p.muted
+private val LIME: Int get() = CarTheme.p.accent
+private val ORANGE: Int get() = CarTheme.p.orange
+private val RED: Int get() = CarTheme.p.red
+private val DRIVEN: Int get() = CarTheme.p.driven
 
 /** Fits a route's points into a box, keeping the shape (longitudes squeezed by latitude). */
 private class Fit(lat: DoubleArray, lon: DoubleArray, val box: RectF) {
@@ -106,6 +106,7 @@ class SavedRoutesScreen(ctx: CarContext) : Screen(ctx) {
     }
 
     override fun onGetTemplate(): Template {
+        CarTheme.refresh(carContext)
         val s = CarHub.app(carContext).settings.value
         val saved = SavedRoutes.all(carContext)
         if (saved.isEmpty()) return MessageTemplate.Builder(tr("Plan a trip on your phone and tap Save trip.")).setTitle(tr("Saved routes")).setHeaderAction(Action.BACK).build()
@@ -187,6 +188,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
     private fun paint(c: Canvas, sc: SurfaceContainer) {
         // Sized from both the screen's density and its height, so wide, low car screens (like the E-5008's) get big, readable text.
         val d = maxOf(sc.dpi / 160f * 1.15f, sc.height / 400f)
+        val ink = Ink(d, CarTheme.refresh(carContext))
         fun dp(v: Float) = v * d
         val w = sc.width.toFloat(); val h = sc.height.toFloat()
         c.drawColor(BG)
@@ -210,8 +212,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         val mapBox = if (wide) RectF(card.right + dp(16f), area.top, area.right, area.bottom) else RectF(area.left, card.bottom + dp(12f), area.right, area.bottom)
 
         // ---- card
-        p.style = Paint.Style.FILL; p.color = CARD
-        c.drawRoundRect(card, dp(24f), dp(24f), p)
+        ink.card(c, card, dp(26f))
         val L = card.left + dp(20f); var y = card.top + dp(32f)
         val cw = card.width() - dp(40f)
         text.typeface = bold; text.textSize = dp(15f); text.color = MUTED
@@ -282,13 +283,11 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
         val tlH = dp(64f)
         // The route itself stays clear of the floating buttons; the panel behind it doesn't.
         val routeBox = RectF(mapBox.left + dp(18f), max(mapBox.top + dp(18f), buttonsBottom + dp(6f)), mapBox.right - dp(18f), mapBox.bottom - tlH - dp(18f))
+        ink.card(c, mapBox, dp(26f), CarTheme.p.bg2, pressed = true)
         p.style = Paint.Style.FILL
-        p.shader = LinearGradient(0f, mapBox.top, 0f, mapBox.bottom, 0xFF131518.toInt(), BG, Shader.TileMode.CLAMP)
-        c.drawRoundRect(mapBox, dp(24f), dp(24f), p)
-        p.shader = null
         // A faint dot grid gives the map some depth.
         run {
-            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x14FFFFFF }
+            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (CarTheme.p.dark) 0x14FFFFFF else 0x22000000 }
             val step = dp(22f)
             var gy = mapBox.top + step
             while (gy < mapBox.bottom - dp(8f)) { var gx = mapBox.left + step; while (gx < mapBox.right - dp(8f)) { c.drawCircle(gx, gy, dp(1.2f), dot); gx += step }; gy += step }
@@ -301,7 +300,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             if (at > 0) { p.color = DRIVEN; p.strokeWidth = dp(5f); c.drawPath(path(0, at), p) }
             if (at < r.lat.size - 1) {
                 val ahead = path(at, r.lat.size - 1)
-                p.color = 0x55C6F36B; p.strokeWidth = dp(14f); p.maskFilter = BlurMaskFilter(dp(8f), BlurMaskFilter.Blur.NORMAL); c.drawPath(ahead, p)
+                p.color = CarTheme.p.glow; p.strokeWidth = dp(14f); p.maskFilter = BlurMaskFilter(dp(8f), BlurMaskFilter.Blur.NORMAL); c.drawPath(ahead, p)
                 p.maskFilter = null; p.color = LIME; p.strokeWidth = dp(6f); c.drawPath(ahead, p)
             }
             p.style = Paint.Style.FILL
@@ -332,7 +331,7 @@ class RouteLiveScreen(ctx: CarContext, private val id: Long) : Screen(ctx), Surf
             // the car
             if (st?.lat != null && st.lon != null && live.offRouteKm < 3.0) {
                 val carX = fit.x(r.lat[at], r.lon[at]); val carY = fit.y(r.lat[at])
-                p.color = 0x55FFB547; c.drawCircle(carX, carY, dp(20f), p)
+                p.color = (ORANGE and 0x00FFFFFF) or 0x55000000; c.drawCircle(carX, carY, dp(20f), p)
                 p.color = TEXT; c.drawCircle(carX, carY, dp(11f), p)
                 p.color = ORANGE; c.drawCircle(carX, carY, dp(8f), p)
             }
